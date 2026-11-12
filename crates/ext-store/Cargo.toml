@@ -18,9 +18,6 @@ serde_json.workspace = true
 sha2 = "0.11.1"
 zip = { version = "9.0.4", default-features = false, features = ["deflate"] }
 
-[features]
-# Passes the third-party switch through to the core contract. Off by default; see docs/THREAT-MODEL.md.
-third-party = ["craft-ext-core/third-party"]
 
 [dev-dependencies]
 serde_json.workspace = true

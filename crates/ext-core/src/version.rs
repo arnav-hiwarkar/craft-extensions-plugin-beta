@@ -1,4 +1,5 @@
-//! Versions: plain `major.minor.patch`, no pre-release tags in version 1.
+//! Versions: plain `major.minor.patch` semver for packages (no pre-release tags in the beta), and
+//! simple requirements (`1.2.3`, `^1.2`, `=1.2.3`, `>=1.2.0`, `*`) for dependencies and pins.
 
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -63,6 +64,73 @@ impl<'de> Deserialize<'de> for Version {
     }
 }
 
+/// A version requirement. `^1.2` (and a bare `1.2.3`) means "same major (or same minor while the
+/// major is 0), at least this", which is what semver promises is compatible.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum VersionReq {
+    Any,
+    Exact(Version),
+    AtLeast(Version),
+    Caret(Version),
+}
+
+impl VersionReq {
+    pub fn parse(text: &str) -> Result<Self, VersionError> {
+        let text = text.trim();
+        if text == "*" {
+            return Ok(Self::Any);
+        }
+        let padded = |t: &str| -> Result<Version, VersionError> {
+            match t.split('.').count() {
+                1 => Version::parse(&format!("{t}.0.0")),
+                2 => Version::parse(&format!("{t}.0")),
+                _ => Version::parse(t),
+            }
+        };
+        if let Some(rest) = text.strip_prefix('=') {
+            return Ok(Self::Exact(Version::parse(rest.trim())?));
+        }
+        if let Some(rest) = text.strip_prefix(">=") {
+            return Ok(Self::AtLeast(padded(rest.trim())?));
+        }
+        let rest = text.strip_prefix('^').unwrap_or(text);
+        Ok(Self::Caret(padded(rest.trim())?))
+    }
+
+    pub fn matches(&self, v: Version) -> bool {
+        match *self {
+            Self::Any => true,
+            Self::Exact(e) => v == e,
+            Self::AtLeast(m) => v >= m,
+            Self::Caret(m) => v >= m && if m.major > 0 { v.major == m.major } else { v.major == 0 && v.minor == m.minor },
+        }
+    }
+}
+
+impl fmt::Display for VersionReq {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Any => f.write_str("*"),
+            Self::Exact(v) => write!(f, "={v}"),
+            Self::AtLeast(v) => write!(f, ">={v}"),
+            Self::Caret(v) => write!(f, "^{v}"),
+        }
+    }
+}
+
+impl Serialize for VersionReq {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.collect_str(self)
+    }
+}
+
+impl<'de> Deserialize<'de> for VersionReq {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let text = String::deserialize(d)?;
+        VersionReq::parse(&text).map_err(serde::de::Error::custom)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -99,6 +167,18 @@ mod tests {
         }
         assert_eq!(Version::parse("0.0.0"), Ok(Version::new(0, 0, 0)));
         assert_eq!(Version::parse("4294967295.0.0"), Ok(Version::new(u32::MAX, 0, 0)));
+    }
+
+    #[test]
+    fn requirements() {
+        let v = |t| Version::parse(t).unwrap();
+        let r = |t| VersionReq::parse(t).unwrap();
+        assert!(r("^1.2").matches(v("1.9.0")) && !r("^1.2").matches(v("2.0.0")) && !r("^1.2").matches(v("1.1.9")));
+        assert!(r("1.2.3").matches(v("1.2.4")));
+        assert!(r("^0.3").matches(v("0.3.9")) && !r("^0.3").matches(v("0.4.0")));
+        assert!(r("=1.0.0").matches(v("1.0.0")) && !r("=1.0.0").matches(v("1.0.1")));
+        assert!(r(">=1.0").matches(v("7.0.0")) && r("*").matches(v("0.0.1")));
+        assert!(VersionReq::parse("^x").is_err());
     }
 
     #[test]

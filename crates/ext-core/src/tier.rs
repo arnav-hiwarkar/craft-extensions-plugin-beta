@@ -1,9 +1,12 @@
-//! Trust tiers and the policy that decides which are accepted.
+//! Trust labels. Never read from a package: the host assigns them from where the package came.
 //!
-//! Invariants: the tier is assigned by the host from where a package came, never read from the package.
-//! The third-party tier is refused unless the `third-party` cargo feature is on, and no release build
-//! turns it on until the gates in docs/THREAT-MODEL.md have passed. Only the first-party tier may use
-//! first-party id prefixes, so a file or an outside publisher cannot impersonate or replace one.
+//! - **Official**: vendor flagged official by maintainers in the signed catalogue (ArtCraft org).
+//! - **Verified**: vendor whose identity a maintainer checked (verified GitHub org domain or DNS TXT).
+//! - **Community**: any registered vendor whose listing a maintainer allowed.
+//! - **Local**: installed from a file; not in the catalogue (or digest does not match a listing).
+//! - **Dev**: installed by `craft-ext dev`; only visible in the development store.
+//!
+//! First-party id prefixes may only be used by Official packages, so nobody can impersonate them.
 
 use crate::id::ExtensionId;
 use serde::{Deserialize, Serialize};
@@ -11,113 +14,75 @@ use std::fmt;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
+pub enum VendorTier {
+    Official,
+    Verified,
+    Community,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
 pub enum Tier {
-    /// Built and released by the Craft organisation.
-    FirstParty,
-    /// A file the person added themselves.
-    FromFile,
-    /// An outside publisher reviewed into the catalogue. Closed in release builds.
-    ReviewedThirdParty,
+    Official,
+    Verified,
+    Community,
+    Local,
+    Dev,
+}
+
+impl From<VendorTier> for Tier {
+    fn from(v: VendorTier) -> Self {
+        match v {
+            VendorTier::Official => Tier::Official,
+            VendorTier::Verified => Tier::Verified,
+            VendorTier::Community => Tier::Community,
+        }
+    }
+}
+
+impl Tier {
+    /// Badge text for the manager, launcher and CLI. Never colour alone.
+    pub fn badge(self) -> &'static str {
+        match self {
+            Tier::Official => "Official",
+            Tier::Verified => "✔ Verified vendor",
+            Tier::Community => "Community",
+            Tier::Local => "Not reviewed (local file)",
+            Tier::Dev => "Development",
+        }
+    }
+
+    pub fn from_catalogue(self) -> bool {
+        matches!(self, Tier::Official | Tier::Verified | Tier::Community)
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum TierError {
-    ThirdPartyClosed,
-    ReservedNamespace,
-}
+pub struct ReservedNamespace;
 
-impl fmt::Display for TierError {
+impl fmt::Display for ReservedNamespace {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            TierError::ThirdPartyClosed => "extensions from outside publishers cannot be installed yet",
-            TierError::ReservedNamespace => "the package uses a name that only ArtCraft's own extensions may use",
-        })
+        f.write_str("the package uses a name that only ArtCraft's own plugins may use")
     }
 }
 
-impl std::error::Error for TierError {}
+impl std::error::Error for ReservedNamespace {}
 
-/// What this build accepts. Built only through [`Policy::standard`], so a caller cannot opt in.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Policy {
-    _private: (),
-}
-
-impl Policy {
-    pub fn standard() -> Self {
-        Self { _private: () }
-    }
-
-    /// Whether packages of this tier may be installed by this build.
-    pub fn admit(&self, tier: Tier) -> Result<(), TierError> {
-        match tier {
-            Tier::FirstParty | Tier::FromFile => Ok(()),
-            Tier::ReviewedThirdParty if cfg!(feature = "third-party") => Ok(()),
-            Tier::ReviewedThirdParty => Err(TierError::ThirdPartyClosed),
-        }
-    }
-
-    /// Whether this tier may use this id.
-    pub fn check_id(&self, tier: Tier, id: &ExtensionId) -> Result<(), TierError> {
-        if tier != Tier::FirstParty && id.in_first_party_namespace() {
-            return Err(TierError::ReservedNamespace);
-        }
-        Ok(())
-    }
+/// Only Official packages may use first-party prefixes.
+pub fn check_id(tier: Tier, id: &ExtensionId) -> Result<(), ReservedNamespace> {
+    if id.in_first_party_namespace() && tier != Tier::Official { Err(ReservedNamespace) } else { Ok(()) }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn id(s: &str) -> ExtensionId {
-        ExtensionId::new(s).unwrap()
-    }
-
     #[test]
-    fn first_party_and_files_are_accepted() {
-        let p = Policy::standard();
-        assert_eq!(p.admit(Tier::FirstParty), Ok(()));
-        assert_eq!(p.admit(Tier::FromFile), Ok(()));
-    }
-
-    #[cfg(not(feature = "third-party"))]
-    #[test]
-    fn third_party_is_closed_in_this_build() {
-        assert_eq!(Policy::standard().admit(Tier::ReviewedThirdParty), Err(TierError::ThirdPartyClosed));
-    }
-
-    #[cfg(feature = "third-party")]
-    #[test]
-    fn third_party_is_accepted_only_when_the_feature_is_on() {
-        assert_eq!(Policy::standard().admit(Tier::ReviewedThirdParty), Ok(()));
-    }
-
-    #[test]
-    fn only_first_party_may_use_first_party_names() {
-        let p = Policy::standard();
-        let reserved = id("org.storytold.dark-ocean");
-        assert_eq!(p.check_id(Tier::FirstParty, &reserved), Ok(()));
-        assert_eq!(p.check_id(Tier::FromFile, &reserved), Err(TierError::ReservedNamespace));
-        assert_eq!(p.check_id(Tier::ReviewedThirdParty, &reserved), Err(TierError::ReservedNamespace));
-        let ordinary = id("org.example.dark-ocean");
-        for tier in [Tier::FirstParty, Tier::FromFile, Tier::ReviewedThirdParty] {
-            assert_eq!(p.check_id(tier, &ordinary), Ok(()));
-        }
-    }
-
-    #[test]
-    fn tiers_serialize_as_plain_words() {
-        assert_eq!(serde_json::to_string(&Tier::FirstParty).unwrap(), "\"first-party\"");
-        assert_eq!(serde_json::from_str::<Tier>("\"from-file\"").unwrap(), Tier::FromFile);
-        assert!(serde_json::from_str::<Tier>("\"trusted\"").is_err());
-    }
-
-    #[test]
-    fn messages_are_plain_language() {
-        for e in [TierError::ThirdPartyClosed, TierError::ReservedNamespace] {
-            let text = e.to_string().to_lowercase();
-            assert!(!text.contains("namespace") && !text.contains("tier") && !text.contains("feature"), "{text}");
-        }
+    fn reserved_prefix_needs_official() {
+        let id = ExtensionId::new("org.storytold.tone").unwrap();
+        assert!(check_id(Tier::Official, &id).is_ok());
+        assert!(check_id(Tier::Local, &id).is_err());
+        assert!(check_id(Tier::Verified, &id).is_err());
+        assert!(check_id(Tier::Local, &ExtensionId::new("org.example.tone").unwrap()).is_ok());
     }
 }

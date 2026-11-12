@@ -1,266 +1,415 @@
-//! The package manifest, `craft-extension.json`, read from an untrusted archive.
+//! The package manifest, `craft-plugin.toml`: one human-written file that is both the source manifest
+//! and the manifest inside the package archive (`.craftplugin`, a zip).
 //!
-//! Invariants: the size is capped before anything is parsed; unknown fields are ignored (so a newer
-//! publisher's extra data never breaks an older host) but a package can never state its own trust
-//! tier, because the type has no such field; permissions must be empty in version 1; every file the
-//! package carries is listed with its size and SHA-256, and the list must match what the kind needs.
+//! Invariants: the size is capped before parsing; unknown fields are refused (a typo must not silently
+//! drop a permission); a package never states its own trust tier or catalogue status; every
+//! contribution names a contract; every requested permission parses into the closed vocabulary; the
+//! archive digest (recorded by the store and pinned by the catalogue) binds every byte, so the manifest
+//! carries no file list.
 
-use crate::id::{AppId, ExtensionId, IdError};
-use crate::path::{PathError, validate_all};
-use crate::text::{Lines, TextError, validate_text};
-use crate::version::Version;
+use crate::contract::ContractRef;
+use crate::id::{AppId, ExtensionId};
+use crate::path::validate_path;
+use crate::permission::Permission;
+use crate::text::{Lines, validate_text};
+use crate::version::{Version, VersionReq};
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
-pub const MANIFEST_NAME: &str = "craft-extension.json";
-pub const MAX_MANIFEST_BYTES: usize = 64 * 1024;
-pub const SCHEMA: u32 = 1;
-pub const THEME_FILE: &str = "theme.json";
-pub const PLUGIN_FILE: &str = "plugin.wasm";
+pub const MANIFEST_NAME: &str = "craft-plugin.toml";
+pub const PACKAGE_EXTENSION: &str = "craftplugin";
+pub const MAX_MANIFEST_BYTES: usize = 128 * 1024;
+pub const SCHEMA: u32 = 2;
 pub const MAX_APPS: usize = 32;
+pub const MAX_CONTRIBUTIONS: usize = 128;
+pub const MAX_PARAMS: usize = 64;
 
+/// What a contribution adds.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum Kind {
+#[serde(rename_all = "kebab-case")]
+pub enum ContributionKind {
+    /// Pixel transform: an effect (EffectCraft), filter (PhotoCraft), image fill (FigCraft).
+    Effect,
+    /// A command in menus and command search; runs session code.
+    Command,
+    /// A dockable panel drawn by the host from a declarative tree.
+    Panel,
+    /// A pointer tool (begin, update, commit, cancel).
+    Tool,
+    /// Code that reacts to app events (needs `app.events`).
+    EventHook,
+    /// Data: no code runs.
+    Preset,
+    Lut,
+    Font,
     Theme,
-    Plugin,
-    Resource,
+    Data,
 }
 
-/// Size limits that depend on what the package is.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Limits {
-    pub max_files: usize,
-    pub max_file: u64,
-    pub max_total: u64,
-}
+impl ContributionKind {
+    pub fn is_data(self) -> bool {
+        matches!(self, Self::Preset | Self::Lut | Self::Font | Self::Theme | Self::Data)
+    }
 
-impl Kind {
-    pub fn limits(self) -> Limits {
+    pub fn label(self) -> &'static str {
         match self {
-            Kind::Theme => Limits { max_files: 1, max_file: 64 * 1024, max_total: 64 * 1024 },
-            Kind::Plugin => Limits { max_files: 1, max_file: 32 * 1024 * 1024, max_total: 32 * 1024 * 1024 },
-            Kind::Resource => Limits { max_files: 512, max_file: 64 * 1024 * 1024, max_total: 256 * 1024 * 1024 },
+            Self::Effect => "Effect",
+            Self::Command => "Command",
+            Self::Panel => "Panel",
+            Self::Tool => "Tool",
+            Self::EventHook => "Automation",
+            Self::Preset => "Presets",
+            Self::Lut => "LUTs",
+            Self::Font => "Fonts",
+            Self::Theme => "Theme",
+            Self::Data => "Data",
         }
     }
 }
 
-/// Who the package says made it. A claim, never proof; trust comes from the tier the host assigns.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Publisher {
-    pub name: String,
+/// An effect or command parameter. The host draws the control, animates it and saves it.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "kebab-case")]
+pub enum ParamKind {
+    Slider {
+        default: f64,
+        min: f64,
+        max: f64,
+        #[serde(default)]
+        integer: bool,
+    },
+    Angle {
+        #[serde(default)]
+        default: f64,
+    },
+    Checkbox {
+        #[serde(default)]
+        default: bool,
+    },
+    Select {
+        options: Vec<String>,
+        #[serde(default)]
+        default: u32,
+    },
+    Color {
+        #[serde(default = "white")]
+        default: [f64; 4],
+    },
+    Point {
+        #[serde(default)]
+        default: [f64; 2],
+    },
+    Text {
+        #[serde(default)]
+        default: String,
+    },
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Compat {
-    /// Oldest app version the package works with.
+fn white() -> [f64; 4] {
+    [1.0, 1.0, 1.0, 1.0]
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+/// (Unknown keys inside a parameter are ignored: serde cannot refuse them through `flatten`.)
+pub struct Param {
+    pub id: String,
+    pub label: String,
+    #[serde(flatten)]
+    pub kind: ParamKind,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Contribution {
+    pub id: String,
+    pub kind: ContributionKind,
+    pub contract: ContractRef,
+    pub label: String,
+    /// The wasm module (sandboxed) for code kinds; ignored for native packages.
     #[serde(default)]
-    pub min_app: Option<Version>,
-    /// Plug-in interface version the module was built for. Required for plug-ins, refused otherwise.
+    pub module: Option<String>,
+    /// Data files for data kinds (relative paths inside the package).
     #[serde(default)]
-    pub interface: Option<u32>,
+    pub files: Vec<String>,
+    /// Menu group / category, e.g. "Stylize".
+    #[serde(default)]
+    pub category: Option<String>,
+    /// Restrict to these apps (default: every app listed under `[apps]` that provides the contract).
+    #[serde(default)]
+    pub apps: Vec<AppId>,
+    /// Permissions this contribution cannot work without (granted before it can be enabled).
+    #[serde(default)]
+    pub permissions: Vec<Permission>,
+    /// Permissions it can use when the person turns them on; off by default.
+    #[serde(default)]
+    pub optional_permissions: Vec<Permission>,
+    /// Version of the state this contribution saves in projects; bump when the shape changes.
+    #[serde(default)]
+    pub state_version: u32,
+    #[serde(default, rename = "param")]
+    pub params: Vec<Param>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct FileEntry {
-    pub path: String,
-    /// Lowercase hex SHA-256 of the file.
-    pub sha256: String,
-    pub size: u64,
+impl Contribution {
+    /// Whether this contribution affects rendered output (exports refuse while it is missing).
+    pub fn renders(&self) -> bool {
+        self.kind == ContributionKind::Effect
+    }
 }
 
-/// Where the code came from: a source repository and the exact commit.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Provenance {
-    pub source: String,
-    pub commit: String,
+/// How a native package starts its helper, per platform (`linux-x86_64`, `macos-aarch64`, `windows-x86_64` …).
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Native {
+    pub executables: BTreeMap<String, String>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Manifest {
     pub schema: u32,
     pub id: ExtensionId,
     pub name: String,
     pub version: Version,
-    pub kind: Kind,
-    pub publisher: Publisher,
+    /// SPDX licence expression.
+    pub license: String,
+    /// Public source repository (https).
+    pub source: String,
+    pub summary: String,
     #[serde(default)]
     pub description: String,
-    pub compat: BTreeMap<AppId, Compat>,
-    pub files: Vec<FileEntry>,
     #[serde(default)]
-    pub permissions: Vec<String>,
+    pub authors: Vec<String>,
     #[serde(default)]
-    pub provenance: Option<Provenance>,
+    pub tags: Vec<String>,
+    /// Present = out-of-process native plugin with full access.
+    #[serde(default)]
+    pub native: Option<Native>,
+    /// Apps this package supports. Each contribution's contract decides where it actually works.
+    pub apps: Vec<AppId>,
+    /// The author's reason for a permission, quoted under the host's own sentence. Keyed by permission text.
+    #[serde(default)]
+    pub why: BTreeMap<String, String>,
+    /// Data packages this one needs (id -> version requirement).
+    #[serde(default)]
+    pub requires: BTreeMap<ExtensionId, VersionReq>,
+    #[serde(default, rename = "contribution")]
+    pub contributions: Vec<Contribution>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum ManifestError {
-    TooLarge,
-    NotReadable,
-    UnsupportedSchema(u32),
-    Id(IdError),
-    Name(TextError),
-    Description(TextError),
-    Publisher(TextError),
-    NoApps,
-    TooManyApps,
-    BadCompat,
-    TooManyFiles,
-    FileTooBig,
-    TotalTooBig,
-    BadHash,
-    Files(PathError),
-    MissingRequiredFile,
-    PermissionsNotEmpty,
-    BadProvenance,
-}
+pub struct ManifestError(pub String);
 
 impl fmt::Display for ManifestError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            ManifestError::TooLarge => f.write_str("the package description is too large"),
-            ManifestError::NotReadable => f.write_str("the package description cannot be read"),
-            ManifestError::UnsupportedSchema(n) => write!(f, "the package uses a format version ({n}) this app does not know"),
-            ManifestError::Id(e) => write!(f, "the package id is not valid: {e}"),
-            ManifestError::Name(e) => write!(f, "the package name is not valid: {e}"),
-            ManifestError::Description(e) => write!(f, "the package description text is not valid: {e}"),
-            ManifestError::Publisher(e) => write!(f, "the publisher name is not valid: {e}"),
-            ManifestError::NoApps => f.write_str("the package does not say which apps it is for"),
-            ManifestError::TooManyApps => f.write_str("the package lists too many apps"),
-            ManifestError::BadCompat => f.write_str("the package's app requirements are not valid for this kind of package"),
-            ManifestError::TooManyFiles => f.write_str("the package holds too many files"),
-            ManifestError::FileTooBig => f.write_str("a file in the package is too big"),
-            ManifestError::TotalTooBig => f.write_str("the package is too big"),
-            ManifestError::BadHash => f.write_str("a file's checksum is not valid"),
-            ManifestError::Files(e) => write!(f, "{e}"),
-            ManifestError::MissingRequiredFile => f.write_str("the package is missing a file it needs"),
-            ManifestError::PermissionsNotEmpty => f.write_str("the package asks for permissions, which are not available yet"),
-            ManifestError::BadProvenance => f.write_str("the package's source details are not valid"),
-        }
+        f.write_str(&self.0)
     }
 }
 
 impl std::error::Error for ManifestError {}
 
-#[derive(Deserialize)]
-struct Head {
-    schema: u32,
+fn err<T>(msg: impl Into<String>) -> Result<T, ManifestError> {
+    Err(ManifestError(msg.into()))
+}
+
+fn local_id(id: &str) -> bool {
+    !id.is_empty() && id.len() <= 48 && id.starts_with(|c: char| c.is_ascii_lowercase()) && id.chars().all(|c| matches!(c, 'a'..='z' | '0'..='9' | '-' | '_'))
 }
 
 impl Manifest {
+    /// Parses and validates untrusted manifest bytes.
     pub fn parse(bytes: &[u8]) -> Result<Self, ManifestError> {
         if bytes.len() > MAX_MANIFEST_BYTES {
-            return Err(ManifestError::TooLarge);
+            return err("the package description is too large");
         }
-        // Read the schema alone first, so a newer package is refused for being newer, not for a field
-        // or a kind this host has never heard of.
-        let head: Head = serde_json::from_slice(bytes).map_err(|_| ManifestError::NotReadable)?;
+        let text = std::str::from_utf8(bytes).map_err(|_| ManifestError("the package description is not text".into()))?;
+        #[derive(Deserialize)]
+        struct Head {
+            schema: u32,
+        }
+        // Schema first, so a newer package is refused for being newer rather than for a field.
+        let head: Head = toml::from_str::<toml::Table>(text)
+            .ok()
+            .and_then(|t| t.get("schema").cloned())
+            .and_then(|v| v.try_into().ok())
+            .map(|schema| Head { schema })
+            .ok_or_else(|| ManifestError("the package description has no schema number".into()))?;
         if head.schema != SCHEMA {
-            return Err(ManifestError::UnsupportedSchema(head.schema));
+            return err(format!("the package uses format {}; this app understands format {SCHEMA}", head.schema));
         }
-        let manifest: Manifest = serde_json::from_slice(bytes).map_err(|_| ManifestError::NotReadable)?;
-        manifest.validate()?;
-        Ok(manifest)
+        let m: Manifest = toml::from_str(text).map_err(|e| ManifestError(format!("the package description is not valid: {}", e.message())))?;
+        m.validate()?;
+        Ok(m)
     }
 
-    fn validate(&self) -> Result<(), ManifestError> {
-        validate_text(&self.name, 64, Lines::One).map_err(ManifestError::Name)?;
+    pub fn validate(&self) -> Result<(), ManifestError> {
+        let t = |what: &str, s: &str, n: usize, l: Lines| validate_text(s, n, l).map_err(|e| ManifestError(format!("{what}: {e}")));
+        t("name", &self.name, 64, Lines::One)?;
+        t("summary", &self.summary, 140, Lines::One)?;
         if !self.description.is_empty() {
-            validate_text(&self.description, 500, Lines::Many).map_err(ManifestError::Description)?;
+            t("description", &self.description, 4000, Lines::Many)?;
         }
-        validate_text(&self.publisher.name, 64, Lines::One).map_err(ManifestError::Publisher)?;
-        if !self.permissions.is_empty() {
-            return Err(ManifestError::PermissionsNotEmpty);
+        if self.license.trim().is_empty() || self.license.len() > 128 {
+            return err("the licence is missing");
         }
-        self.validate_compat()?;
-        self.validate_files()?;
-        if let Some(p) = &self.provenance {
-            validate_provenance(p)?;
+        if !self.source.starts_with("https://") || self.source.len() > 256 || self.source.contains(char::is_whitespace) {
+            return err("the source must be an https link to the public repository");
         }
-        Ok(())
-    }
-
-    fn validate_compat(&self) -> Result<(), ManifestError> {
-        if self.compat.is_empty() {
-            return Err(ManifestError::NoApps);
+        if self.apps.is_empty() {
+            return err("the package does not say which apps it is for");
         }
-        if self.compat.len() > MAX_APPS {
-            return Err(ManifestError::TooManyApps);
+        if self.apps.len() > MAX_APPS || self.contributions.len() > MAX_CONTRIBUTIONS || self.tags.len() > 8 || self.authors.len() > 16 {
+            return err("the package lists too many items");
         }
-        for compat in self.compat.values() {
-            let ok = match (self.kind, compat.interface) {
-                (Kind::Plugin, Some(n)) => n >= 1,
-                (Kind::Plugin, None) => false,
-                (_, interface) => interface.is_none(),
-            };
-            if !ok {
-                return Err(ManifestError::BadCompat);
+        if self.contributions.is_empty() {
+            return err("the package contributes nothing");
+        }
+        if self.native.as_ref().is_some_and(|n| n.executables.is_empty()) {
+            return err("a native package must name its helper executable");
+        }
+        for path in self.native.iter().flat_map(|n| n.executables.values()) {
+            validate_path(path).map_err(|e| ManifestError(e.to_string()))?;
+        }
+        let mut seen = BTreeSet::new();
+        for c in &self.contributions {
+            if !local_id(&c.id) || !seen.insert(c.id.as_str()) {
+                return err(format!("contribution id \"{}\" is invalid or repeated", c.id));
+            }
+            t("contribution label", &c.label, 64, Lines::One)?;
+            for app in &c.apps {
+                if !self.apps.contains(app) {
+                    return err(format!("contribution {} names app {app}, which is not under [apps]", c.id));
+                }
+            }
+            let needs_code = !c.kind.is_data();
+            match (needs_code, &c.module, self.native.is_some()) {
+                (true, None, false) => return err(format!("contribution {} needs a module", c.id)),
+                (false, Some(_), _) => return err(format!("data contribution {} cannot have code", c.id)),
+                _ => {}
+            }
+            if c.kind.is_data() && c.files.is_empty() {
+                return err(format!("data contribution {} lists no files", c.id));
+            }
+            for p in c.module.iter().chain(c.files.iter()) {
+                validate_path(p).map_err(|e| ManifestError(format!("{}: {e}", c.id)))?;
+            }
+            if c.params.len() > MAX_PARAMS {
+                return err(format!("contribution {} has too many parameters", c.id));
+            }
+            let mut pids = BTreeSet::new();
+            for p in &c.params {
+                if !local_id(&p.id) || !pids.insert(p.id.as_str()) {
+                    return err(format!("parameter id \"{}\" is invalid or repeated", p.id));
+                }
+                t("parameter label", &p.label, 64, Lines::One)?;
+                if let ParamKind::Slider { default, min, max, .. } = p.kind
+                    && !(min.is_finite() && max.is_finite() && min < max && (min..=max).contains(&default))
+                {
+                    return err(format!("parameter {} has an invalid range", p.id));
+                }
+                if let ParamKind::Select { options, default } = &p.kind
+                    && (options.is_empty() || options.len() > 64 || *default as usize >= options.len())
+                {
+                    return err(format!("parameter {} has invalid options", p.id));
+                }
+            }
+        }
+        if self.native.is_some() && self.contributions.iter().any(|c| c.kind == ContributionKind::Effect) {
+            return err("native packages cannot contribute effects in this version (use a sandboxed module)");
+        }
+        let mut apps = BTreeSet::new();
+        if !self.apps.iter().all(|a| apps.insert(a)) {
+            return err("an app is listed twice");
+        }
+        for key in self.why.keys() {
+            if !self.contributions.iter().flat_map(|c| c.permissions.iter().chain(c.optional_permissions.iter())).any(|p| p.to_string() == *key) {
+                return err(format!("a reason is given for \"{key}\", which is not requested"));
             }
         }
         Ok(())
     }
 
-    fn validate_files(&self) -> Result<(), ManifestError> {
-        let limits = self.kind.limits();
-        if self.files.is_empty() {
-            return Err(ManifestError::MissingRequiredFile);
+    pub fn is_native(&self) -> bool {
+        self.native.is_some()
+    }
+
+    pub fn contribution(&self, id: &str) -> Option<&Contribution> {
+        self.contributions.iter().find(|c| c.id == id)
+    }
+
+    /// Contributions offered to `app` (before contract checks).
+    pub fn contributions_for<'a>(&'a self, app: &'a AppId) -> impl Iterator<Item = &'a Contribution> + 'a {
+        self.contributions.iter().filter(move |c| self.apps.contains(app) && (c.apps.is_empty() || c.apps.contains(app)))
+    }
+
+    /// Whether the package runs any code at all (sandboxed or native).
+    pub fn has_code(&self) -> bool {
+        self.native.is_some() || self.contributions.iter().any(|c| !c.kind.is_data())
+    }
+
+    /// Permissions (required, optional) for a set of enabled contributions in one app: the union.
+    pub fn permissions_for<'a>(&self, app: &AppId, enabled: impl Fn(&str) -> bool) -> (Vec<Permission>, Vec<Permission>) {
+        let mut req = BTreeSet::new();
+        let mut opt = BTreeSet::new();
+        for c in self.contributions_for(app).filter(|c| enabled(&c.id)) {
+            req.extend(c.permissions.iter().cloned());
+            opt.extend(c.optional_permissions.iter().cloned());
         }
-        if self.files.len() > limits.max_files {
-            return Err(ManifestError::TooManyFiles);
+        opt.retain(|p| !req.contains(p));
+        (req.into_iter().collect(), opt.into_iter().collect())
+    }
+
+    pub fn to_toml(&self) -> String {
+        toml::to_string_pretty(self).unwrap_or_default()
+    }
+}
+
+/// Per-app compatibility of one package release.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "state", rename_all = "kebab-case")]
+pub enum Compat {
+    Compatible,
+    /// Some contributions work; the others are listed with the reason.
+    Partly { unavailable: Vec<(String, String)> },
+    Incompatible { reasons: Vec<String> },
+}
+
+impl Compat {
+    pub fn usable(&self) -> bool {
+        !matches!(self, Compat::Incompatible { .. })
+    }
+}
+
+impl Manifest {
+    /// Decides compatibility with one app from the contracts it provides, contribution by
+    /// contribution. Never a silent half-load.
+    pub fn compat(&self, app: &AppId, provided: &crate::contract::Provided) -> Compat {
+        if !self.apps.contains(app) {
+            return Compat::Incompatible { reasons: vec![format!("this plugin does not support {app}")] };
         }
-        let mut total: u64 = 0;
-        for file in &self.files {
-            if !is_sha256_hex(&file.sha256) {
-                return Err(ManifestError::BadHash);
+        let mut ok = 0usize;
+        let mut unavailable = Vec::new();
+        for c in self.contributions_for(app) {
+            match c.contract.check(provided) {
+                Some(u) => unavailable.push((c.id.clone(), u.to_string())),
+                None => ok += 1,
             }
-            if file.size > limits.max_file {
-                return Err(ManifestError::FileTooBig);
+        }
+        if ok == 0 {
+            let mut reasons: Vec<String> = unavailable.into_iter().map(|(_, w)| w).collect();
+            reasons.dedup();
+            if reasons.is_empty() {
+                reasons.push(format!("nothing in this plugin is for {app}"));
             }
-            total = total.saturating_add(file.size);
+            Compat::Incompatible { reasons }
+        } else if unavailable.is_empty() {
+            Compat::Compatible
+        } else {
+            Compat::Partly { unavailable }
         }
-        if total > limits.max_total {
-            return Err(ManifestError::TotalTooBig);
-        }
-        validate_all(self.files.iter().map(|f| f.path.as_str())).map_err(ManifestError::Files)?;
-        let required = match self.kind {
-            Kind::Theme => Some(THEME_FILE),
-            Kind::Plugin => Some(PLUGIN_FILE),
-            Kind::Resource => None,
-        };
-        if required.is_some_and(|name| self.file(name).is_none()) {
-            return Err(ManifestError::MissingRequiredFile);
-        }
-        Ok(())
     }
-
-    pub fn file(&self, path: &str) -> Option<&FileEntry> {
-        self.files.iter().find(|f| f.path == path)
-    }
-}
-
-pub(crate) fn is_sha256_hex(text: &str) -> bool {
-    text.len() == 64 && text.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
-}
-
-fn validate_provenance(p: &Provenance) -> Result<(), ManifestError> {
-    let commit_ok = p.commit.len() == 40 && p.commit.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'));
-    if !valid_https_url(&p.source, 200) || !commit_ok {
-        return Err(ManifestError::BadProvenance);
-    }
-    Ok(())
-}
-
-/// A plain `https://host/path` address: printable ASCII, no spaces, no user name or password, a host
-/// present, bounded length.
-pub(crate) fn valid_https_url(url: &str, max_len: usize) -> bool {
-    let Some(rest) = url.strip_prefix("https://") else {
-        return false;
-    };
-    let authority = rest.split('/').next().unwrap_or("");
-    url.len() <= max_len && url.bytes().all(|b| b.is_ascii_graphic()) && !authority.is_empty() && !authority.contains('@')
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
