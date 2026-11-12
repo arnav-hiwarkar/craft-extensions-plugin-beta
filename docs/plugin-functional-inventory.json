@@ -1,0 +1,572 @@
+{
+  "recorded": "2026-11-08",
+  "scope": "Source discovery and selected contract tracing. Recorded files include entry points and supporting definitions; not every code path was traced. No runtime acceptance or proof of absent plugin support.",
+  "apps": [
+    {
+      "app": "effectcraft",
+      "revision": "ce9eaec65015a5508c72af0e2351cd02612c9450",
+      "github_repository": "arnav-hiwarkar/effectcraft",
+      "entry_sources": [
+        "crates/engine/src/lib.rs",
+        "apps/effectcraft-cli/src/main.rs",
+        "crates/plugin/src/lib.rs"
+      ],
+      "entry_sources_modified": false,
+      "recorded_sources": [
+        {
+          "path": "crates/engine/src/lib.rs",
+          "sha256": "2df4de4438953c876d9a2d04735c4ecdbaebc4544fde41f9b0408382419b2567",
+          "modified": false,
+          "url": "https://github.com/arnav-hiwarkar/effectcraft/blob/ce9eaec65015a5508c72af0e2351cd02612c9450/crates/engine/src/lib.rs"
+        },
+        {
+          "path": "apps/effectcraft-cli/src/main.rs",
+          "sha256": "cdc1dfce97b1d70408ee1d8e88856fd131277cb2ff653a403bacc4f5506a1aa0",
+          "modified": false,
+          "url": "https://github.com/arnav-hiwarkar/effectcraft/blob/ce9eaec65015a5508c72af0e2351cd02612c9450/apps/effectcraft-cli/src/main.rs"
+        },
+        {
+          "path": "crates/plugin/src/lib.rs",
+          "sha256": "d32600baa20a0a78685ce0d8e24dc7470611bb0f94578570ec0602cf86914b43",
+          "modified": false,
+          "url": "https://github.com/arnav-hiwarkar/effectcraft/blob/ce9eaec65015a5508c72af0e2351cd02612c9450/crates/plugin/src/lib.rs"
+        },
+        {
+          "path": "crates/host/src/lib.rs",
+          "sha256": "ad3e26e1d6d1def26a36745269f3d9847c91dfb67d9c3925c0f102e7263c37c8",
+          "modified": false,
+          "url": "https://github.com/arnav-hiwarkar/effectcraft/blob/ce9eaec65015a5508c72af0e2351cd02612c9450/crates/host/src/lib.rs"
+        },
+        {
+          "path": "crates/effects/src/plugin.rs",
+          "sha256": "d6dc325aba0747f5655db4acab4eb1942e116632bd6e454f2d9422e2a44b678c",
+          "modified": false,
+          "url": "https://github.com/arnav-hiwarkar/effectcraft/blob/ce9eaec65015a5508c72af0e2351cd02612c9450/crates/effects/src/plugin.rs"
+        },
+        {
+          "path": "crates/helper-host/src/lib.rs",
+          "sha256": "73a291c5e83b7a071bdac79c4384cc47e8a25d23418c67ff6930bf26c9212fbc",
+          "modified": false,
+          "url": "https://github.com/arnav-hiwarkar/effectcraft/blob/ce9eaec65015a5508c72af0e2351cd02612c9450/crates/helper-host/src/lib.rs"
+        },
+        {
+          "path": "crates/helper-host/src/protocol.rs",
+          "sha256": "7ccdadad1617c6e239232dce71c82978fbba92796fff2d58d4d6d6d2bf18082f",
+          "modified": false,
+          "url": "https://github.com/arnav-hiwarkar/effectcraft/blob/ce9eaec65015a5508c72af0e2351cd02612c9450/crates/helper-host/src/protocol.rs"
+        }
+      ]
+    },
+    {
+      "app": "figcraft",
+      "revision": "0e86f3597a7443b15c93ec3ab2091202f8802c95",
+      "github_repository": "storytold/figcraft",
+      "entry_sources": [
+        "crates/engine/src/lib.rs",
+        "apps/figcraft-cli/src/main.rs",
+        "crates/plugin/src/lib.rs"
+      ],
+      "entry_sources_modified": false,
+      "recorded_sources": [
+        {
+          "path": "crates/engine/src/lib.rs",
+          "sha256": "2e5765716f7c82a94b2fa930a93e3350416071fb260c30cf32304bf2d220b73f",
+          "modified": false,
+          "url": "https://github.com/storytold/figcraft/blob/0e86f3597a7443b15c93ec3ab2091202f8802c95/crates/engine/src/lib.rs"
+        },
+        {
+          "path": "apps/figcraft-cli/src/main.rs",
+          "sha256": "abdd184443adb957d32d1af2de9d787d4b184f2771835dfb79d4e8dd498d1245",
+          "modified": false,
+          "url": "https://github.com/storytold/figcraft/blob/0e86f3597a7443b15c93ec3ab2091202f8802c95/apps/figcraft-cli/src/main.rs"
+        },
+        {
+          "path": "crates/plugin/src/lib.rs",
+          "sha256": "444dc0d46f673e8a781b42d03d480b957e6e97f6438d390ac20fcf57993c36cb",
+          "modified": false,
+          "url": "https://github.com/storytold/figcraft/blob/0e86f3597a7443b15c93ec3ab2091202f8802c95/crates/plugin/src/lib.rs"
+        },
+        {
+          "path": "crates/mcp/src/headless.rs",
+          "sha256": "fe271fcd143f9baccded59ee5771492b32f272e60d1782076db903ecf6d15c1b",
+          "modified": false,
+          "url": "https://github.com/storytold/figcraft/blob/0e86f3597a7443b15c93ec3ab2091202f8802c95/crates/mcp/src/headless.rs"
+        },
+        {
+          "path": "apps/figcraft-cli/src/files.rs",
+          "sha256": "26091313a4b9f546c36a618b56e4a6a5ffbfc265af2449dd7c6cced9782fd4df",
+          "modified": false,
+          "url": "https://github.com/storytold/figcraft/blob/0e86f3597a7443b15c93ec3ab2091202f8802c95/apps/figcraft-cli/src/files.rs"
+        },
+        {
+          "path": "crates/engine/src/extensions/plugins.rs",
+          "sha256": "d17694f8e3b6ee28005d4d36def172219eaaca9d260a81300bdbcd227048f712",
+          "modified": false,
+          "url": "https://github.com/storytold/figcraft/blob/0e86f3597a7443b15c93ec3ab2091202f8802c95/crates/engine/src/extensions/plugins.rs"
+        },
+        {
+          "path": "crates/plugin/src/sandbox.rs",
+          "sha256": "72f32cdcad1b46d5e296446c84c9394554560c020dd6707e6a00163c7b32a3d9",
+          "modified": false,
+          "url": "https://github.com/storytold/figcraft/blob/0e86f3597a7443b15c93ec3ab2091202f8802c95/crates/plugin/src/sandbox.rs"
+        }
+      ]
+    },
+    {
+      "app": "photocraft",
+      "revision": "655295b2a2c400bded0640f5d97367000a057b2e",
+      "github_repository": "storytold/photocraft",
+      "entry_sources": [
+        "crates/engine/src/lib.rs",
+        "apps/photocraft-cli/src/main.rs",
+        "crates/plugins/src/lib.rs"
+      ],
+      "entry_sources_modified": false,
+      "recorded_sources": [
+        {
+          "path": "crates/engine/src/lib.rs",
+          "sha256": "b4e340f58119239639b711b005c2274d006eb077adf22ef00fe128b3cf516b7c",
+          "modified": false,
+          "url": "https://github.com/storytold/photocraft/blob/655295b2a2c400bded0640f5d97367000a057b2e/crates/engine/src/lib.rs"
+        },
+        {
+          "path": "apps/photocraft-cli/src/main.rs",
+          "sha256": "ce60b9f71044df65ea8b71ac5bb064eaec87c28be5fe1629b5b3c29a493e6df3",
+          "modified": false,
+          "url": "https://github.com/storytold/photocraft/blob/655295b2a2c400bded0640f5d97367000a057b2e/apps/photocraft-cli/src/main.rs"
+        },
+        {
+          "path": "crates/plugins/src/lib.rs",
+          "sha256": "d8b889fd0c8649c9f1a4e76e428ca6b74cd0c39110144e031e1b7662e89ef129",
+          "modified": false,
+          "url": "https://github.com/storytold/photocraft/blob/655295b2a2c400bded0640f5d97367000a057b2e/crates/plugins/src/lib.rs"
+        },
+        {
+          "path": "crates/plugins/src/apply.rs",
+          "sha256": "778d28e5ac36663dc49de493859d72bf50e0205641ad9f8a64011d97ecf55e13",
+          "modified": false,
+          "url": "https://github.com/storytold/photocraft/blob/655295b2a2c400bded0640f5d97367000a057b2e/crates/plugins/src/apply.rs"
+        },
+        {
+          "path": "crates/plugins/src/runtime.rs",
+          "sha256": "0d49f209239b2426fae8bc3647890885a16316c4d7755c9bb0914115a1c27606",
+          "modified": false,
+          "url": "https://github.com/storytold/photocraft/blob/655295b2a2c400bded0640f5d97367000a057b2e/crates/plugins/src/runtime.rs"
+        },
+        {
+          "path": "crates/plugins/src/manifest.rs",
+          "sha256": "fd1a04ce08817a561d0c453f64d272fd0ef3930aa6b21e2e8e9a295d7d7e5c31",
+          "modified": false,
+          "url": "https://github.com/storytold/photocraft/blob/655295b2a2c400bded0640f5d97367000a057b2e/crates/plugins/src/manifest.rs"
+        },
+        {
+          "path": "crates/automation/src/headless.rs",
+          "sha256": "f7fe1f2b401fe85537afe278ca345811dc0a20fa37ef455e1cf7badeef91948d",
+          "modified": false,
+          "url": "https://github.com/storytold/photocraft/blob/655295b2a2c400bded0640f5d97367000a057b2e/crates/automation/src/headless.rs"
+        },
+        {
+          "path": "apps/photocraft-cli/src/lib.rs",
+          "sha256": "e21ce67b44ff9bbbd8cc28e8a9a340e5c590c9ef55cfde36ef462eeb3f99f769",
+          "modified": false,
+          "url": "https://github.com/storytold/photocraft/blob/655295b2a2c400bded0640f5d97367000a057b2e/apps/photocraft-cli/src/lib.rs"
+        }
+      ]
+    },
+    {
+      "app": "vectorcraft",
+      "revision": "065a646799f1f20f5454845d6648e09a5252c452",
+      "github_repository": "storytold/vectorcraft",
+      "entry_sources": [
+        "crates/engine/src/lib.rs",
+        "apps/vectorcraft-cli/src/main.rs",
+        "crates/plugins/src/lib.rs"
+      ],
+      "entry_sources_modified": false,
+      "recorded_sources": [
+        {
+          "path": "crates/engine/src/lib.rs",
+          "sha256": "c294fcde73b19084dcb93b1aabd9f70bba4b6c54be16399d21f71dcc1903d8eb",
+          "modified": false,
+          "url": "https://github.com/storytold/vectorcraft/blob/065a646799f1f20f5454845d6648e09a5252c452/crates/engine/src/lib.rs"
+        },
+        {
+          "path": "apps/vectorcraft-cli/src/main.rs",
+          "sha256": "95ca0d7dd371a94348deba27cbf08173e5142c4016c772aad3af5e4e8d819ca5",
+          "modified": false,
+          "url": "https://github.com/storytold/vectorcraft/blob/065a646799f1f20f5454845d6648e09a5252c452/apps/vectorcraft-cli/src/main.rs"
+        },
+        {
+          "path": "crates/plugins/src/lib.rs",
+          "sha256": "d7c1f087ec7642e4b393a459bfb231366b763f89916ea9e0ddf949eb3ef76b00",
+          "modified": false,
+          "url": "https://github.com/storytold/vectorcraft/blob/065a646799f1f20f5454845d6648e09a5252c452/crates/plugins/src/lib.rs"
+        },
+        {
+          "path": "crates/plugins/src/objects.rs",
+          "sha256": "845cc496004fa856331d5f37364cd74b66768bce112e40a3675dea4321e7684d",
+          "modified": false,
+          "url": "https://github.com/storytold/vectorcraft/blob/065a646799f1f20f5454845d6648e09a5252c452/crates/plugins/src/objects.rs"
+        },
+        {
+          "path": "crates/plugins/src/effect.rs",
+          "sha256": "215ece3214fd997574ed5aca159be595897bceb5f1bc9f1404798255a62abfca",
+          "modified": false,
+          "url": "https://github.com/storytold/vectorcraft/blob/065a646799f1f20f5454845d6648e09a5252c452/crates/plugins/src/effect.rs"
+        },
+        {
+          "path": "crates/plugins/src/export.rs",
+          "sha256": "cca46e5a80f7c028328d7fce4d5ac10a25c42057b1315c607346fb743ba6a355",
+          "modified": false,
+          "url": "https://github.com/storytold/vectorcraft/blob/065a646799f1f20f5454845d6648e09a5252c452/crates/plugins/src/export.rs"
+        }
+      ]
+    },
+    {
+      "app": "filmcraft",
+      "revision": "32749e34f611735460e9773335345db026b7b037",
+      "github_repository": "storytold/filmcraft",
+      "entry_sources": [
+        "crates/engine/src/lib.rs",
+        "apps/filmcraft-cli/src/main.rs"
+      ],
+      "entry_sources_modified": false,
+      "recorded_sources": [
+        {
+          "path": "crates/engine/src/lib.rs",
+          "sha256": "dc7f021ec49a4115ebe758e317e1a65a7d3ec37a0bf22595a47a8ca6a3957f97",
+          "modified": false,
+          "url": "https://github.com/storytold/filmcraft/blob/32749e34f611735460e9773335345db026b7b037/crates/engine/src/lib.rs"
+        },
+        {
+          "path": "apps/filmcraft-cli/src/main.rs",
+          "sha256": "98bc0cc815abc122d47bda874d3b742b1d4803d0dca0a6ecefb1dc38e71f5d4e",
+          "modified": false,
+          "url": "https://github.com/storytold/filmcraft/blob/32749e34f611735460e9773335345db026b7b037/apps/filmcraft-cli/src/main.rs"
+        },
+        {
+          "path": "crates/engine/src/settings/prefs.rs",
+          "sha256": "e2af6528b3139b22db9d08c3ffe703cec8d27b786954323e9f873bec4032a777",
+          "modified": false,
+          "url": "https://github.com/storytold/filmcraft/blob/32749e34f611735460e9773335345db026b7b037/crates/engine/src/settings/prefs.rs"
+        }
+      ]
+    },
+    {
+      "app": "pdfcraft",
+      "revision": "14ae839a28902a17b9c6adba68d820eb922544c4",
+      "github_repository": "storytold/pdfcraft",
+      "entry_sources": [
+        "crates/engine/src/lib.rs",
+        "apps/pdfcraft-cli/src/main.rs"
+      ],
+      "entry_sources_modified": false,
+      "recorded_sources": [
+        {
+          "path": "crates/engine/src/lib.rs",
+          "sha256": "56c9ebaaf769ff8c57621f9935ad1e52742483c17870b76f26c2a006e753d059",
+          "modified": false,
+          "url": "https://github.com/storytold/pdfcraft/blob/14ae839a28902a17b9c6adba68d820eb922544c4/crates/engine/src/lib.rs"
+        },
+        {
+          "path": "apps/pdfcraft-cli/src/main.rs",
+          "sha256": "07bda02ade8279f8a60f5a3b292c0abb889090fafa6179fa731fe6e3958ebdbd",
+          "modified": false,
+          "url": "https://github.com/storytold/pdfcraft/blob/14ae839a28902a17b9c6adba68d820eb922544c4/apps/pdfcraft-cli/src/main.rs"
+        }
+      ]
+    },
+    {
+      "app": "lightcraft",
+      "revision": "ac1799db38661e07a855653f86feb3e66081102e",
+      "github_repository": "storytold/lightcraft",
+      "entry_sources": [
+        "crates/engine/src/lib.rs",
+        "apps/lightcraft-cli/src/main.rs"
+      ],
+      "entry_sources_modified": false,
+      "recorded_sources": [
+        {
+          "path": "crates/engine/src/lib.rs",
+          "sha256": "5a5b947b37b4be43aee302daf02c94093be10c9cbf7dd93f9f1a8dce1942fcde",
+          "modified": false,
+          "url": "https://github.com/storytold/lightcraft/blob/ac1799db38661e07a855653f86feb3e66081102e/crates/engine/src/lib.rs"
+        },
+        {
+          "path": "apps/lightcraft-cli/src/main.rs",
+          "sha256": "8e7c3c040b28ab09ebc2691980e122fc28b31edc1b9fd021006181e34aeaeee6",
+          "modified": false,
+          "url": "https://github.com/storytold/lightcraft/blob/ac1799db38661e07a855653f86feb3e66081102e/apps/lightcraft-cli/src/main.rs"
+        }
+      ]
+    },
+    {
+      "app": "designcraft",
+      "revision": "1256decbeb4a49c6fbe94400efc1e2a838de23ce",
+      "github_repository": "storytold/designcraft",
+      "entry_sources": [
+        "crates/engine/src/lib.rs",
+        "apps/designcraft-cli/src/main.rs"
+      ],
+      "entry_sources_modified": false,
+      "recorded_sources": [
+        {
+          "path": "crates/engine/src/lib.rs",
+          "sha256": "9d7887ee489bae09fed3896b617d65c701778cc2e8b27d861a73619589f69bd2",
+          "modified": false,
+          "url": "https://github.com/storytold/designcraft/blob/1256decbeb4a49c6fbe94400efc1e2a838de23ce/crates/engine/src/lib.rs"
+        },
+        {
+          "path": "apps/designcraft-cli/src/main.rs",
+          "sha256": "3d90266a3fa6e8f1a49de83a2d34c08926c05d717ce15330ec0ce653de19b55b",
+          "modified": false,
+          "url": "https://github.com/storytold/designcraft/blob/1256decbeb4a49c6fbe94400efc1e2a838de23ce/apps/designcraft-cli/src/main.rs"
+        }
+      ]
+    },
+    {
+      "app": "soundcraft",
+      "revision": "da02c19fcca8fbcc49d66c957e5efcc67a63befe",
+      "github_repository": "storytold/soundcraft",
+      "entry_sources": [
+        "crates/engine/src/lib.rs",
+        "apps/soundcraft-cli/src/main.rs",
+        "crates/clap-host/src/lib.rs"
+      ],
+      "entry_sources_modified": false,
+      "recorded_sources": [
+        {
+          "path": "crates/engine/src/lib.rs",
+          "sha256": "933ff3821045f763ef7abb093182bc32fcacb66dc1fd7d03ff224df0d9af1f98",
+          "modified": false,
+          "url": "https://github.com/storytold/soundcraft/blob/da02c19fcca8fbcc49d66c957e5efcc67a63befe/crates/engine/src/lib.rs"
+        },
+        {
+          "path": "apps/soundcraft-cli/src/main.rs",
+          "sha256": "0c0d74e61805f638b08e23f5bb06b5e9386325cfe88605e7edd4120f141fd5b0",
+          "modified": false,
+          "url": "https://github.com/storytold/soundcraft/blob/da02c19fcca8fbcc49d66c957e5efcc67a63befe/apps/soundcraft-cli/src/main.rs"
+        },
+        {
+          "path": "crates/clap-host/src/lib.rs",
+          "sha256": "426feaccda9619ca6e1adceea95a3d0375476d2a3ddf785793e4872e919db070",
+          "modified": false,
+          "url": "https://github.com/storytold/soundcraft/blob/da02c19fcca8fbcc49d66c957e5efcc67a63befe/crates/clap-host/src/lib.rs"
+        },
+        {
+          "path": "crates/dsp/src/lib.rs",
+          "sha256": "eed013b90542bfac22e6fe02db46522431932a294184caf42f23023960de1fa7",
+          "modified": false,
+          "url": "https://github.com/storytold/soundcraft/blob/da02c19fcca8fbcc49d66c957e5efcc67a63befe/crates/dsp/src/lib.rs"
+        },
+        {
+          "path": "crates/engine/src/cmd/plugin_state.rs",
+          "sha256": "e107f6e0e9b8607cb545cfb7e7a7ea5c021f1b28a7b16c8249f0907d894e2e90",
+          "modified": false,
+          "url": "https://github.com/storytold/soundcraft/blob/da02c19fcca8fbcc49d66c957e5efcc67a63befe/crates/engine/src/cmd/plugin_state.rs"
+        }
+      ]
+    },
+    {
+      "app": "cadcraft",
+      "revision": "b04273e8974245e1c59ec57eb5ad86cec7a200eb",
+      "github_repository": "storytold/cadcraft",
+      "entry_sources": [
+        "crates/engine/src/lib.rs",
+        "apps/cadcraft-cli/src/main.rs"
+      ],
+      "entry_sources_modified": false,
+      "recorded_sources": [
+        {
+          "path": "crates/engine/src/lib.rs",
+          "sha256": "a6acb5dee3745827f65bd4047d18f13939f4533d706eb1eaaa941f597b8ac5bc",
+          "modified": false,
+          "url": "https://github.com/storytold/cadcraft/blob/b04273e8974245e1c59ec57eb5ad86cec7a200eb/crates/engine/src/lib.rs"
+        },
+        {
+          "path": "apps/cadcraft-cli/src/main.rs",
+          "sha256": "d1fb4cb4f9b0cfd82ceb7d0ff8c63703e6fde5ede9a219954bea534bb5ee387a",
+          "modified": false,
+          "url": "https://github.com/storytold/cadcraft/blob/b04273e8974245e1c59ec57eb5ad86cec7a200eb/apps/cadcraft-cli/src/main.rs"
+        }
+      ]
+    },
+    {
+      "app": "wordcraft",
+      "revision": "ffb155a0321bba08da495efda66495104c1c8b9a",
+      "github_repository": "storytold/wordcraft",
+      "entry_sources": [
+        "crates/engine/src/lib.rs",
+        "apps/wordcraft-cli/src/main.rs"
+      ],
+      "entry_sources_modified": false,
+      "recorded_sources": [
+        {
+          "path": "crates/engine/src/lib.rs",
+          "sha256": "4497ee16a240dec249415880c156279c679d11d81f689fbea9a0034a2027870f",
+          "modified": false,
+          "url": "https://github.com/storytold/wordcraft/blob/ffb155a0321bba08da495efda66495104c1c8b9a/crates/engine/src/lib.rs"
+        },
+        {
+          "path": "apps/wordcraft-cli/src/main.rs",
+          "sha256": "3c3794f5fd19d3c2268d268bffb14bad1ab0b2502668364d3a196469ed1676d5",
+          "modified": false,
+          "url": "https://github.com/storytold/wordcraft/blob/ffb155a0321bba08da495efda66495104c1c8b9a/apps/wordcraft-cli/src/main.rs"
+        }
+      ]
+    },
+    {
+      "app": "gridcraft",
+      "revision": "178f3eb745a589c63b61ef97dd7b6b2d6fd48515",
+      "github_repository": "storytold/gridcraft",
+      "entry_sources": [
+        "crates/engine/src/lib.rs",
+        "apps/gridcraft-cli/src/main.rs"
+      ],
+      "entry_sources_modified": false,
+      "recorded_sources": [
+        {
+          "path": "crates/engine/src/lib.rs",
+          "sha256": "277f283569dc7a2e9167a112f831894d3bc15b2cc504592ed949ee8d8d09a9f4",
+          "modified": false,
+          "url": "https://github.com/storytold/gridcraft/blob/178f3eb745a589c63b61ef97dd7b6b2d6fd48515/crates/engine/src/lib.rs"
+        },
+        {
+          "path": "apps/gridcraft-cli/src/main.rs",
+          "sha256": "07da2577d39cae8270e23ef0dd5d012894b366999e44c70639b0197a64840aad",
+          "modified": false,
+          "url": "https://github.com/storytold/gridcraft/blob/178f3eb745a589c63b61ef97dd7b6b2d6fd48515/apps/gridcraft-cli/src/main.rs"
+        }
+      ]
+    },
+    {
+      "app": "deckcraft",
+      "revision": "0c00f2240352b17cba571e93573af48e017a058d",
+      "github_repository": "storytold/deckcraft",
+      "entry_sources": [
+        "crates/engine/src/lib.rs",
+        "apps/deckcraft-cli/src/main.rs"
+      ],
+      "entry_sources_modified": false,
+      "recorded_sources": [
+        {
+          "path": "crates/engine/src/lib.rs",
+          "sha256": "5f9bfddf317c43c3ccc51a82b3fdca56ccd27420e5d68d9935fbae02d813175f",
+          "modified": false,
+          "url": "https://github.com/storytold/deckcraft/blob/0c00f2240352b17cba571e93573af48e017a058d/crates/engine/src/lib.rs"
+        },
+        {
+          "path": "apps/deckcraft-cli/src/main.rs",
+          "sha256": "78270d689f4cb560db7bd160ebcbedfa54afed44c7d60684ca6830f70e89a2da",
+          "modified": false,
+          "url": "https://github.com/storytold/deckcraft/blob/0c00f2240352b17cba571e93573af48e017a058d/apps/deckcraft-cli/src/main.rs"
+        }
+      ]
+    },
+    {
+      "app": "solidcraft",
+      "revision": "4bdffef06180fb3a2e8fbd4b15c7d3f60e55bd11",
+      "github_repository": "tangency-labs/solidcraft",
+      "entry_sources": [
+        "crates/engine/src/lib.rs",
+        "apps/solidcraft-cli/src/main.rs",
+        "crates/ui-egui/src/plugins.rs"
+      ],
+      "entry_sources_modified": false,
+      "recorded_sources": [
+        {
+          "path": "crates/engine/src/lib.rs",
+          "sha256": "e5b862ff55eb85cc360337ead399564c1864046f54e177ba97e5f694b43d5a4b",
+          "modified": false,
+          "url": "https://github.com/tangency-labs/solidcraft/blob/4bdffef06180fb3a2e8fbd4b15c7d3f60e55bd11/crates/engine/src/lib.rs"
+        },
+        {
+          "path": "apps/solidcraft-cli/src/main.rs",
+          "sha256": "5fa219cf1cf3c4ef396e82e1940ad5bd286951d8eecaad2275f47e6f01d54f3e",
+          "modified": false,
+          "url": "https://github.com/tangency-labs/solidcraft/blob/4bdffef06180fb3a2e8fbd4b15c7d3f60e55bd11/apps/solidcraft-cli/src/main.rs"
+        },
+        {
+          "path": "crates/ui-egui/src/plugins.rs",
+          "sha256": "376e382edb1d787d0558212ba4a6ed5db17d9b6f1e7f73afa6806d62267eb275",
+          "modified": false,
+          "url": "https://github.com/tangency-labs/solidcraft/blob/4bdffef06180fb3a2e8fbd4b15c7d3f60e55bd11/crates/ui-egui/src/plugins.rs"
+        },
+        {
+          "path": "docs/plugins.md",
+          "sha256": "541185e17a3ed913dff7dae3a12705923fade5ce465eb1f07f3f43ee1e28c0ac",
+          "modified": false,
+          "url": "https://github.com/tangency-labs/solidcraft/blob/4bdffef06180fb3a2e8fbd4b15c7d3f60e55bd11/docs/plugins.md"
+        }
+      ]
+    },
+    {
+      "app": "texturecraft",
+      "revision": "9dc33d894e9cd8e25ce84f6074fd1b476dad5698",
+      "github_repository": "storytold/texturecraft",
+      "entry_sources": [
+        "crates/engine/src/lib.rs",
+        "apps/texturecraft-cli/src/main.rs"
+      ],
+      "entry_sources_modified": false,
+      "recorded_sources": [
+        {
+          "path": "crates/engine/src/lib.rs",
+          "sha256": "c1b9c19d80b8222c355521f7e997bba66bc119610059f0dfc1809bfa0af0de2b",
+          "modified": false,
+          "url": "https://github.com/storytold/texturecraft/blob/9dc33d894e9cd8e25ce84f6074fd1b476dad5698/crates/engine/src/lib.rs"
+        },
+        {
+          "path": "apps/texturecraft-cli/src/main.rs",
+          "sha256": "bbf64127bc3ff728122ed5d02f6a5734e0e48bc3fd93ccd7c883fe88f9a66d05",
+          "modified": false,
+          "url": "https://github.com/storytold/texturecraft/blob/9dc33d894e9cd8e25ce84f6074fd1b476dad5698/apps/texturecraft-cli/src/main.rs"
+        }
+      ]
+    },
+    {
+      "app": "artcraft",
+      "revision": "1f969a9224934a55417daf10359a6fb1458b63f4",
+      "github_repository": "storytold/artcraft",
+      "scope": "Native target and provider job entry points only; plugin and CLI host not established",
+      "entry_sources": [
+        "Cargo.toml",
+        "artcraft-native/Cargo.toml",
+        "artcraft-native/src/main.rs"
+      ],
+      "entry_sources_modified": false,
+      "recorded_sources": [
+        {
+          "path": "Cargo.toml",
+          "sha256": "f2e547113810c0db9e8783f0d98dbf3d4a4be3297cd83f2d66a555ca06e4620c",
+          "modified": false,
+          "url": "https://github.com/storytold/artcraft/blob/1f969a9224934a55417daf10359a6fb1458b63f4/Cargo.toml"
+        },
+        {
+          "path": "artcraft-native/Cargo.toml",
+          "sha256": "fa1caaae52bb00bb8f4cca242f2ee44772233e619855f2bd1385babc7a088a5a",
+          "modified": false,
+          "url": "https://github.com/storytold/artcraft/blob/1f969a9224934a55417daf10359a6fb1458b63f4/artcraft-native/Cargo.toml"
+        },
+        {
+          "path": "artcraft-native/src/main.rs",
+          "sha256": "ff26fb2260094490cf1828d1ec93f653a0d2edae7fb9c0a9803f4752d94c2f23",
+          "modified": false,
+          "url": "https://github.com/storytold/artcraft/blob/1f969a9224934a55417daf10359a6fb1458b63f4/artcraft-native/src/main.rs"
+        },
+        {
+          "path": "artcraft-native/src/backend/providers/jobs.rs",
+          "sha256": "fc05d169bd7c7f9e52d131f54946009a515d0793d240ea69b2ae191f66913e86",
+          "modified": false,
+          "url": "https://github.com/storytold/artcraft/blob/1f969a9224934a55417daf10359a6fb1458b63f4/artcraft-native/src/backend/providers/jobs.rs"
+        },
+        {
+          "path": "artcraft-native/src/backend/providers/submit.rs",
+          "sha256": "738c0246988ddaf785402df6d437831a0e8d8e4b305141e150d3ed581cae1d92",
+          "modified": false,
+          "url": "https://github.com/storytold/artcraft/blob/1f969a9224934a55417daf10359a6fb1458b63f4/artcraft-native/src/backend/providers/submit.rs"
+        }
+      ]
+    }
+  ]
+}

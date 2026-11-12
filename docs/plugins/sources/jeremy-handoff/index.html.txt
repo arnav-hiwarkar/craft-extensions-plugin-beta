@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Craft suite extensions | Plan and handoff</title>
+<style>
+:root { color-scheme: light dark; font-family: system-ui, sans-serif; line-height: 1.55; }
+body { max-width: 76rem; margin: 0 auto; padding: 1rem 1.5rem 4rem; }
+header, section, footer { margin-block: 1.7rem; }
+nav ul { display: flex; flex-wrap: wrap; gap: .4rem 1.3rem; padding-left: 1.2rem; }
+.meta { opacity: .75; }
+.callout { border-left: .25rem solid currentColor; padding: .3rem 1rem; }
+.scroll { overflow-x: auto; margin-block: 1rem; }
+table { border-collapse: collapse; width: 100%; min-width: 45rem; }
+caption { text-align: left; font-weight: 650; padding-bottom: .4rem; }
+th, td { text-align: left; vertical-align: top; border-bottom: 1px solid currentColor; padding: .55rem .7rem; }
+th { font-weight: 650; }
+.skip { position: absolute; top: -10rem; }
+.skip:focus { top: .5rem; padding: .3rem; background: Canvas; color: CanvasText; }
+@media print { :root { color-scheme: light; } body { max-width: none; } nav { display: none; } }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header>
+<p class="meta">Craft suite, shared extensions browser. Updated <time datetime="2026-11-04">04/11/2026</time>.</p>
+<h1>Themes, plug-ins and extensions: plan and handoff</h1>
+<p>One place in ArtCraft Launcher to find, install and update themes, plug-ins and resources, shared by every Craft app and reachable from each of them.</p>
+</header>
+<nav aria-label="Contents"><ul><li><a href="#status">Decisions</a></li><li><a href="#tiers">Trust tiers</a></li><li><a href="#apps">Apps</a></li><li><a href="#requirements">Requirements</a></li><li><a href="#store">Store</a></li><li><a href="#owners">Ownership</a></li><li><a href="#tasks">Work list</a></li><li><a href="#rules">Rules</a></li><li><a href="#questions">Questions</a></li><li><a href="#resume">Resume</a></li><li><a href="#refs">References</a></li></ul></nav>
+<main id="main">
+<section id="status" aria-labelledby="status-h">
+<h2 id="status-h">Status and decisions</h2>
+<div class="callout"><p>Jeremy&#x27;s direction, 16/10/2026: while the AI infrastructure is being sorted, start the plan for a shared plug-in, theme and extension browser that is native to ArtCraft Launcher and reachable from each app. Then, same day: start with internal (first-party) extensions, but build the structure for third party that requires heavy security gates. Third party stays switched off until every gate passes. Then: build Phase 1 end to end (threat model, core and store crates, launcher Themes screen, PhotoCraft theme adapter, into his test build), crates in a standalone workspace, and a public repo for it (created on his GitHub as Jeremy8776/craft-extensions on 16/10/2026, first commit 5500b37, CI green; moved to storytold/craft-extensions on 04/11/2026). Built so far (pushed to that repo as 33adcb4, CI green on Linux and Windows): craft-ext-core and craft-ext-store with tests and mutation checks. The launcher Extensions screen (Themes and Installed tabs) is built and tested in the craft-launcher-ext worktree with a debug build at craft-launcher-ext/target/dev. The launcher work is on branch feat/extensions (70b9612) in Jeremy8776/craft-launcher, a fork made 16/10/2026 because storytold/craft-launcher is read-only for him. The PhotoCraft adapter is on feat/extensions-theme-adapter (ecb056cc) in Jeremy8776/photocraft. No pull request has been opened. Jeremy has reviewed the launcher TEST BUILD UI; PhotoCraft remains a separate verification gate. 16/10/2026 follow-up: the launcher UI polish stays in the throwaway test branch until the real plug-in infrastructure and PhotoCraft host work end to end. Then extract it cleanly, verify a fresh checkout and hand off source PRs plus a versioned installer candidate. The example plug-ins are demo data, not shipped packages. Nothing is pushed or published by this plan.</p></div>
+<div class="scroll"><table>
+<caption>Decisions. Only Jeremy&#x27;s words are Decided.</caption>
+<thead><tr>
+<th scope="col">ID</th>
+<th scope="col">Question</th>
+<th scope="col">Recommendation</th>
+<th scope="col">If not</th>
+<th scope="col">State</th>
+</tr></thead><tbody>
+<tr><th scope="row" id="dec-d0">d0</th><td>Shared plug-ins, themes and extensions browser, native to the launcher, reachable from every app</td><td>Scope as given.</td><td>None; this is the brief.</td><td>Decided (Jeremy, 16/10/2026)</td></tr>
+<tr><th scope="row" id="dec-d1">d1</th><td>What does &quot;extension&quot; cover?</td><td>Three kinds: themes, plug-ins, resources (brush sets, LUTs, swatches, templates).</td><td>Themes and plug-ins only; resources left out of the package envelope.</td><td>Open</td></tr>
+<tr><th scope="row" id="dec-d2">d2</th><td>User-facing name</td><td>Section &quot;Extensions&quot;, tabs Themes, Plug-ins, Resources (PhotoCraft already says Plug-ins).</td><td>&quot;Add-ons&quot; throughout.</td><td>Open</td></tr>
+<tr><th scope="row" id="dec-d3">d3</th><td>Whose extensions can the launcher install?</td><td>Internal first (built by storytold). Build the third-party structure now, behind heavy security gates, switched off in release builds until every gate passes.</td><td>None; this is his answer. The download rule still needs a small agreed widening for the hub repo (n5), but only inside the storytold organisation.</td><td>Decided (Jeremy, 16/10/2026)</td></tr>
+<tr><th scope="row" id="dec-d4">d4</th><td>Where the catalogue index lives</td><td>storytold/crafthub if the maintainers confirm it was meant for this (it is empty today, README says &quot;Placeholder for merges&quot;); otherwise a repo under Jeremy&#x27;s account first.</td><td>A folder inside craft-launcher. Couples catalogue edits to launcher releases.</td><td>Open</td></tr>
+<tr><th scope="row" id="dec-d5">d5</th><td>Folder for the shared store</td><td>Same shared folder as the AI store, under the user&#x27;s local data folder, with portable mode handled explicitly.</td><td>craft-settings per-app folders.</td><td>Decided (Jeremy, 16/10/2026)</td></tr>
+<tr><th scope="row" id="dec-d6">d6</th><td>Does the launcher accept themes itself?</td><td>Optional. The default stays the look that matches getartcraft.com.</td><td>Launcher never themed.</td><td>Open</td></tr>
+<tr><th scope="row" id="dec-d7">d7</th><td>Where the contract and store crates live while building</td><td>A standalone workspace, public as storytold/craft-extensions (moved from Jeremy8776/craft-extensions on 04/11/2026), mirroring craft-libs rules and the craft-ai-model pattern. Whether the contract crate later moves to craft-libs stays open until two consumers exist.</td><td>Inside the launcher workspace, or straight into a craft-libs fork branch.</td><td>Decided (Jeremy, 16/10/2026)</td></tr>
+<tr><th scope="row" id="dec-d8">d8</th><td>Signing and metadata scheme for third-party gates</td><td>Ed25519 detached signatures, publisher keys pinned in the index, and TUF-style signed metadata (version, expiry, revocation). Look at adopting TUF&#x27;s design before inventing our own.</td><td>Hash pinning only. Not enough for third party: it proves the file matches the index, not who made it or whether the index is fresh.</td><td>Open</td></tr>
+<tr><th scope="row" id="dec-d9">d9</th><td>Provenance for third-party plug-ins</td><td>The hub builds plug-ins from source in its own CI and attests the build, rather than accepting uploaded binaries. Costly, strongest.</td><td>Accept authors&#x27; release assets with a recorded source commit; reviewers reproduce builds by hand.</td><td>Open</td></tr>
+<tr><th scope="row" id="dec-d10">d10</th><td>Independent security review before the gate opens</td><td>Yes: an outside review of unpack, the sandbox host and the signature code, with findings fixed or accepted in writing.</td><td>Internal review only. Faster, weaker; Jeremy and the maintainer would be accepting that risk.</td><td>Open</td></tr>
+<tr><th scope="row" id="dec-d11">d11</th><td>Where do plug-in download counts and rankings come from?</td><td>Start with download counts on storytold-hosted release files. They need no tracking inside the apps and no new server.</td><td>A counting service of our own, which allows ratings too but needs a server, a privacy policy and protection against inflated counts.</td><td>Open</td></tr>
+<tr><th scope="row" id="dec-d12">d12</th><td>What may a plug-in do, and how is each ability made safe?</td><td>A per-app ability list declared in the manifest and shown before install. Add each ability only once the sandbox can enforce it.</td><td>Keep plug-ins to filters only. Simple and safe, but it does not meet the aim of a vast range of ability across all apps.</td><td>Open</td></tr>
+</tbody></table></div>
+</section>
+<section id="apps" aria-labelledby="apps-h">
+<h2 id="apps-h">Per-app matrix (draft for owners to confirm)</h2>
+<p>Built from the organisation's repo list on 16/10/2026, not from the folders on this PC. The launcher's own app list omits FigCraft and AniCraft. Plug-in kinds are guesses from each repo's description.</p>
+<div class="scroll"><table>
+<caption>The 14 Craft apps and what an extension could mean for each</caption>
+<thead><tr>
+<th scope="col">App</th>
+<th scope="col">What it is</th>
+<th scope="col">Likely plug-in kind</th>
+<th scope="col">Notes</th>
+</tr></thead><tbody>
+<tr><th scope="row" id="a-photo">PhotoCraft</th><td>photo editor</td><td>filter (exists, wasmi host)</td><td>Own Tokens with shape flags; plug-in docs exist; first adopter</td></tr>
+<tr><th scope="row" id="a-light">LightCraft</th><td>non-destructive photo editor</td><td>filter (likely second wasm host consumer)</td><td>LUT and preset resources</td></tr>
+<tr><th scope="row" id="a-vector">VectorCraft</th><td>vector art tool</td><td>later</td><td>Already has a colortheme command; swatch resources</td></tr>
+<tr><th scope="row" id="a-design">DesignCraft</th><td>page and layout design</td><td>later</td><td>Swatches, templates</td></tr>
+<tr><th scope="row" id="a-pdf">PdfCraft</th><td>PDF reader and editor</td><td>none yet</td><td>Has desktop_theme.rs; themes first</td></tr>
+<tr><th scope="row" id="a-film">FilmCraft</th><td>nonlinear video editor</td><td>later</td><td>LUTs; transitions as a future kind</td></tr>
+<tr><th scope="row" id="a-effect">EffectCraft</th><td>motion graphics and compositing</td><td>filter / effect (likely second consumer)</td><td>Effects as a plug-in kind</td></tr>
+<tr><th scope="row" id="a-sound">SoundCraft</th><td>Pro Tools-style audio</td><td>later (audio buffers, different ABI)</td><td>Separate design needed for audio plug-ins</td></tr>
+<tr><th scope="row" id="a-word">WordCraft</th><td>Word-style editor</td><td>none yet</td><td>Ribbon shell; themes and templates</td></tr>
+<tr><th scope="row" id="a-deck">DeckCraft</th><td>PowerPoint-style presentations</td><td>none yet</td><td>Ribbon shell; themes and templates</td></tr>
+<tr><th scope="row" id="a-grid">GridCraft</th><td>Excel-style spreadsheet</td><td>none yet</td><td>Ribbon shell; themes and templates</td></tr>
+<tr><th scope="row" id="a-cad">CADCraft</th><td>AutoCAD-style CAD</td><td>none yet</td><td>Themes only to start</td></tr>
+<tr><th scope="row" id="a-fig">FigCraft</th><td>interface design and prototyping</td><td>later</td><td>Missing from the launcher&#x27;s own app list</td></tr>
+<tr><th scope="row" id="a-ani">AniCraft</th><td>2D animation editor</td><td>later</td><td>Missing from the launcher&#x27;s own app list</td></tr>
+</tbody></table></div>
+</section>
+<section id="tiers" aria-labelledby="tiers-h">
+<h2 id="tiers-h">Trust tiers: internal on, third party built but off</h2>
+<p>Third party is designed in from the first schema so it never needs a rewrite, but nothing outside the storytold organisation can be installed until every gate in phase 3 passes.</p>
+<div class="scroll"><table>
+<caption>Tiers</caption>
+<thead><tr>
+<th scope="col">Tier</th>
+<th scope="col">Who</th>
+<th scope="col">How it is checked</th>
+<th scope="col">State</th>
+</tr></thead><tbody>
+<tr><th scope="row">Made by ArtCraft</th><td>storytold, built and released by the organisation</td><td>Hash pinned in the index; downloaded only from storytold releases</td><td>On</td></tr>
+<tr><th scope="row">Added from a file</th><td>The person&#x27;s own file</td><td>Bounded unpack and validators; the sandbox still applies; clear warning in plain words</td><td>On</td></tr>
+<tr><th scope="row">Reviewed third party</th><td>An outside publisher</td><td>Publisher signature, pinned key, fresh signed index, revocation, reserved namespaces, review of the index entry, provenance</td><td>Off: compiled out of release builds and refused at run time until gate sg13</td></tr>
+</tbody></table></div>
+</section>
+<section id="requirements" aria-labelledby="requirements-h">
+<h2 id="requirements-h">Requirements the shared layer must meet</h2>
+<div class="scroll"><table>
+<caption>Requirements</caption>
+<thead><tr>
+<th scope="col">ID</th>
+<th scope="col">Requirement</th>
+</tr></thead><tbody>
+<tr><th scope="row" id="req-q1">q1</th><td>Install once, enable per app. Installing in one place makes the extension available to every compatible app.</td></tr>
+<tr><th scope="row" id="req-q2">q2</th><td>An app with no launcher still works: it can install from a file and manage what it has, using the same store.</td></tr>
+<tr><th scope="row" id="req-q3">q3</th><td>A running app notices an install or a switch without a restart and without IPC.</td></tr>
+<tr><th scope="row" id="req-q4">q4</th><td>Every package is hostile input: bounded unpack, no path escape, size and count caps, hashes checked before use. Nothing panics.</td></tr>
+<tr><th scope="row" id="req-q5">q5</th><td>Themes carry no code. Plug-ins have no ambient authority (no files, network, clock) in version 1; the permissions field must be empty, for every tier.</td></tr>
+<tr><th scope="row" id="req-q6">q6</th><td>One theme file works in every app: a small shared palette, per-app overrides optional, unknown apps ignored.</td></tr>
+<tr><th scope="row" id="req-q7">q7</th><td>Anything a person reads is plain language, enforced by a test. No ABI, wasm, sandbox or adapter in visible strings.</td></tr>
+<tr><th scope="row" id="req-q8">q8</th><td>The contract and store core build for wasm32-unknown-unknown; file and process code is cfg-gated.</td></tr>
+<tr><th scope="row" id="req-q9">q9</th><td>Each host draws its own view: launcher look in the launcher, the app&#x27;s theme inside an app. Shared code owns data and a neutral fallback only.</td></tr>
+<tr><th scope="row" id="req-q10">q10</th><td>First-party entries pin a SHA-256 and come only from storytold releases. The page says plainly that hash pinning does not prove who made a file.</td></tr>
+<tr><th scope="row" id="req-q11">q11</th><td>Launcher strings go through tl! into the four catalogs. Extension names and descriptions are third-party data and stay untranslated.</td></tr>
+<tr><th scope="row" id="req-q12">q12</th><td>The third-party path exists in the schema and the code but is off: behind a cargo feature that release builds never enable, refused at run time, and guarded by a test that fails if it is enabled.</td></tr>
+<tr><th scope="row" id="req-q13">q13</th><td>Third-party trust needs a publisher signature, a pinned key, a fresh signed index (expiry, no rollback), a revocation list and reserved first-party namespaces. A revoked package turns off in every app.</td></tr>
+<tr><th scope="row" id="req-q14">q14</th><td>No silent change for third party: a new key, wider permission or downgrade needs a fresh yes; updates never apply on their own.</td></tr>
+</tbody></table></div>
+</section>
+<section id="store" aria-labelledby="store-h">
+<h2 id="store-h">Home of the shared store</h2>
+<div class="scroll"><table>
+<caption>Options for the shared store</caption>
+<thead><tr>
+<th scope="col">Option</th>
+<th scope="col">For</th>
+<th scope="col">Against</th>
+</tr></thead><tbody>
+<tr><th scope="row">A. Shared folder under %LOCALAPPDATA% (same as the AI store)</th><td>One place; apps and launcher read the same files; matches the AI layer&#x27;s existing divergence.</td><td>Departs from craft-libs&#x27; settings-storage policy, a stated review question. Portable launcher mode puts its data next to the exe, so apps would not find it.</td></tr>
+<tr><th scope="row">B. craft-settings per-app folders</th><td>Follows the shared policy.</td><td>Cross-app reads need every app to know every other app&#x27;s folder; duplication.</td></tr>
+<tr><th scope="row">C. Launcher owns the files, apps ask over IPC</th><td>Single writer.</td><td>Apps need a running launcher, which breaks requirement q2. Rejected.</td></tr>
+</tbody></table></div>
+<p><strong>Recommendation: A, decided together with the AI store, with a stated answer for portable mode.</strong></p>
+</section>
+<section id="owners" aria-labelledby="owners-h">
+<h2 id="owners-h">Who builds what</h2>
+<div class="scroll"><table>
+<caption>Ownership</caption>
+<thead><tr>
+<th scope="col">Piece</th>
+<th scope="col">Owner</th>
+<th scope="col">Note</th>
+</tr></thead><tbody>
+<tr><th scope="row">Package contract and validators (craft-ext-core)</th><td>Jeremy leads; craft-libs after two consumers exist</td><td>Wasm-safe, small, no framework</td></tr>
+<tr><th scope="row">Store and install-from-file (craft-ext-store)</th><td>Jeremy leads; standalone repo per d7</td><td>Atomic writes via craft-atomic; bounded unpack</td></tr>
+<tr><th scope="row">Catalogue index repo</th><td>Per d4; entries reviewed by maintainers</td><td>CI runs the same validator</td></tr>
+<tr><th scope="row">Launcher Extensions screen, fetch, updates</th><td>Launcher (Jeremy&#x27;s lane for this plan)</td><td>Own module tree, own branch</td></tr>
+<tr><th scope="row">In-app panel, commands, theme adapter, plug-in host</th><td>Each app&#x27;s maintainer, in that app&#x27;s repo</td><td>Reported as the next decision, not started by default</td></tr>
+</tbody></table></div>
+<h3 id="checklist-h">Adapter checklist every app follows</h3>
+<ol><li>Map the shared palette to the app&#x27;s own Tokens, derive the rest, then apply [app.&lt;id&gt;] overrides.</li><li>Re-scan the store when the generation counter changes; fall back to the built-in theme if the active one is gone or fails validation.</li><li>Themes &amp; Extensions panel: installed for this app, enable, disable, remove, install from file.</li><li>A &quot;Browse more&quot; button that opens the launcher at this app&#x27;s filter; if the launcher is missing, open its download page.</li><li>Commands (extension.list, extension.enable, theme.set, extension.open_browser) so scripts and agents can drive it.</li><li>Plug-in host only if the app has a plug-in kind; resource importers listed with their formats.</li><li>Strings through the app&#x27;s i18n; a test that scans visible strings for developer words.</li></ol>
+</section>
+<section id="tasks" aria-labelledby="tasks-h">
+<h2 id="tasks-h">Work list</h2>
+<p>No task is started. Rows marked Blocked wait on the named decision or work.</p>
+<h3 id="p0-h">Phase 0. Decide and line up (no code)</h3>
+<div class="scroll"><table>
+<caption>Phase 0. Decide and line up (no code)</caption>
+<thead><tr>
+<th scope="col">ID</th>
+<th scope="col">Task</th>
+<th scope="col">Depends on</th>
+<th scope="col">Done when</th>
+<th scope="col">Status</th>
+</tr></thead><tbody>
+<tr><th scope="row" id="task-s0a">s0a</th><td>Settle the remaining open decisions with Jeremy (d1, d2, d4 to d10)</td><td>none</td><td>Each row in the decisions table is Decided in his words</td><td>Not started</td></tr>
+<tr><th scope="row" id="task-s0b">s0b</th><td>Draft a note to the maintainer about crafthub (d4) and the hub repo joining the download rule; show it, send only on his yes</td><td>s0a</td><td>Draft shown; if sent, the posted message is read back</td><td>Not started</td></tr>
+<tr><th scope="row" id="task-s0c">s0c</th><td>Read the live threads: craft-libs #94, #115, #79, #126 and the AI store folder decision; record what they change</td><td>none</td><td>Findings added to NEXT.md</td><td>Not started</td></tr>
+<tr><th scope="row" id="task-s0d">s0d</th><td>Create worktrees off upstream main: launcher (not the feat/ai-connections tree) and PhotoCraft</td><td>none</td><td>git worktree list shows both; the AI branch untouched</td><td>Launcher done: worktree craft-launcher-ext on feat/extensions from origin/main 307efcf. PhotoCraft worktree not yet created</td></tr>
+<tr><th scope="row" id="task-s0f">s0f</th><td>Public repo for the crates (created as Jeremy8776/craft-extensions, moved to storytold/craft-extensions on 04/11/2026): workspace, skeleton crates, threat model, CI</td><td>none</td><td>Repo public; remote commit equals local; first CI run green</td><td>Done 16/10/2026 (5500b37, CI green)</td></tr>
+<tr><th scope="row" id="task-s0e">s0e</th><td>Threat model for all three kinds: assets, attackers, zip bombs, path escape, lookalike ids, impersonating first-party ids, update hijack, rollback and freeze, malicious wasm, hostile importer input</td><td>none</td><td>Written in docs; every threat names the gate (sg*) that answers it or says it is accepted</td><td>Draft written in the public repo (docs/THREAT-MODEL.md, 20 threats, 13 gates); unreviewed</td></tr>
+</tbody></table></div>
+<h3 id="p1-h">Phase 1. Contract and the theme slice (first-party)</h3>
+<div class="scroll"><table>
+<caption>Phase 1. Contract and the theme slice (first-party)</caption>
+<thead><tr>
+<th scope="col">ID</th>
+<th scope="col">Task</th>
+<th scope="col">Depends on</th>
+<th scope="col">Done when</th>
+<th scope="col">Status</th>
+</tr></thead><tbody>
+<tr><th scope="row" id="task-c1">c1</th><td>craft-ext-core: manifest types with publisher, tier, signature list, provenance and permissions fields; id rules; hostile-input validation (tests first)</td><td>s0d, s0e</td><td>Fixtures for valid, oversized, bad id, control characters, unlisted files and non-empty permissions behave as expected</td><td>Built 16/10/2026 (craft-extensions 1202969): ids, paths, text, versions, manifest; tests first, mutants caught</td></tr>
+<tr><th scope="row" id="task-c2">c2</th><td>craft-ext-core: compat ranges and the catalogue index schema (version, expiry, entries, revocations)</td><td>c1</td><td>Round-trip and bad-index tests; unknown fields tolerated</td><td>Built 16/10/2026 (1202969): compat in the manifest, index schema with expiry, rollback and revocation checks</td></tr>
+<tr><th scope="row" id="task-c3">c3</th><td>craft-ext-core: shared palette type and the contrast validator</td><td>c1</td><td>4.5:1 pass and fail cases; unknown [app.*] sections ignored</td><td>Built 16/10/2026 (1202969): palette, WCAG contrast, mode check, per-app override bounds</td></tr>
+<tr><th scope="row" id="task-c4">c4</th><td>craft-ext-store: bounded unpack (path escape, entry count, size, ratio caps)</td><td>c1</td><td>Hostile zip fixtures all refused with a plain reason</td><td>Built 16/10/2026 (33adcb4): bounded unpack, 34 store mutants checked</td></tr>
+<tr><th scope="row" id="task-c5">c5</th><td>craft-ext-store: state file, atomic install and uninstall, enable per app, generation counter</td><td>c4</td><td>Interrupted write leaves the old state; two writers lose nothing</td><td>Built 16/10/2026 (33adcb4): lock, atomic state write, generation, enable and theme choice; 8-way concurrent install test</td></tr>
+<tr><th scope="row" id="task-c6">c6</th><td>craft-ext-store: read side for apps (installed for this app, active theme, generation)</td><td>c5</td><td>Reader works with no launcher present</td><td>Built 16/10/2026 (33adcb4): Reader needs only the folder; bad data counts as absent</td></tr>
+<tr><th scope="row" id="task-c7">c7</th><td>Mutation check on c1 to c6 and the wasm32 check on craft-ext-core</td><td>c3, c6</td><td>No surviving mutant without a stated reason; wasm check passes</td><td>Done for the mutation check (core 27 of 27, store 31 caught and 3 equivalent with reasons) and the core wasm32 check; pushed as 33adcb4 and CI green on Linux and Windows</td></tr>
+<tr><th scope="row" id="task-l1">l1</th><td>Launcher: features/extensions/ module, fixture index, Installed list</td><td>c6</td><td>Screen opens with sample data; views.rs untouched</td><td>Built 16/10/2026 (1f34346 in craft-launcher-ext, pushed to the fork): features/extensions/ module, Installed list, in-memory sample store and a desktop store over craft-ext-store; views.rs untouched. No catalogue index yet (that is n2), so the sample data is a sample store, not a fixture index</td></tr>
+<tr><th scope="row" id="task-l2">l2</th><td>Launcher: Themes tab, cards drawn from the palette, install from file</td><td>l1, c3</td><td>Install a theme file and see it listed; hostile file refused with a plain sentence</td><td>Built 16/10/2026 (1f34346): Themes tab with cards drawn from the palette, Use in menu and All apps, Add from file, remove with a yes. Tested headless against the sample store and against a real folder; the screen has not been looked at in a window</td></tr>
+<tr><th scope="row" id="task-l3">l3</th><td>Launcher: strings in all four catalogs and the plain-language scan</td><td>l2</td><td>i18n tests and the jargon scan pass</td><td>Built 16/10/2026 (1f34346): 34 strings in all ten non-English catalogs, coverage test extended, plain-word scan added. Translations are mine, clean-room, not read by a native speaker</td></tr>
+<tr><th scope="row" id="task-a-photo-1">a-photo-1</th><td>PhotoCraft: palette to Tokens adapter and live reload on generation change</td><td>c6, c3</td><td>Theme installed in the launcher restyles a running PhotoCraft; removal falls back</td><td>Built 16/10/2026 (photocraft-wt-ext, branch feat/extensions-theme-adapter, ecb056cc, pushed to Jeremy8776/photocraft): ext_theme.rs maps the palette to Tokens, keeps the layout, re-checks contrast after overrides, falls back; a watcher polls the store once a second. Tested headless (14 tests, 19 mutants caught, 1 equivalent); never seen in a window</td></tr>
+<tr><th scope="row" id="task-t1">t1</th><td>Put the result into Jeremy&#x27;s test build and say which window is which</td><td>l2, a-photo-1</td><td>Dev build runs both; running binaries identified</td><td>Built 16/10/2026: launcher (extensions + AI work + open-from-app) at craft-launcher-wt-combine/target/dev/artcraft-launcher-ext-and-ai.exe; PhotoCraft in PhotoCraft-dev/photocraft.exe (upstream/main + feat/ai-port + feat/extensions-theme-adapter). Four older additions were skipped for conflicts. Launcher TEST BUILD was launched with --demo-data on 16/10/2026 and Plug-ins selected for showcase; PhotoCraft verification is still open</td></tr>
+<tr><th scope="row" id="task-g1">g1</th><td>Record the two consumers (launcher, PhotoCraft) as evidence for the craft-libs sharing rule</td><td>a-photo-1</td><td>Written in NEXT.md; nothing posted</td><td>Not started</td></tr>
+</tbody></table></div>
+<h3 id="p2-h">Phase 2. Internal catalogue (first-party only)</h3>
+<div class="scroll"><table>
+<caption>Phase 2. Internal catalogue (first-party only)</caption>
+<thead><tr>
+<th scope="col">ID</th>
+<th scope="col">Task</th>
+<th scope="col">Depends on</th>
+<th scope="col">Done when</th>
+<th scope="col">Status</th>
+</tr></thead><tbody>
+<tr><th scope="row" id="task-n1">n1</th><td>Index repo with first-party entries only; contribution doc; CI runs the c1 to c3 validators and rejects any non-first-party entry while the gate is closed</td><td>c2, d4</td><td>A bad or third-party entry fails CI; a good first-party one passes</td><td>Blocked on d4</td></tr>
+<tr><th scope="row" id="task-n2">n2</th><td>Launcher: fetch the index with size caps, cache and throttle (as feed_throttle does)</td><td>n1</td><td>Scripted localhost server test; no live call</td><td>Not started</td></tr>
+<tr><th scope="row" id="task-n3">n3</th><td>Launcher: hash-pinned download then install through the store</td><td>n2, c5</td><td>Wrong hash refused before unpack; truncated download resumes or fails cleanly</td><td>Not started</td></tr>
+<tr><th scope="row" id="task-n4">n4</th><td>Trust labels in words (Made by ArtCraft, Added from a file), updates list, update check</td><td>n3</td><td>Each label shows its own sentence; update flow tested</td><td>Not started</td></tr>
+<tr><th scope="row" id="task-n5">n5</th><td>Download rule: add the storytold hub repo&#x27;s releases; everything outside the storytold organisation stays refused</td><td>n1</td><td>Test asserts a non-storytold URL is refused; maintainer agreed to the wording</td><td>Not started</td></tr>
+<tr><th scope="row" id="task-n6">n6</th><td>Web build: read-only listing</td><td>n2</td><td>cargo xtask wasm passes; no install button on web</td><td>Not started</td></tr>
+</tbody></table></div>
+<h3 id="p3-h">Phase 3. Third-party structure behind security gates (built, switched off)</h3>
+<div class="scroll"><table>
+<caption>Phase 3. Third-party structure behind security gates (built, switched off)</caption>
+<thead><tr>
+<th scope="col">ID</th>
+<th scope="col">Task</th>
+<th scope="col">Depends on</th>
+<th scope="col">Done when</th>
+<th scope="col">Status</th>
+</tr></thead><tbody>
+<tr><th scope="row" id="task-sg1">sg1</th><td>Reserved namespaces: ids under storytold prefixes only from the first-party tier; lookalike and homoglyph ids refused</td><td>c1</td><td>Third-party entry claiming a first-party id is refused; tests include lookalikes</td><td>Built in craft-ext-core (id rules, tier check, index check) with mutants caught; more lookalike cases wait for the threat model review</td></tr>
+<tr><th scope="row" id="task-sg2">sg2</th><td>Signature seam: publisher key pinning, detached signature check, key rotation and revocation records; test keys only, no real key material in the repo</td><td>c2, d8</td><td>Wrong key, unsigned, rotated and revoked cases all refused or accepted correctly</td><td>Not started</td></tr>
+<tr><th scope="row" id="task-sg3">sg3</th><td>Signed, expiring index metadata: monotonic version, expiry, freeze and rollback refused (clock passed as an argument)</td><td>sg2</td><td>Stale, replayed and downgraded index refused; tests with a fake clock</td><td>Partly built: expiry and no-older-index checks in the index parser. Signatures not built (needs d8)</td></tr>
+<tr><th scope="row" id="task-sg4">sg4</th><td>Revocation list checked at launcher start and before enabling; a revoked package is disabled in every app through the store</td><td>sg3, c5</td><td>Revoking an installed package turns it off for all apps on next scan</td><td>Partly built: Index::is_revoked. Not wired into launcher start or enabling</td></tr>
+<tr><th scope="row" id="task-sg5">sg5</th><td>Tier gate: third-party code path behind a cargo feature that is off by default; runtime refuses; a test fails if default or release features enable it</td><td>sg1, sg2</td><td>Release build config proves the feature is off; a third-party entry is refused with the feature off</td><td>Built: Policy::admit, cargo feature passed through both crates, guard test that fails if it is a default; release-profile proof still to add</td></tr>
+<tr><th scope="row" id="task-sg6">sg6</th><td>Capability rules for third party: permissions must be empty in version 1; plug-in re-validated at install and on every load; any host import rejected</td><td>c1, pl1</td><td>Plug-in with an import or a permission is refused at both points</td><td>Partly built: permissions must be empty in the manifest. Re-validation of the module on every load is the app host&#x27;s job, not done</td></tr>
+<tr><th scope="row" id="task-sg7">sg7</th><td>No silent change: a new publisher key, a wider permission or a downgrade needs a fresh yes; third-party updates never apply automatically</td><td>sg2, n4</td><td>Each change blocks until the person agrees; tested</td><td>Not started</td></tr>
+<tr><th scope="row" id="task-sg8">sg8</th><td>Fuzz targets and a panic hunt over the manifest, theme, index and archive parsers and the plug-in install path; time-boxed, one run at a time</td><td>c4, sg6</td><td>Corpus and findings recorded; every crash fixed with a regression test that failed first</td><td>Not started</td></tr>
+<tr><th scope="row" id="task-sg9">sg9</th><td>Provenance: source repository and commit recorded per entry; decide whether the hub builds plug-ins from source itself (d9)</td><td>d9, n1</td><td>Provenance field checked by CI; build-from-source decision recorded</td><td>Blocked on d9</td></tr>
+<tr><th scope="row" id="task-sg10">sg10</th><td>Review process: index pull request checklist, two-maintainer rule, SECURITY.md with disclosure and takedown path</td><td>n1</td><td>Documents merged; a dry-run review of a sample third-party entry</td><td>Not started</td></tr>
+<tr><th scope="row" id="task-sg11">sg11</th><td>Launcher interface for third-party entries (tier badge, warnings, plain wording), compiled only with the feature on</td><td>sg5, n4</td><td>Only visible in a feature build; plain-language scan covers it</td><td>Not started</td></tr>
+<tr><th scope="row" id="task-sg12">sg12</th><td>Independent security review of unpack, sandbox host and signature code before the gate opens (d10)</td><td>sg1, sg2, sg3, sg4, sg5, sg6, sg7, sg8, d10</td><td>Report received; every finding fixed or accepted in writing</td><td>Blocked on d10</td></tr>
+<tr><th scope="row" id="task-sg13">sg13</th><td>Open the gate: enable third-party in release builds</td><td>sg1, sg2, sg3, sg4, sg5, sg6, sg7, sg8, sg9, sg10, sg11, sg12</td><td>Closed until every row above is done AND Jeremy and the maintainer each say yes to this specific change</td><td>Closed</td></tr>
+</tbody></table></div>
+<h3 id="p4-h">Phase 4. Plug-ins</h3>
+<div class="scroll"><table>
+<caption>Phase 4. Plug-ins</caption>
+<thead><tr>
+<th scope="col">ID</th>
+<th scope="col">Task</th>
+<th scope="col">Depends on</th>
+<th scope="col">Done when</th>
+<th scope="col">Status</th>
+</tr></thead><tbody>
+<tr><th scope="row" id="task-pl1">pl1</th><td>PhotoCraft host installs filters from the store; the additional-folder preference stays as a developer option</td><td>c6</td><td>Store-installed filter appears under Filter &gt; Plug-ins; docs/plugins.md updated</td><td>Not started</td></tr>
+<tr><th scope="row" id="task-pl2">pl2</th><td>Package manifest declares the target interface version; mismatch shown in plain words</td><td>pl1, c2</td><td>Wrong version refused with a sentence a person can act on</td><td>Not started</td></tr>
+<tr><th scope="row" id="task-pl3">pl3</th><td>Ship the invert-rs example as the first first-party catalogue entry</td><td>pl1, n3</td><td>Installs from the catalogue end to end on scripted localhost</td><td>Not started</td></tr>
+<tr><th scope="row" id="task-pl4">pl4</th><td>Decide whether to extract the wasm host once LightCraft or EffectCraft wants it</td><td>pl1</td><td>A second real consumer exists; otherwise it stays in PhotoCraft</td><td>Not started</td></tr>
+</tbody></table></div>
+<h3 id="p4b-h">Phase 4b. Bring in launcher UI only after plug-in infrastructure works</h3>
+<div class="scroll"><table>
+<caption>Phase 4b. Bring in launcher UI only after plug-in infrastructure works</caption>
+<thead><tr>
+<th scope="col">ID</th>
+<th scope="col">Task</th>
+<th scope="col">Depends on</th>
+<th scope="col">Done when</th>
+<th scope="col">Status</th>
+</tr></thead><tbody>
+<tr><th scope="row" id="task-ui-gate">ui-gate</th><td>Freeze the first-party core, store, catalogue, launcher source and PhotoCraft host contracts</td><td>pl1, pl2, pl3, n3, r2</td><td>A real first-party plug-in installs, enables, runs in PhotoCraft, persists on reload and removes. Fresh checkout resolves pinned dependencies without sibling-only paths. Third-party remains off</td><td>Not started; TEST BUILD UI is only a demo</td></tr>
+<tr><th scope="row" id="task-ui-port">ui-port</th><td>Extract approved launcher UI from combined TEST BUILD into clean feat/extensions after ui-gate</td><td>ui-gate, l3</td><td>Extensions navigation, icon controls, dropdowns, grouped per-app entries, deduped IDs and tests are in a clean branch; AI changes are separate; production source is real and --demo-data is labelled as examples</td><td>Not started; UI exists only in throwaway combined worktree</td></tr>
+<tr><th scope="row" id="task-ui-link">ui-link</th><td>Make app and kind deep links select the matching visible Extensions section</td><td>ui-port, r2</td><td>Cold start and running-instance --open extensions?kind=plugin land on Plug-ins, not Themes with a contradictory plug-in banner; app filter and Show all agree with the selected section; regression tests cover both starts</td><td>Not started; 16/10/2026 showcase needed manual Plug-ins selection</td></tr>
+<tr><th scope="row" id="task-ui-verify">ui-verify</th><td>Exercise combined source/store/app flow and review exact TEST BUILD candidate</td><td>ui-link, r3</td><td>Targeted tests, lint, launcher build, clean-checkout CI and wasm pass; install/enable/reopen/remove works; empty and --demo-data modes cannot impersonate installed plug-ins; Jeremy approves this build</td><td>Not started</td></tr>
+</tbody></table></div>
+<h3 id="p5-h">Phase 5. Reach every app</h3>
+<div class="scroll"><table>
+<caption>Phase 5. Reach every app</caption>
+<thead><tr>
+<th scope="col">ID</th>
+<th scope="col">Task</th>
+<th scope="col">Depends on</th>
+<th scope="col">Done when</th>
+<th scope="col">Status</th>
+</tr></thead><tbody>
+<tr><th scope="row" id="task-r1">r1</th><td>Launcher: Request::Open on the single-instance handshake and an --open argument</td><td>l1</td><td>Second start forwards the target; old launchers still answer show</td><td>Built 16/10/2026 (70b9612): crates/native deeplink.rs reads extensions?app=&amp;kind= strictly (bad values dropped); single_instance sends open after the hello on a second connection, a newer start carries the place itself, old launchers ignore it and still show; --open and --open= in main. 10 new native tests, 19 mutants run, 18 caught, 1 equivalent dropped</td></tr>
+<tr><th scope="row" id="task-r2">r2</th><td>Launcher: route the target to the filtered Extensions view</td><td>r1</td><td>App and kind filters applied on open</td><td>Built 16/10/2026 (70b9612): LauncherUi::open_extensions filters app/kind and shows a Show all banner; 6 plain-word strings in 10 catalogs, headless path tests. Observed in a window 16/10/2026: a cold --open extensions?kind=plugin showed the plug-in banner but left Themes selected; ui-link tracks the correction</td></tr>
+<tr><th scope="row" id="task-r3">r3</th><td>PhotoCraft: Themes &amp; Extensions panel, extension.* commands, Browse button</td><td>r2, a-photo-1</td><td>Button opens the launcher at PhotoCraft&#x27;s filter; commands tested including bad params</td><td>Not started</td></tr>
+<tr><th scope="row" id="task-r4">r4</th><td>Per-app adapters, one per app in the matrix (13 apps), each in its own repo by its maintainer</td><td>r3</td><td>Each app ticks the adapter checklist; reported as next decisions, none started here</td><td>Not started</td></tr>
+</tbody></table></div>
+<h3 id="delivery-h">Delivery. Stage source and package the approved first-party candidate</h3>
+<div class="scroll"><table>
+<caption>Delivery. Stage source and package the approved first-party candidate</caption>
+<thead><tr>
+<th scope="col">ID</th>
+<th scope="col">Task</th>
+<th scope="col">Depends on</th>
+<th scope="col">Done when</th>
+<th scope="col">Status</th>
+</tr></thead><tbody>
+<tr><th scope="row" id="task-ship-1">ship-1</th><td>Freeze one reproducible candidate commit after ui-verify</td><td>ui-verify</td><td>Working tree and version recorded; all dependencies resolve in CI without local sibling repositories; first-party behaviour and third-party-off feature guard pass from a fresh checkout</td><td>Not started</td></tr>
+<tr><th scope="row" id="task-ship-2">ship-2</th><td>Build and smoke-test private Windows candidate</td><td>ship-1</td><td>Run packaging/windows/package.ps1 for a versioned MSI and portable ZIP from the exact commit; test install, launch, plug-in lifecycle, restart and uninstall from a clean profile; record SHA-256 hashes, signature state and release notes; do not send a debug .exe</td><td>Not started</td></tr>
+<tr><th scope="row" id="task-ship-3">ship-3</th><td>Hand off source PRs in dependency order after Jeremy approves the candidate</td><td>ship-2</td><td>Separate reviewable PRs for shared infrastructure, app adapter and launcher integration/UI with test evidence and artifact references; any push or PR requires an explicit ask; no combined throwaway branch</td><td>Not started</td></tr>
+<tr><th scope="row" id="task-ship-4">ship-4</th><td>Publish only on a separate explicit release approval</td><td>ship-3</td><td>After maintainer acceptance, confirm the release workflow and rollback plan; obtain specific yes before pushing the release/production branch; verify the actual MSI, ZIP and other release assets after publishing</td><td>Not started</td></tr>
+</tbody></table></div>
+<h3 id="p6-h">Phase 6. Resources and later kinds</h3>
+<div class="scroll"><table>
+<caption>Phase 6. Resources and later kinds</caption>
+<thead><tr>
+<th scope="col">ID</th>
+<th scope="col">Task</th>
+<th scope="col">Depends on</th>
+<th scope="col">Done when</th>
+<th scope="col">Status</th>
+</tr></thead><tbody>
+<tr><th scope="row" id="task-x1">x1</th><td>Pick the first resource type whose importer is already shared (swatches #140 or LUT .cube)</td><td>pl1</td><td>Chosen with Jeremy; no invented formats</td><td>Not started</td></tr>
+<tr><th scope="row" id="task-x2">x2</th><td>Resource kind in the envelope and one app loading it through its existing importer</td><td>x1</td><td>Install a resource, app lists it; hostile file refused by the importer</td><td>Not started</td></tr>
+<tr><th scope="row" id="task-x3">x3</th><td>Declarative AI tool and provider specs as a data-only kind</td><td>x2</td><td>Only after the AI infrastructure is settled; reuses the existing spec checker</td><td>Blocked on AI infrastructure</td></tr>
+</tbody></table></div>
+<h3 id="future-h">Future roadmap (Jeremy, 04/11/2026)</h3>
+<div class="scroll"><table>
+<caption>Future roadmap (Jeremy, 04/11/2026)</caption>
+<thead><tr>
+<th scope="col">ID</th>
+<th scope="col">Task</th>
+<th scope="col">Depends on</th>
+<th scope="col">Done when</th>
+<th scope="col">Status</th>
+</tr></thead><tbody>
+<tr><th scope="row" id="task-theme-1">theme-1</th><td>Keep theme packages in a form a future ThemeCraft can open, edit and export</td><td>c3</td><td>Theme format documented; a saved package round-trips with no launcher change needed</td><td>Future</td></tr>
+<tr><th scope="row" id="task-theme-2">theme-2</th><td>Connect ThemeCraft to the Themes tab once that app exists: open a theme in it and publish back</td><td>theme-1</td><td>A theme made in ThemeCraft appears in the Themes tab and applies in another app</td><td>Future: ThemeCraft does not exist yet</td></tr>
+<tr><th scope="row" id="task-wf-1">wf-1</th><td>Workflows tab: install and list custom ComfyUI API-format JSON files as a data-only kind</td><td>x2</td><td>A workflow installs and lists; bad JSON refused; nothing in the file can run on install; missing custom nodes and models named in plain words</td><td>Future</td></tr>
+<tr><th scope="row" id="task-wf-2">wf-2</th><td>Let chosen app UIs adopt a workflow: each app declares which inputs and outputs it can drive</td><td>wf-1</td><td>One app UI runs an installed workflow through its declared inputs; an unsupported workflow is refused with a sentence</td><td>Future</td></tr>
+<tr><th scope="row" id="task-plc-1">plc-1</th><td>Plug-in capability model: a wide range of abilities across all apps, declared in the manifest, each granted only when the sandbox can enforce it</td><td>d12, sg6, pl2</td><td>Every ability is listed, shown before install and refused when undeclared; replaces the empty-permissions rule of version 1</td><td>Future: large design work</td></tr>
+<tr><th scope="row" id="task-plc-2">plc-2</th><td>Per-app extension points: what a plug-in can reach in each of the 14 apps (filters, tools, panels, commands, audio)</td><td>plc-1</td><td>Matrix agreed per app; each app&#x27;s maintainer owns its host</td><td>Future: large design work</td></tr>
+<tr><th scope="row" id="task-rank-1">rank-1</th><td>Plug-in download counts and other ranking signals from an agreed source</td><td>d11, n3</td><td>Counts shown name their source; no hidden tracking in the apps; inflated counts have a stated answer</td><td>Future</td></tr>
+<tr><th scope="row" id="task-rank-2">rank-2</th><td>Rank and sort plug-ins in the browser by downloads and other signals</td><td>rank-1, n4</td><td>Sort orders tested; first-party and third-party labels stay visible at every rank</td><td>Future</td></tr>
+</tbody></table></div>
+<h3 id="pg-h">Standing gates, every phase</h3>
+<div class="scroll"><table>
+<caption>Standing gates, every phase</caption>
+<thead><tr>
+<th scope="col">ID</th>
+<th scope="col">Task</th>
+<th scope="col">Depends on</th>
+<th scope="col">Done when</th>
+<th scope="col">Status</th>
+</tr></thead><tbody>
+<tr><th scope="row" id="task-g-fmt">g-fmt</th><td>fmt, per-crate clippy -D warnings, targeted tests one at a time</td><td>none</td><td>Output read, not assumed</td><td>Standing</td></tr>
+<tr><th scope="row" id="task-g-size">g-size</th><td>Files under 500 lines, 700 hard</td><td>none</td><td>Checked before each commit</td><td>Standing</td></tr>
+<tr><th scope="row" id="task-g-never">g-never</th><td>Never-crash scan: no unwrap, expect or panic in non-test code</td><td>none</td><td>Crate roots carry the deny header</td><td>Standing</td></tr>
+<tr><th scope="row" id="task-g-say">g-say</th><td>State what was not run (live calls, TLS, other OSes) in NEXT.md and the reply</td><td>none</td><td>Present in every status update</td><td>Standing</td></tr>
+<tr><th scope="row" id="task-g-closed">g-closed</th><td>The third-party gate stays closed: no release build enables it and no third-party entry is accepted until sg13</td><td>none</td><td>The sg5 test is green in every phase</td><td>Standing</td></tr>
+</tbody></table></div>
+<h3 id="appx-h">Per-app adapter rows (task r4)</h3><p>Each app follows the adapter checklist above in its own repo. Listed in the per-app matrix; none is started here.</p>
+</section>
+<section id="rules" aria-labelledby="rules-h">
+<h2 id="rules-h">Rules for this work</h2>
+<ul><li>Only Jeremy&#x27;s words are marked Decided. A maintainer&#x27;s remark is Open or leaning.</li><li>Nothing leaves this machine without his specific yes: no push, no PR, no issue comment, no message to a maintainer.</li><li>Targeted cargo only: one process at a time, cargo test -p &lt;crate&gt; -j 8. No workspace builds, no cold PhotoCraft build locally; upstream CI is the first full compile.</li><li>Tests first, then a mutation check on every validator. Report plainly what was not run.</li><li>500 line soft limit, 700 hard, per file. The launcher&#x27;s views.rs is already 971: new UI goes in features/extensions/.</li><li>Never crash: no unwrap, expect or panic in non-test code; network and archive contents are hostile.</li><li>Public repos must not carry the machine&#x27;s profile folder. Scrub before any commit.</li><li>No em or en dashes in documents. No unattended automation.</li><li>Anything Jeremy may test goes into his test build in the same turn, unasked.</li><li>Never enable the third-party feature in a release build. Opening the gate (sg13) needs Jeremy&#x27;s yes and the maintainer&#x27;s yes to that specific change.</li><li>Test keys only in the repo. No real signing key, token or secret ever enters a file, a log or this transcript.</li></ul>
+</section>
+<section id="questions" aria-labelledby="questions-h">
+<h2 id="questions-h">Open questions</h2>
+<ul><li>ArtCraft holds the signing material for the apps. Will they give a public key for signing the first-party index (the AI handoff asked the same question)?</li><li>Who pays for and chooses the independent reviewer (d10), and who triages the findings?</li><li>Who are the index reviewers for the two-maintainer rule, given Jeremy has read-only access to the organisation?</li><li>Portable launcher mode keeps data beside the exe. Where does the shared store live then, and do apps find it?</li><li>A theme that fails the 4.5:1 text contrast check: reject at install, or install with a warning?</li><li>An active theme is removed while an app is running: fall back to the built-in theme silently, or tell the person?</li><li>Extension licences: must the index require an open licence, or only record whatever the author states?</li><li>Updates: ask each time (like apps) or update extensions automatically?</li><li>Does a plug-in that fails to load in one app get disabled everywhere or only there?</li></ul>
+</section>
+<section id="resume" aria-labelledby="resume-h">
+<h2 id="resume-h">Start a new session</h2>
+<ol><li>Read <a href="NEXT.md">NEXT.md</a>, then the <a href="design-notes.md">design notes</a>.</li><li>Verify against the live repos before acting: git fetch, gh pr list, git status in the launcher and PhotoCraft trees. Another session may have moved them.</li><li>If scope is still open, ask Jeremy once which decision to settle first (<a href="#dec-d4">d4</a> blocks the internal catalogue; <a href="#dec-d8">d8</a> gates the signature work). If he has chosen, build without further check-ins.</li></ol>
+</section>
+<section id="refs" aria-labelledby="refs-h">
+<h2 id="refs-h">References</h2>
+<ul><li><a href="design-notes.md">Design notes (package envelope, storage, trust, launcher screen)</a></li><li><a href="https://github.com/storytold/craft-launcher/blob/main/AGENTS.md">Launcher AGENTS.md (layering, golden rules)</a></li><li><a href="https://github.com/storytold/photocraft/blob/main/docs/plugins.md">PhotoCraft plug-in contract (ABI v1)</a></li><li><a href="https://github.com/storytold/craft-ai-integrations">AI layer, the pattern this follows</a></li></ul>
+</section>
+</main>
+<footer><p>Local plan. No commit, push, post or install is authorised by this page. Generated by build.py from plan_data.py and plan_tasks.py; do not edit index.html alone.</p></footer>
+</body>
+</html>

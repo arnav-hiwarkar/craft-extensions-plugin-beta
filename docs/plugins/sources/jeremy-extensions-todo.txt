@@ -1,0 +1,500 @@
+Craft Extensions To-Do
+A shared browser for themes, plug-ins and resources, built into ArtCraft Launcher and reachable from every Craft app. First-party extensions come first. Third-party support is built in but stays switched off until every security gate passes.
+
+30 to do
+5 partly done
+5 blocked or closed
+17 built
+8 future roadmap
+Repo locations checked on 04/11/2026. Task statuses come from the plan, last updated 16/10/2026. Files in the combined launcher tree were edited up to 18/10/2026, after that update. Crates: storytold/craft-extensions.
+
+Where the code is
+All of this was pushed to storytold on 04/11/2026. The full plan, decisions and design notes are in docs/handoff on wip/extensions-handover. Start with NEXT.md there.
+
+Work	Repo and branch	State on 04/11/2026
+Combined launcher UI	storytold/craft-launcher, test/ext-plus-ai	be3bff3e26. The only copy of the approved Extensions UI. It also holds AI work and is a throwaway branch, so it must never be the release source. Compiles with cargo check.
+Launcher feature	storytold/craft-launcher, feat/extensions	6ede77f93f. Extensions tests pass. It is 373 commits behind main, and its path dependencies need ../craft-extensions on wip/extensions-handover beside it.
+Crates, in progress	storytold/craft-extensions, wip/extensions-handover	ffd8512e5a. Plug-in thumbnail support and store changes on top of main, plus the plan in docs/handoff. Core and store tests pass (116).
+Crates, URL fix	storytold/craft-extensions, chore/repo-url-storytold	4f11728727. One-line repository URL change. Not merged.
+PhotoCraft adapter	storytold/photocraft, feat/extensions-theme-adapter	ecb056cc74. Same commit as the fork. Its path dependencies also need pinning.
+Suggested order
+Check out the branches in the table above. They are unreviewed work in progress with no open PRs.
+Settle the open decisions. d4 blocks the catalogue, and d8 to d10 block the third-party gates.
+Update the plan against live repos (s0c). It was last checked on 16/10/2026, and craft-libs #94 has since closed.
+Finish the first-party path: catalogue (n1 to n4), then the PhotoCraft host (pl1 to pl3).
+Replace the path dependencies on ../craft-extensions with a pinned git revision, so a clean checkout builds.
+Only then extract the UI into a clean launcher branch (ui-gate to ui-verify), then package and hand off PRs (ship-1 to ship-4).
+Later: the future roadmap, covering ThemeCraft, the Workflows tab, wider plug-in abilities and plug-in ranking.
+Open decisions
+These are recommendations, not decisions. Decided so far: d0, d3, d5 and d7. r3 also needs one answer: whether the PhotoCraft panel is a Window menu dialog, a docked panel or a Preferences page.
+
+Id	Question	Recommendation
+d1	What does "extension" cover?	Three kinds: themes, plug-ins, resources (brush sets, LUTs, swatches, templates).
+d2	User-facing name	Section "Extensions", tabs Themes, Plug-ins, Resources (PhotoCraft already says Plug-ins).
+d4	Where the catalogue index lives	storytold/crafthub if the maintainers confirm it was meant for this (it is empty today, README says "Placeholder for merges"); otherwise a repo under Jeremy's account first.
+d6	Does the launcher accept themes itself?	Optional. The default stays the look that matches getartcraft.com.
+d8	Signing and metadata scheme for third-party gates	Ed25519 detached signatures, publisher keys pinned in the index, and TUF-style signed metadata (version, expiry, revocation). Look at adopting TUF's design before inventing our own.
+d9	Provenance for third-party plug-ins	The hub builds plug-ins from source in its own CI and attests the build, rather than accepting uploaded binaries. Costly, strongest.
+d10	Independent security review before the gate opens	Yes: an outside review of unpack, the sandbox host and the signature code, with findings fixed or accepted in writing.
+d11	Where do plug-in download counts and rankings come from?	Start with download counts on storytold-hosted release files. They need no tracking inside the apps and no new server.
+d12	What may a plug-in do, and how is each ability made safe?	A per-app ability list declared in the manifest and shown before install. Add each ability only once the sandbox can enforce it.
+Not verified
+No real plug-in has gone through catalogue, install and host.
+No clean-checkout CI, candidate package, source PR or release exists.
+The launcher UI has been seen in a window only with sample data. The PhotoCraft restyle still needs checking in a window.
+The threat model is an unreviewed draft. Translations have not been read by a native speaker.
+CI has not run on any of the pushed branches. Only targeted local checks ran, and clippy did not.
+All tasks
+Phase 0. Decide and line up (no code)
+s0a
+Settle the remaining open decisions with Jeremy (d1, d2, d4 to d10)
+
+Done when Each row in the decisions table is Decided in his words
+
+To do
+s0b
+Draft a note to the maintainer about crafthub (d4) and the hub repo joining the download rule; show it, send only on his yes
+
+Needs s0a
+
+Done when Draft shown; if sent, the posted message is read back
+
+To do
+s0c
+Read the live threads: craft-libs #94, #115, #79, #126 and the AI store folder decision; record what they change
+
+Done when Findings added to NEXT.md
+
+To do
+s0d
+Create worktrees off upstream main: launcher (not the feat/ai-connections tree) and PhotoCraft
+
+Done when git worktree list shows both; the AI branch untouched
+
+Launcher done: worktree craft-launcher-ext on feat/extensions from origin/main 307efcf. PhotoCraft worktree not yet created
+
+Partly done
+s0e
+Threat model for all three kinds: assets, attackers, zip bombs, path escape, lookalike ids, impersonating first-party ids, update hijack, rollback and freeze, malicious wasm, hostile importer input
+
+Done when Written in docs; every threat names the gate (sg*) that answers it or says it is accepted
+
+Draft written in the public repo (docs/THREAT-MODEL.md, 20 threats, 13 gates); unreviewed
+
+Partly done
+1 already built
+Phase 1. Contract and the theme slice (first-party)
+g1
+Record the two consumers (launcher, PhotoCraft) as evidence for the craft-libs sharing rule
+
+Needs a-photo-1
+
+Done when Written in NEXT.md; nothing posted
+
+To do
+12 already built
+Phase 2. Internal catalogue (first-party only)
+n1
+Index repo with first-party entries only; contribution doc; CI runs the c1 to c3 validators and rejects any non-first-party entry while the gate is closed
+
+Needs c2, d4
+
+Done when A bad or third-party entry fails CI; a good first-party one passes
+
+Blocked on d4
+
+Blocked
+n2
+Launcher: fetch the index with size caps, cache and throttle (as feed_throttle does)
+
+Needs n1
+
+Done when Scripted localhost server test; no live call
+
+To do
+n3
+Launcher: hash-pinned download then install through the store
+
+Needs n2, c5
+
+Done when Wrong hash refused before unpack; truncated download resumes or fails cleanly
+
+To do
+n4
+Trust labels in words (Made by ArtCraft, Added from a file), updates list, update check
+
+Needs n3
+
+Done when Each label shows its own sentence; update flow tested
+
+To do
+n5
+Download rule: add the storytold hub repo's releases; everything outside the storytold organisation stays refused
+
+Needs n1
+
+Done when Test asserts a non-storytold URL is refused; maintainer agreed to the wording
+
+To do
+n6
+Web build: read-only listing
+
+Needs n2
+
+Done when cargo xtask wasm passes; no install button on web
+
+To do
+Phase 3. Third-party structure behind security gates (built, switched off)
+sg2
+Signature seam: publisher key pinning, detached signature check, key rotation and revocation records; test keys only, no real key material in the repo
+
+Needs c2, d8
+
+Done when Wrong key, unsigned, rotated and revoked cases all refused or accepted correctly
+
+To do
+sg3
+Signed, expiring index metadata: monotonic version, expiry, freeze and rollback refused (clock passed as an argument)
+
+Needs sg2
+
+Done when Stale, replayed and downgraded index refused; tests with a fake clock
+
+Partly built: expiry and no-older-index checks in the index parser. Signatures not built (needs d8)
+
+Partly done
+sg4
+Revocation list checked at launcher start and before enabling; a revoked package is disabled in every app through the store
+
+Needs sg3, c5
+
+Done when Revoking an installed package turns it off for all apps on next scan
+
+Partly built: Index::is_revoked. Not wired into launcher start or enabling
+
+Partly done
+sg6
+Capability rules for third party: permissions must be empty in version 1; plug-in re-validated at install and on every load; any host import rejected
+
+Needs c1, pl1
+
+Done when Plug-in with an import or a permission is refused at both points
+
+Partly built: permissions must be empty in the manifest. Re-validation of the module on every load is the app host's job, not done
+
+Partly done
+sg7
+No silent change: a new publisher key, a wider permission or a downgrade needs a fresh yes; third-party updates never apply automatically
+
+Needs sg2, n4
+
+Done when Each change blocks until the person agrees; tested
+
+To do
+sg8
+Fuzz targets and a panic hunt over the manifest, theme, index and archive parsers and the plug-in install path; time-boxed, one run at a time
+
+Needs c4, sg6
+
+Done when Corpus and findings recorded; every crash fixed with a regression test that failed first
+
+To do
+sg9
+Provenance: source repository and commit recorded per entry; decide whether the hub builds plug-ins from source itself (d9)
+
+Needs d9, n1
+
+Done when Provenance field checked by CI; build-from-source decision recorded
+
+Blocked on d9
+
+Blocked
+sg10
+Review process: index pull request checklist, two-maintainer rule, SECURITY.md with disclosure and takedown path
+
+Needs n1
+
+Done when Documents merged; a dry-run review of a sample third-party entry
+
+To do
+sg11
+Launcher interface for third-party entries (tier badge, warnings, plain wording), compiled only with the feature on
+
+Needs sg5, n4
+
+Done when Only visible in a feature build; plain-language scan covers it
+
+To do
+sg12
+Independent security review of unpack, sandbox host and signature code before the gate opens (d10)
+
+Needs sg1, sg2, sg3, sg4, sg5, sg6, sg7, sg8, d10
+
+Done when Report received; every finding fixed or accepted in writing
+
+Blocked on d10
+
+Blocked
+sg13
+Open the gate: enable third-party in release builds
+
+Needs sg1, sg2, sg3, sg4, sg5, sg6, sg7, sg8, sg9, sg10, sg11, sg12
+
+Done when Closed until every row above is done AND Jeremy and the maintainer each say yes to this specific change
+
+Closed
+
+Closed
+2 already built
+Phase 4. Plug-ins
+pl1
+PhotoCraft host installs filters from the store; the additional-folder preference stays as a developer option
+
+Needs c6
+
+Done when Store-installed filter appears under Filter > Plug-ins; docs/plugins.md updated
+
+To do
+pl2
+Package manifest declares the target interface version; mismatch shown in plain words
+
+Needs pl1, c2
+
+Done when Wrong version refused with a sentence a person can act on
+
+To do
+pl3
+Ship the invert-rs example as the first first-party catalogue entry
+
+Needs pl1, n3
+
+Done when Installs from the catalogue end to end on scripted localhost
+
+To do
+pl4
+Decide whether to extract the wasm host once LightCraft or EffectCraft wants it
+
+Needs pl1
+
+Done when A second real consumer exists; otherwise it stays in PhotoCraft
+
+To do
+Phase 4b. Bring in launcher UI only after plug-in infrastructure works
+ui-gate
+Freeze the first-party core, store, catalogue, launcher source and PhotoCraft host contracts
+
+Needs pl1, pl2, pl3, n3, r2
+
+Done when A real first-party plug-in installs, enables, runs in PhotoCraft, persists on reload and removes. Fresh checkout resolves pinned dependencies without sibling-only paths. Third-party remains off
+
+Not started; TEST BUILD UI is only a demo
+
+To do
+ui-port
+Extract approved launcher UI from combined TEST BUILD into clean feat/extensions after ui-gate
+
+Needs ui-gate, l3
+
+Done when Extensions navigation, icon controls, dropdowns, grouped per-app entries, deduped IDs and tests are in a clean branch; AI changes are separate; production source is real and --demo-data is labelled as examples
+
+Not started; UI exists only in throwaway combined worktree
+
+To do
+ui-link
+Make app and kind deep links select the matching visible Extensions section
+
+Needs ui-port, r2
+
+Done when Cold start and running-instance --open extensions?kind=plugin land on Plug-ins, not Themes with a contradictory plug-in banner; app filter and Show all agree with the selected section; regression tests cover both starts
+
+Not started; 16/10/2026 showcase needed manual Plug-ins selection
+
+To do
+ui-verify
+Exercise combined source/store/app flow and review exact TEST BUILD candidate
+
+Needs ui-link, r3
+
+Done when Targeted tests, lint, launcher build, clean-checkout CI and wasm pass; install/enable/reopen/remove works; empty and --demo-data modes cannot impersonate installed plug-ins; Jeremy approves this build
+
+To do
+Phase 5. Reach every app
+r3
+PhotoCraft: Themes & Extensions panel, extension.* commands, Browse button
+
+Needs r2, a-photo-1
+
+Done when Button opens the launcher at PhotoCraft's filter; commands tested including bad params
+
+To do
+r4
+Per-app adapters, one per app in the matrix (13 apps), each in its own repo by its maintainer
+
+Needs r3
+
+Done when Each app ticks the adapter checklist; reported as next decisions, none started here
+
+To do
+2 already built
+Delivery. Stage source and package the approved first-party candidate
+ship-1
+Freeze one reproducible candidate commit after ui-verify
+
+Needs ui-verify
+
+Done when Working tree and version recorded; all dependencies resolve in CI without local sibling repositories; first-party behaviour and third-party-off feature guard pass from a fresh checkout
+
+To do
+ship-2
+Build and smoke-test private Windows candidate
+
+Needs ship-1
+
+Done when Run packaging/windows/package.ps1 for a versioned MSI and portable ZIP from the exact commit; test install, launch, plug-in lifecycle, restart and uninstall from a clean profile; record SHA-256 hashes, signature state and release notes; do not send a debug .exe
+
+To do
+ship-3
+Hand off source PRs in dependency order after Jeremy approves the candidate
+
+Needs ship-2
+
+Done when Separate reviewable PRs for shared infrastructure, app adapter and launcher integration/UI with test evidence and artifact references; any push or PR requires an explicit ask; no combined throwaway branch
+
+To do
+ship-4
+Publish only on a separate explicit release approval
+
+Needs ship-3
+
+Done when After maintainer acceptance, confirm the release workflow and rollback plan; obtain specific yes before pushing the release/production branch; verify the actual MSI, ZIP and other release assets after publishing
+
+To do
+Phase 6. Resources and later kinds
+x1
+Pick the first resource type whose importer is already shared (swatches #140 or LUT .cube)
+
+Needs pl1
+
+Done when Chosen with Jeremy; no invented formats
+
+To do
+x2
+Resource kind in the envelope and one app loading it through its existing importer
+
+Needs x1
+
+Done when Install a resource, app lists it; hostile file refused by the importer
+
+To do
+x3
+Declarative AI tool and provider specs as a data-only kind
+
+Needs x2
+
+Done when Only after the AI infrastructure is settled; reuses the existing spec checker
+
+Blocked on AI infrastructure
+
+Blocked
+Future roadmap (Jeremy, 04/11/2026)
+theme-1
+Keep theme packages in a form a future ThemeCraft can open, edit and export
+
+Needs c3
+
+Done when Theme format documented; a saved package round-trips with no launcher change needed
+
+Future
+theme-2
+Connect ThemeCraft to the Themes tab once that app exists: open a theme in it and publish back
+
+Needs theme-1
+
+Done when A theme made in ThemeCraft appears in the Themes tab and applies in another app
+
+Future: ThemeCraft does not exist yet
+
+Future
+wf-1
+Workflows tab: install and list custom ComfyUI API-format JSON files as a data-only kind
+
+Needs x2
+
+Done when A workflow installs and lists; bad JSON refused; nothing in the file can run on install; missing custom nodes and models named in plain words
+
+Future
+wf-2
+Let chosen app UIs adopt a workflow: each app declares which inputs and outputs it can drive
+
+Needs wf-1
+
+Done when One app UI runs an installed workflow through its declared inputs; an unsupported workflow is refused with a sentence
+
+Future
+plc-1
+Plug-in capability model: a wide range of abilities across all apps, declared in the manifest, each granted only when the sandbox can enforce it
+
+Needs d12, sg6, pl2
+
+Done when Every ability is listed, shown before install and refused when undeclared; replaces the empty-permissions rule of version 1
+
+Future: large design work
+
+Future
+plc-2
+Per-app extension points: what a plug-in can reach in each of the 14 apps (filters, tools, panels, commands, audio)
+
+Needs plc-1
+
+Done when Matrix agreed per app; each app's maintainer owns its host
+
+Future: large design work
+
+Future
+rank-1
+Plug-in download counts and other ranking signals from an agreed source
+
+Needs d11, n3
+
+Done when Counts shown name their source; no hidden tracking in the apps; inflated counts have a stated answer
+
+Future
+rank-2
+Rank and sort plug-ins in the browser by downloads and other signals
+
+Needs rank-1, n4
+
+Done when Sort orders tested; first-party and third-party labels stay visible at every rank
+
+Future
+Standing gates, every phase
+g-fmt
+fmt, per-crate clippy -D warnings, targeted tests one at a time
+
+Done when Output read, not assumed
+
+Every phase
+g-size
+Files under 500 lines, 700 hard
+
+Done when Checked before each commit
+
+Every phase
+g-never
+Never-crash scan: no unwrap, expect or panic in non-test code
+
+Done when Crate roots carry the deny header
+
+Every phase
+g-say
+State what was not run (live calls, TLS, other OSes) in NEXT.md and the reply
+
+Done when Present in every status update
+
+Every phase
+g-closed
+The third-party gate stays closed: no release build enables it and no third-party entry is accepted until sg13
+
+Done when The sg5 test is green in every phase
+
+Every phase

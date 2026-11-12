@@ -1,0 +1,651 @@
+{
+  "source_repository": "storytold/craft-libs",
+  "source_revision": "fd5e2feff6ea25bed371a99cc732b3968d621",
+  "source_state": "uncommitted plugin documentation after post-call discussion",
+  "captured": "2026-11-11",
+  "files": [
+    {
+      "path": "docs/plugins/.DS_Store",
+      "sha256": "84a31ab6a62ee9cb0d6d76f020e10749bd6de01452a4c52120b3619e0e0d543c",
+      "bytes": 6148,
+      "destination_sha256": "84a31ab6a62ee9cb0d6d76f020e10749bd6de01452a4c52120b3619e0e0d543c"
+    },
+    {
+      "path": "docs/plugins/README.md",
+      "sha256": "fe202d6b99a97ad9cf1aecef3e75b7de71f9b57cf47e284f7b87a0b12d622e3c",
+      "bytes": 6656,
+      "destination_sha256": "fe202d6b99a97ad9cf1aecef3e75b7de71f9b57cf47e284f7b87a0b12d622e3c"
+    },
+    {
+      "path": "docs/plugins/architecture.md",
+      "sha256": "cdcbc22cecbf608d8b13c7fe8032c7c5f9484fec84c65c197ca453ee03bffd3f",
+      "bytes": 60227,
+      "destination_sha256": "cdcbc22cecbf608d8b13c7fe8032c7c5f9484fec84c65c197ca453ee03bffd3f"
+    },
+    {
+      "path": "docs/plugins/aspect-register.md",
+      "sha256": "19426e79145236f9edf7ac1101230474eb86b23785e453b4a8f038631c949922",
+      "bytes": 8507,
+      "destination_sha256": "19426e79145236f9edf7ac1101230474eb86b23785e453b4a8f038631c949922"
+    },
+    {
+      "path": "docs/plugins/design-sessions/README.md",
+      "sha256": "1264d54a384ed5bfd7c47f8bca14f68b7bc98c62ec6731269f74fb79a546fe31",
+      "bytes": 4833,
+      "destination_sha256": "1264d54a384ed5bfd7c47f8bca14f68b7bc98c62ec6731269f74fb79a546fe31"
+    },
+    {
+      "path": "docs/plugins/design-sessions/app-families-and-sdk.md",
+      "sha256": "6d26f6d8b8895ac5f40083f160cbb8cd2758dce494e2a4e1d3d2fa1c872277d2",
+      "bytes": 110545,
+      "destination_sha256": "6d26f6d8b8895ac5f40083f160cbb8cd2758dce494e2a4e1d3d2fa1c872277d2"
+    },
+    {
+      "path": "docs/plugins/design-sessions/opus-handoff.md",
+      "sha256": "b07a454a93a8c93774e76b1f7c105dace54cd1b1e2906a2a57d1b7ad1380687a",
+      "bytes": 10240,
+      "destination_sha256": "b07a454a93a8c93774e76b1f7c105dace54cd1b1e2906a2a57d1b7ad1380687a"
+    },
+    {
+      "path": "docs/plugins/design-sessions/post-call-reconciliation.md",
+      "sha256": "5452344afaf3022f980c5065117b0890deb90286b2493b4fd00f546b1b17064b",
+      "bytes": 32862,
+      "destination_sha256": "5452344afaf3022f980c5065117b0890deb90286b2493b4fd00f546b1b17064b"
+    },
+    {
+      "path": "docs/plugins/design-sessions/scenarios-and-workflows.md",
+      "sha256": "9fe515642d75e4f2504c64ec499e710cb060a1d06497676c7277f36a466cbc2d",
+      "bytes": 13791,
+      "destination_sha256": "9fe515642d75e4f2504c64ec499e710cb060a1d06497676c7277f36a466cbc2d"
+    },
+    {
+      "path": "docs/plugins/design-sessions/session-record.md",
+      "sha256": "8ba229563bb3fad691bd90b4874531dd8bfdebca3e774002bbffb1c04bb58b56",
+      "bytes": 48094,
+      "destination_sha256": "8ba229563bb3fad691bd90b4874531dd8bfdebca3e774002bbffb1c04bb58b56"
+    },
+    {
+      "path": "docs/plugins/design-sessions/topics.md",
+      "sha256": "1759ffbeacf56a56ce1a935feb97004bc9c459621a149d867159b9e126fff60f",
+      "bytes": 10204,
+      "destination_sha256": "1759ffbeacf56a56ce1a935feb97004bc9c459621a149d867159b9e126fff60f"
+    },
+    {
+      "path": "docs/plugins/design-sessions/verification.md",
+      "sha256": "653ff8e60b4010126bcbc0913acfee972afb1af87a8ae8f6e6a77e50d58cea8e",
+      "bytes": 3662,
+      "destination_sha256": "653ff8e60b4010126bcbc0913acfee972afb1af87a8ae8f6e6a77e50d58cea8e"
+    },
+    {
+      "path": "docs/plugins/discussion/01-workspace-setup.md",
+      "sha256": "af1713b53874de2b542b7d4444611a1d23ecb452e88963db5edd58d11f1356d1",
+      "bytes": 829,
+      "destination_sha256": "af1713b53874de2b542b7d4444611a1d23ecb452e88963db5edd58d11f1356d1"
+    },
+    {
+      "path": "docs/plugins/discussion/02-how-craft-libs-is-consumed.md",
+      "sha256": "c37328ef15261180a377fe917ead7f4815e871c707b5650dbcb3c61483115105",
+      "bytes": 4272,
+      "destination_sha256": "0b66d8a8e6e5e76b8701c8630ebed68da1fff46fa12a338b1188132d6e423743"
+    },
+    {
+      "path": "docs/plugins/discussion/03-common-management-and-app-integration.md",
+      "sha256": "411cb88c0593a0cf54b018576ddd128fb84c14549bd689e0b8ec52d5ab61f7f3",
+      "bytes": 10329,
+      "destination_sha256": "411cb88c0593a0cf54b018576ddd128fb84c14549bd689e0b8ec52d5ab61f7f3"
+    },
+    {
+      "path": "docs/plugins/discussion/04-resources-and-initial-proposals.md",
+      "sha256": "36bd64e00179ea8e8223aea4da609ea54a040d5d01a64473afb0780ccd3fa207",
+      "bytes": 2202,
+      "destination_sha256": "36bd64e00179ea8e8223aea4da609ea54a040d5d01a64473afb0780ccd3fa207"
+    },
+    {
+      "path": "docs/plugins/discussion/05-lifecycle-design-review.md",
+      "sha256": "6f65904056a7ee38dde17a711e0b4e4f818b2fe66f6054131eea2a694cafa7e1",
+      "bytes": 13723,
+      "destination_sha256": "6f65904056a7ee38dde17a711e0b4e4f818b2fe66f6054131eea2a694cafa7e1"
+    },
+    {
+      "path": "docs/plugins/discussion/06-independent-functional-investigations.md",
+      "sha256": "28e94a01dd1ce933121c9203957f5a9685499232844dfb7bb10dcf30e7f864d8",
+      "bytes": 11994,
+      "destination_sha256": "28e94a01dd1ce933121c9203957f5a9685499232844dfb7bb10dcf30e7f864d8"
+    },
+    {
+      "path": "docs/plugins/discussion/07-security-and-themes-request.md",
+      "sha256": "5f907133138c9b068cd30378babaff0d0dfb9b7e519cffc45f371155656ecf59",
+      "bytes": 2205,
+      "destination_sha256": "5f907133138c9b068cd30378babaff0d0dfb9b7e519cffc45f371155656ecf59"
+    },
+    {
+      "path": "docs/plugins/discussion/08-expanded-security-review-request.md",
+      "sha256": "ebbeb77c0eb18fd497ef7c8344da97bc1b9b1db01eac32cdbc2ded5a8efa5a73",
+      "bytes": 2476,
+      "destination_sha256": "ebbeb77c0eb18fd497ef7c8344da97bc1b9b1db01eac32cdbc2ded5a8efa5a73"
+    },
+    {
+      "path": "docs/plugins/discussion/09-themes-scope-clarification.md",
+      "sha256": "93a8dd1234f938a910471deb5d7d2778c1296c237b48468be559396411f2b6b9",
+      "bytes": 804,
+      "destination_sha256": "93a8dd1234f938a910471deb5d7d2778c1296c237b48468be559396411f2b6b9"
+    },
+    {
+      "path": "docs/plugins/discussion/10-existing-implementation-handoff-and-reconciliation.md",
+      "sha256": "d1d94ef2d209c12a03227389373653673e9b40088b7717460edec9ba26928861",
+      "bytes": 9525,
+      "destination_sha256": "d1d94ef2d209c12a03227389373653673e9b40088b7717460edec9ba26928861"
+    },
+    {
+      "path": "docs/plugins/discussion/README.md",
+      "sha256": "5e38977595b6b68434c29799d3f43cabe98d4dfe1aabdce6e98d12c74e07fbc5",
+      "bytes": 1570,
+      "destination_sha256": "5e38977595b6b68434c29799d3f43cabe98d4dfe1aabdce6e98d12c74e07fbc5"
+    },
+    {
+      "path": "docs/plugins/draft/README.md",
+      "sha256": "e7cb686e13adcdd17b7db544e4e7d2717fb6a539916946f1e7b97de00990fbd6",
+      "bytes": 15157,
+      "destination_sha256": "e7cb686e13adcdd17b7db544e4e7d2717fb6a539916946f1e7b97de00990fbd6"
+    },
+    {
+      "path": "docs/plugins/draft/decisions.md",
+      "sha256": "17dbdc18b126e8a0ff7d4ee00116974809a05f647e1c94b24881d92e1967e053",
+      "bytes": 41039,
+      "destination_sha256": "17dbdc18b126e8a0ff7d4ee00116974809a05f647e1c94b24881d92e1967e053"
+    },
+    {
+      "path": "docs/plugins/draft/delivery-and-acceptance.md",
+      "sha256": "8ca3c601b662ce5bc16693f90d5c2b74ab39080e370002004034aabfaf3cd0bf",
+      "bytes": 21726,
+      "destination_sha256": "8ca3c601b662ce5bc16693f90d5c2b74ab39080e370002004034aabfaf3cd0bf"
+    },
+    {
+      "path": "docs/plugins/draft/opus-review.md",
+      "sha256": "b4a5671571bb155fd6e07b8f58b2554f37a71695927e8a847e68eaf685d2f4db",
+      "bytes": 39839,
+      "destination_sha256": "b4a5671571bb155fd6e07b8f58b2554f37a71695927e8a847e68eaf685d2f4db"
+    },
+    {
+      "path": "docs/plugins/draft/review-reconciliation.md",
+      "sha256": "74cb12b20dd9671bd3fe3e78db99a1db1b1d32b20e44b1540c7367fa634ea353",
+      "bytes": 11335,
+      "destination_sha256": "74cb12b20dd9671bd3fe3e78db99a1db1b1d32b20e44b1540c7367fa634ea353"
+    },
+    {
+      "path": "docs/plugins/draft/sdk-and-contracts.md",
+      "sha256": "6e5359270d1fcfbf40bb783dc5cf398fa73d5077e7c97e20451813f265322a8b",
+      "bytes": 20736,
+      "destination_sha256": "6e5359270d1fcfbf40bb783dc5cf398fa73d5077e7c97e20451813f265322a8b"
+    },
+    {
+      "path": "docs/plugins/draft/security-and-distribution.md",
+      "sha256": "f55a05837f0d72564c7b8f916ac47341ef21057a76ca2665e48e763b88bd0235",
+      "bytes": 23904,
+      "destination_sha256": "f55a05837f0d72564c7b8f916ac47341ef21057a76ca2665e48e763b88bd0235"
+    },
+    {
+      "path": "docs/plugins/draft/shared-operations-and-apps.md",
+      "sha256": "2c4a8509f3588a5938e5b381361771fa59b0df5c4e8f0ecd22368bb1ebbec5e4",
+      "bytes": 16195,
+      "destination_sha256": "2c4a8509f3588a5938e5b381361771fa59b0df5c4e8f0ecd22368bb1ebbec5e4"
+    },
+    {
+      "path": "docs/plugins/draft/verification.md",
+      "sha256": "95036757887e020059fef0f05cd4d214b965d6fe00b28d8a76a02d05fba42596",
+      "bytes": 6637,
+      "destination_sha256": "4ab8fbff404fd6ff27ac801e8fb5c62d1230b0c5d4dc94dffaed587dc39539ae"
+    },
+    {
+      "path": "docs/plugins/implementation/P1-store.md",
+      "sha256": "71351f6685fe0fd65e8a111c48d9ec25df5348e6b38e624d6491c26941e87624",
+      "bytes": 36283,
+      "destination_sha256": "71351f6685fe0fd65e8a111c48d9ec25df5348e6b38e624d6491c26941e87624"
+    },
+    {
+      "path": "docs/plugins/implementation/P10-native.md",
+      "sha256": "2e4f5b8fb946484070f29f9a30eae4e2f5a6c1a4fdff29b24cd6efad079e4391",
+      "bytes": 4599,
+      "destination_sha256": "2e4f5b8fb946484070f29f9a30eae4e2f5a6c1a4fdff29b24cd6efad079e4391"
+    },
+    {
+      "path": "docs/plugins/implementation/P11-other-apps.md",
+      "sha256": "31a4444b658c220cc0f81f27792197964a9fa4975b7f3112a8099c954d5eb7b7",
+      "bytes": 3664,
+      "destination_sha256": "31a4444b658c220cc0f81f27792197964a9fa4975b7f3112a8099c954d5eb7b7"
+    },
+    {
+      "path": "docs/plugins/implementation/P12-launch.md",
+      "sha256": "fe48339924357a91a2ddbbebac1e4ab12ce7dc4e4d90df58e3e09bd82ec616e4",
+      "bytes": 3312,
+      "destination_sha256": "fe48339924357a91a2ddbbebac1e4ab12ce7dc4e4d90df58e3e09bd82ec616e4"
+    },
+    {
+      "path": "docs/plugins/implementation/P2-ops.md",
+      "sha256": "0f21c06fdb0c79bfb0a515c7cbe1af1285a0ff8675a579c64ca103fae7a6d97d",
+      "bytes": 25573,
+      "destination_sha256": "0f21c06fdb0c79bfb0a515c7cbe1af1285a0ff8675a579c64ca103fae7a6d97d"
+    },
+    {
+      "path": "docs/plugins/implementation/P3-host.md",
+      "sha256": "d83a197f6fc90123a83cbcbb4ff16f884ebbc3754f157bb9301fc91fe11edc99",
+      "bytes": 20162,
+      "destination_sha256": "d83a197f6fc90123a83cbcbb4ff16f884ebbc3754f157bb9301fc91fe11edc99"
+    },
+    {
+      "path": "docs/plugins/implementation/P4-contracts-sdk.md",
+      "sha256": "14c885309838b930fc47e74d288ee01c2c763d8dba5c5e287c6997289f869009",
+      "bytes": 21288,
+      "destination_sha256": "14c885309838b930fc47e74d288ee01c2c763d8dba5c5e287c6997289f869009"
+    },
+    {
+      "path": "docs/plugins/implementation/P5-management.md",
+      "sha256": "66b54d285756dcf75547630b6462602fa06b999f0890609ade6a5c236d03ffaa",
+      "bytes": 14524,
+      "destination_sha256": "66b54d285756dcf75547630b6462602fa06b999f0890609ade6a5c236d03ffaa"
+    },
+    {
+      "path": "docs/plugins/implementation/P6-effectcraft.md",
+      "sha256": "6053aa0e590fefb7d0eb1ca53d788fa79327e8ecd27f6cbb00c282c51fbcaad9",
+      "bytes": 32629,
+      "destination_sha256": "6053aa0e590fefb7d0eb1ca53d788fa79327e8ecd27f6cbb00c282c51fbcaad9"
+    },
+    {
+      "path": "docs/plugins/implementation/P7-catalogue.md",
+      "sha256": "43163c1600362091f9840093766cc9e510b387c4fa8c99db0699330866530368",
+      "bytes": 12230,
+      "destination_sha256": "43163c1600362091f9840093766cc9e510b387c4fa8c99db0699330866530368"
+    },
+    {
+      "path": "docs/plugins/implementation/P8-figcraft.md",
+      "sha256": "ce4bfc8099cfcf0870151b11618aa36d23f1d4a4a03c5cd810fb5c3f2b7714b8",
+      "bytes": 9349,
+      "destination_sha256": "ce4bfc8099cfcf0870151b11618aa36d23f1d4a4a03c5cd810fb5c3f2b7714b8"
+    },
+    {
+      "path": "docs/plugins/implementation/P9-photocraft.md",
+      "sha256": "7049620deabce764e593a69c087de97529f7bb63643e02caffc1ed1a0e531247",
+      "bytes": 5579,
+      "destination_sha256": "7049620deabce764e593a69c087de97529f7bb63643e02caffc1ed1a0e531247"
+    },
+    {
+      "path": "docs/plugins/implementation/README.md",
+      "sha256": "5e91edd4c603720009aa1e22d350dbfb8f7b228e1e42bb7103c9db7eb8b07f5b",
+      "bytes": 14394,
+      "destination_sha256": "5e91edd4c603720009aa1e22d350dbfb8f7b228e1e42bb7103c9db7eb8b07f5b"
+    },
+    {
+      "path": "docs/plugins/implementation-plan.md",
+      "sha256": "e96aecd914e36482e31d08956a5feaf40a7220aa22aa464aaa12a5f0bd003218",
+      "bytes": 37508,
+      "destination_sha256": "e96aecd914e36482e31d08956a5feaf40a7220aa22aa464aaa12a5f0bd003218"
+    },
+    {
+      "path": "docs/plugins/merge-hold-list.md",
+      "sha256": "2a1364798ea4fbbc73ff0075c08357f6b4a984cacba0147b0de058afc21b2e2c",
+      "bytes": 31271,
+      "destination_sha256": "2a1364798ea4fbbc73ff0075c08357f6b4a984cacba0147b0de058afc21b2e2c"
+    },
+    {
+      "path": "docs/plugins/readiness/README.md",
+      "sha256": "46aeb63483ff8680f9e6536bc25eba71d015de14acfda33ad4ccca1f9828f1ac",
+      "bytes": 4371,
+      "destination_sha256": "46aeb63483ff8680f9e6536bc25eba71d015de14acfda33ad4ccca1f9828f1ac"
+    },
+    {
+      "path": "docs/plugins/readiness/assessment-and-first-work.md",
+      "sha256": "c04e9e7fe0caf3d800c3cd7ccc038ff3baafa35531f4f47b8dc4912a0e800d88",
+      "bytes": 14643,
+      "destination_sha256": "c04e9e7fe0caf3d800c3cd7ccc038ff3baafa35531f4f47b8dc4912a0e800d88"
+    },
+    {
+      "path": "docs/plugins/readiness/brief.md",
+      "sha256": "e1482f744241acdbd9936b9f9ae62dcec24770767115af8359317c32f7eaece9",
+      "bytes": 7845,
+      "destination_sha256": "e1482f744241acdbd9936b9f9ae62dcec24770767115af8359317c32f7eaece9"
+    },
+    {
+      "path": "docs/plugins/readiness/catalogue-and-sdk.md",
+      "sha256": "e85adcc1b684f2eb99c76cf52778765b2f1481847cd7eef0a79546c878abf3e6",
+      "bytes": 20446,
+      "destination_sha256": "e85adcc1b684f2eb99c76cf52778765b2f1481847cd7eef0a79546c878abf3e6"
+    },
+    {
+      "path": "docs/plugins/readiness/evidence-index.md",
+      "sha256": "bc9b269b81a5b4e9b9f1db8575dccd5cf2e7e6497677a74308c2314c1fa1862b",
+      "bytes": 10068,
+      "destination_sha256": "bc9b269b81a5b4e9b9f1db8575dccd5cf2e7e6497677a74308c2314c1fa1862b"
+    },
+    {
+      "path": "docs/plugins/readiness/haiku-design-apps.md",
+      "sha256": "76dd5c53d57034145735aa392e9dca0e7a17bfbbe51ce78d97e5ed0891902c81",
+      "bytes": 57368,
+      "destination_sha256": "76dd5c53d57034145735aa392e9dca0e7a17bfbbe51ce78d97e5ed0891902c81"
+    },
+    {
+      "path": "docs/plugins/readiness/haiku-domain-apps.md",
+      "sha256": "c14ff0cc9eb617c1eb27e6ca1e7e1e779f20008d10f6088244787af1608ce355",
+      "bytes": 86088,
+      "destination_sha256": "c14ff0cc9eb617c1eb27e6ca1e7e1e779f20008d10f6088244787af1608ce355"
+    },
+    {
+      "path": "docs/plugins/readiness/haiku-media-apps.md",
+      "sha256": "34be03b8a95f77ab15ee55edd7eb91b2da0cb0a356b8ae64058f110bb0a55939",
+      "bytes": 77711,
+      "destination_sha256": "34be03b8a95f77ab15ee55edd7eb91b2da0cb0a356b8ae64058f110bb0a55939"
+    },
+    {
+      "path": "docs/plugins/readiness/jeremy-crosswalk.md",
+      "sha256": "57cca5760b5f3ffb4b7af1bb9645349741234c9114c17aa78c4af496bb3b668f",
+      "bytes": 6267,
+      "destination_sha256": "57cca5760b5f3ffb4b7af1bb9645349741234c9114c17aa78c4af496bb3b668f"
+    },
+    {
+      "path": "docs/plugins/readiness/system-gaps-and-roadmap.md",
+      "sha256": "8f51277bd308274b054aa88af93129517ee3fe4198208a4131757b8b3a5d3b78",
+      "bytes": 32644,
+      "destination_sha256": "8f51277bd308274b054aa88af93129517ee3fe4198208a4131757b8b3a5d3b78"
+    },
+    {
+      "path": "docs/plugins/readiness/user-and-developer-workflows.md",
+      "sha256": "a93b69af5cd4e1eb95bbc42876e0401d2ba5f6e87f669665f2e99dbcef5a6737",
+      "bytes": 11387,
+      "destination_sha256": "a93b69af5cd4e1eb95bbc42876e0401d2ba5f6e87f669665f2e99dbcef5a6737"
+    },
+    {
+      "path": "docs/plugins/readiness/verification.md",
+      "sha256": "1666c68623521ed717dfd39c0d703904822c95cdb0dbfacec26226c8c27e0da6",
+      "bytes": 4897,
+      "destination_sha256": "1666c68623521ed717dfd39c0d703904822c95cdb0dbfacec26226c8c27e0da6"
+    },
+    {
+      "path": "docs/plugins/research/README.md",
+      "sha256": "44ef4c358090e202a993a27f938c252b955c71d5a3a8e90d1456b4113cbc82b2",
+      "bytes": 4317,
+      "destination_sha256": "44ef4c358090e202a993a27f938c252b955c71d5a3a8e90d1456b4113cbc82b2"
+    },
+    {
+      "path": "docs/plugins/research/app-adapters.md",
+      "sha256": "81f3d8e4385d208090d989069e5df274d79e40d3f6236fbaa6d055d94a65770c",
+      "bytes": 11623,
+      "destination_sha256": "81f3d8e4385d208090d989069e5df274d79e40d3f6236fbaa6d055d94a65770c"
+    },
+    {
+      "path": "docs/plugins/research/blender-and-comfyui.md",
+      "sha256": "65cbba62f6b8db874fff69353628ae520cdbf65420eb695dfa8e64776507d023",
+      "bytes": 12391,
+      "destination_sha256": "65cbba62f6b8db874fff69353628ae520cdbf65420eb695dfa8e64776507d023"
+    },
+    {
+      "path": "docs/plugins/research/coverage.md",
+      "sha256": "1986464222bc75947655e5452f905a1ed4e9598f5a4cb94ab4c9811627d782ca",
+      "bytes": 13687,
+      "destination_sha256": "1986464222bc75947655e5452f905a1ed4e9598f5a4cb94ab4c9811627d782ca"
+    },
+    {
+      "path": "docs/plugins/research/decisions.md",
+      "sha256": "aa3ccea2b9ecc2b42ff94ba63e4658168e116ea6bbff8c51b0036d491629af48",
+      "bytes": 14417,
+      "destination_sha256": "aa3ccea2b9ecc2b42ff94ba63e4658168e116ea6bbff8c51b0036d491629af48"
+    },
+    {
+      "path": "docs/plugins/research/design.md",
+      "sha256": "338de938040add7173a3be77361dc51d0738cd8f77e1b2ea99553b28ffa47111",
+      "bytes": 21810,
+      "destination_sha256": "338de938040add7173a3be77361dc51d0738cd8f77e1b2ea99553b28ffa47111"
+    },
+    {
+      "path": "docs/plugins/research/haiku-app-cli-state.md",
+      "sha256": "a8b6928c8b6e22cf704084e6cdd0b988353777eebd2dc5b73c45caefdcf31640",
+      "bytes": 41062,
+      "destination_sha256": "a8b6928c8b6e22cf704084e6cdd0b988353777eebd2dc5b73c45caefdcf31640"
+    },
+    {
+      "path": "docs/plugins/research/haiku-author-resources-recovery.md",
+      "sha256": "034a511cab8122145cdcfe5feb63923cb3034e38bd3dd03d1072f531705fee0a",
+      "bytes": 48109,
+      "destination_sha256": "034a511cab8122145cdcfe5feb63923cb3034e38bd3dd03d1072f531705fee0a"
+    },
+    {
+      "path": "docs/plugins/research/lifecycle.md",
+      "sha256": "79bff4c193855fbd2e72b160e7afb9add6ce82d71f635b233be353f68a54d6e8",
+      "bytes": 17611,
+      "destination_sha256": "79bff4c193855fbd2e72b160e7afb9add6ce82d71f635b233be353f68a54d6e8"
+    },
+    {
+      "path": "docs/plugins/research/opus-contracts-trust.md",
+      "sha256": "2899ae6840a5da32cb379bcde6c8838d731b78a34db49bf5fe8a20fbc71af90b",
+      "bytes": 38037,
+      "destination_sha256": "2899ae6840a5da32cb379bcde6c8838d731b78a34db49bf5fe8a20fbc71af90b"
+    },
+    {
+      "path": "docs/plugins/research/reconciliation.md",
+      "sha256": "71a531b3698dacdc21c1a888a1e162a4c40c95e28f3822a3545c4841ff3c565e",
+      "bytes": 10113,
+      "destination_sha256": "71a531b3698dacdc21c1a888a1e162a4c40c95e28f3822a3545c4841ff3c565e"
+    },
+    {
+      "path": "docs/plugins/research/verification.md",
+      "sha256": "37f1c8c0fece32cbffa89accc989b764baa837e86125e53cf7ccbe7914019b60",
+      "bytes": 7659,
+      "destination_sha256": "37f1c8c0fece32cbffa89accc989b764baa837e86125e53cf7ccbe7914019b60"
+    },
+    {
+      "path": "docs/plugins/research-brief.md",
+      "sha256": "b69965d170155a8fccaff9c906ae271542c8acac1a8611cd0599fde1e35c6160",
+      "bytes": 4610,
+      "destination_sha256": "b69965d170155a8fccaff9c906ae271542c8acac1a8611cd0599fde1e35c6160"
+    },
+    {
+      "path": "docs/plugins/source-and-verification-record.md",
+      "sha256": "4d584277e4cb28b817a0498b4ca111f6424fce464ef61fb681f9d367e1e25d73",
+      "bytes": 4998,
+      "destination_sha256": "4d584277e4cb28b817a0498b4ca111f6424fce464ef61fb681f9d367e1e25d73"
+    },
+    {
+      "path": "docs/plugins/sources/jeremy-extensions-todo.txt",
+      "sha256": "f111328ca0c5d23e6f85ca0e162e879af73248c25c3e9e0a76eea65e1ba60343",
+      "bytes": 17825,
+      "destination_sha256": "f111328ca0c5d23e6f85ca0e162e879af73248c25c3e9e0a76eea65e1ba60343"
+    },
+    {
+      "path": "docs/plugins/sources/jeremy-handoff/ATTRIBUTION.md",
+      "sha256": "afe859d486ebd906eab763de5e5de17692e7f9cd73b087c6ac217f0bc25c2197",
+      "bytes": 532,
+      "destination_sha256": "afe859d486ebd906eab763de5e5de17692e7f9cd73b087c6ac217f0bc25c2197"
+    },
+    {
+      "path": "docs/plugins/sources/jeremy-handoff/LICENSE-MIT.txt",
+      "sha256": "43926f67dadb4d5953e9ae79790b66df96a6ff87ecdd1d99e2677c096e4c7f2d",
+      "bytes": 1063,
+      "destination_sha256": "43926f67dadb4d5953e9ae79790b66df96a6ff87ecdd1d99e2677c096e4c7f2d"
+    },
+    {
+      "path": "docs/plugins/sources/jeremy-handoff/NEXT.md.txt",
+      "sha256": "516e48dd75569fbf40667a3bd885ce263c038b2b33a0d2610ab47e000f74829d",
+      "bytes": 20076,
+      "destination_sha256": "516e48dd75569fbf40667a3bd885ce263c038b2b33a0d2610ab47e000f74829d"
+    },
+    {
+      "path": "docs/plugins/sources/jeremy-handoff/README.md",
+      "sha256": "c02760c3f0eb8a634394c4ba45345f6911233e2ae041525cd6e937d4ca0f7c00",
+      "bytes": 4641,
+      "destination_sha256": "c02760c3f0eb8a634394c4ba45345f6911233e2ae041525cd6e937d4ca0f7c00"
+    },
+    {
+      "path": "docs/plugins/sources/jeremy-handoff/THREAT-MODEL.md.txt",
+      "sha256": "01a1f5eca5aba9167161eaf08e88cb5df53a0c3fa121ba0d3ad1a8b43f9a5984",
+      "bytes": 6156,
+      "destination_sha256": "01a1f5eca5aba9167161eaf08e88cb5df53a0c3fa121ba0d3ad1a8b43f9a5984"
+    },
+    {
+      "path": "docs/plugins/sources/jeremy-handoff/build.py.txt",
+      "sha256": "6d20c4044335f07e6c9d82a4a139c852bdf1e18486cf12a40a8876b6fba70d45",
+      "bytes": 11974,
+      "destination_sha256": "6d20c4044335f07e6c9d82a4a139c852bdf1e18486cf12a40a8876b6fba70d45"
+    },
+    {
+      "path": "docs/plugins/sources/jeremy-handoff/design-notes.md.txt",
+      "sha256": "570da03959cf8d9168bb00ad706c52d2b3d85a1b3d4cd0f22cc70591ab436a61",
+      "bytes": 14603,
+      "destination_sha256": "570da03959cf8d9168bb00ad706c52d2b3d85a1b3d4cd0f22cc70591ab436a61"
+    },
+    {
+      "path": "docs/plugins/sources/jeremy-handoff/index.html.txt",
+      "sha256": "58482831ca55216b9f3cda54defff849cf42ab5c2070c24b6f80f2bdd6318f84",
+      "bytes": 50230,
+      "destination_sha256": "58482831ca55216b9f3cda54defff849cf42ab5c2070c24b6f80f2bdd6318f84"
+    },
+    {
+      "path": "docs/plugins/sources/jeremy-handoff/plan_data.py.txt",
+      "sha256": "0ebd253379bb58435c2b0e73f17f356a0508e1ba97c09b85dc962dd55ad5c218",
+      "bytes": 15550,
+      "destination_sha256": "0ebd253379bb58435c2b0e73f17f356a0508e1ba97c09b85dc962dd55ad5c218"
+    },
+    {
+      "path": "docs/plugins/sources/jeremy-handoff/plan_tasks.py.txt",
+      "sha256": "ac03374210e0bed9b58289d2fa4f07d2357b6934a91246fa5544d5fed0bde563",
+      "bytes": 20734,
+      "destination_sha256": "ac03374210e0bed9b58289d2fa4f07d2357b6934a91246fa5544d5fed0bde563"
+    },
+    {
+      "path": "docs/plugins/sources/jeremy-handoff/samples/sample-midnight.zip",
+      "sha256": "e51241c8380baaca3faae0d427b0b0919b6b66b89bbbd855291fa4be97336fd6",
+      "bytes": 584,
+      "destination_sha256": "e51241c8380baaca3faae0d427b0b0919b6b66b89bbbd855291fa4be97336fd6"
+    },
+    {
+      "path": "docs/plugins/sources/jeremy-handoff/samples/sample-ocean.zip",
+      "sha256": "074e98a20bb6da563b287f33dca5672068782ef5bc23c31c4f668ce829b4e260",
+      "bytes": 572,
+      "destination_sha256": "074e98a20bb6da563b287f33dca5672068782ef5bc23c31c4f668ce829b4e260"
+    },
+    {
+      "path": "docs/plugins/sources/jeremy-handoff/samples/sample-paper.zip",
+      "sha256": "933d7093684ac0edd14391e92d9db2951ac945f74424a90dbd2cd5f6d42ffebf",
+      "bytes": 583,
+      "destination_sha256": "933d7093684ac0edd14391e92d9db2951ac945f74424a90dbd2cd5f6d42ffebf"
+    },
+    {
+      "path": "docs/plugins/sources/jeremy-handoff/snapshot.json",
+      "sha256": "6cc6eac63097640be06f570c19622d3f9b58033735a26c927fa49847e67783b0",
+      "bytes": 4123,
+      "destination_sha256": "6cc6eac63097640be06f570c19622d3f9b58033735a26c927fa49847e67783b0"
+    },
+    {
+      "path": "docs/plugin-architecture-ideas.md",
+      "sha256": "3401fa269d7a92197f359d76276300b45a00a0c68a74e613874349fc0a851a13",
+      "bytes": 8302,
+      "destination_sha256": "c21bf03b32331c17f199e74cf22a12781b4a10d5f7f310eb7384708768946fd4"
+    },
+    {
+      "path": "docs/plugin-functional-decisions.md",
+      "sha256": "c4f95686681f5b12678b41e076396f9103b6275afa971707059561d54767dba4",
+      "bytes": 5861,
+      "destination_sha256": "c4f95686681f5b12678b41e076396f9103b6275afa971707059561d54767dba4"
+    },
+    {
+      "path": "docs/plugin-functional-inventory.json",
+      "sha256": "4e15f481960131e9d58048b6ee63f63f3eebfe6446b34f852de5a4fc5c00cb3f",
+      "bytes": 25695,
+      "destination_sha256": "4e15f481960131e9d58048b6ee63f63f3eebfe6446b34f852de5a4fc5c00cb3f"
+    },
+    {
+      "path": "docs/plugin-functional-model.md",
+      "sha256": "b5ef1b5567b43ebf621c12a9443215a15546f67f56406961b06cb355b533e23a",
+      "bytes": 20480,
+      "destination_sha256": "b5ef1b5567b43ebf621c12a9443215a15546f67f56406961b06cb355b533e23a"
+    },
+    {
+      "path": "docs/plugin-functional-opus.md",
+      "sha256": "75896cad98582108cd1ba556945590a814d60ff5e0dc0fa34051b4f3f375789a",
+      "bytes": 20938,
+      "destination_sha256": "75896cad98582108cd1ba556945590a814d60ff5e0dc0fa34051b4f3f375789a"
+    },
+    {
+      "path": "docs/plugin-functional-primary.md",
+      "sha256": "a9286dc21bf14fcc96223b37f7df6e85234cbd604f23d2f4f78281e3a2872e3b",
+      "bytes": 16892,
+      "destination_sha256": "a9286dc21bf14fcc96223b37f7df6e85234cbd604f23d2f4f78281e3a2872e3b"
+    },
+    {
+      "path": "docs/plugin-lifecycle-review.md",
+      "sha256": "102720e4e2dce0c5c082b852d3591ca164bd4b2d80ce932ed63b7b32e618763e",
+      "bytes": 28107,
+      "destination_sha256": "102720e4e2dce0c5c082b852d3591ca164bd4b2d80ce932ed63b7b32e618763e"
+    },
+    {
+      "path": "docs/plugin-resources.md",
+      "sha256": "f5b4569629cd51c7f1302e4b27fc51b21120521ef14c9bcd2913f448f28ed4dd",
+      "bytes": 7117,
+      "destination_sha256": "3fc0756c3995357edf7034577c853a64d594165bdc088aca6ed110d7fec61884"
+    },
+    {
+      "path": "docs/plugin-security-design.md",
+      "sha256": "fdc0d83ca1d72dd789db19150a274590758b8eb81da85cef6bb7ad636079b628",
+      "bytes": 16363,
+      "destination_sha256": "fdc0d83ca1d72dd789db19150a274590758b8eb81da85cef6bb7ad636079b628"
+    },
+    {
+      "path": "docs/plugin-security-distribution-opus.md",
+      "sha256": "259ec948bb149e9ead1f5dfb8cc2d0b8f3e65bc6069d887cda10ed83833f5c3a",
+      "bytes": 16942,
+      "destination_sha256": "259ec948bb149e9ead1f5dfb8cc2d0b8f3e65bc6069d887cda10ed83833f5c3a"
+    },
+    {
+      "path": "docs/plugin-security-handoff-opus.md",
+      "sha256": "9d549b5d02afab8f3085d489bd4fc184e438b0ec233f6238189c828c84b5dde0",
+      "bytes": 13798,
+      "destination_sha256": "9d549b5d02afab8f3085d489bd4fc184e438b0ec233f6238189c828c84b5dde0"
+    },
+    {
+      "path": "docs/plugin-security-runtime-themes.md",
+      "sha256": "49b20a0e62518f179586eb2039abd99d24bfdc75ccc8061b7897ee5c2d4eb3cf",
+      "bytes": 13485,
+      "destination_sha256": "2119a03c01d1749f3ad32ef8acaa3ec24cabf19f3553fce4631ba931f707cbaa"
+    },
+    {
+      "path": "docs/jeremy-extensions-handoff-summary.md",
+      "sha256": "caac7c932c32b147c0f23fbae07d2674e87f0aad58675343c2d40e1b91fb76fa",
+      "bytes": 7528,
+      "destination_sha256": "caac7c932c32b147c0f23fbae07d2674e87f0aad58675343c2d40e1b91fb76fa"
+    }
+  ],
+  "link_rewrites": [
+    {
+      "path": "docs/plugin-architecture-ideas.md",
+      "from": "../crates/font-manager/README.md",
+      "to": "https://github.com/storytold/craft-libs/blob/fd5e2feff6ea25bed371a99cc732b3968d621/crates/font-manager/README.md"
+    },
+    {
+      "path": "docs/plugin-resources.md",
+      "from": "../crates/font-manager/README.md",
+      "to": "https://github.com/storytold/craft-libs/blob/fd5e2feff6ea25bed371a99cc732b3968d621/crates/font-manager/README.md"
+    },
+    {
+      "path": "docs/plugin-security-runtime-themes.md",
+      "from": "../crates/ui/src/theme/mod.rs",
+      "to": "https://github.com/storytold/craft-libs/blob/fd5e2feff6ea25bed371a99cc732b3968d621/crates/ui/src/theme/mod.rs"
+    },
+    {
+      "path": "docs/plugin-security-runtime-themes.md",
+      "from": "theme-infrastructure.md",
+      "to": "https://github.com/storytold/craft-libs/blob/fd5e2feff6ea25bed371a99cc732b3968d621/docs/theme-infrastructure.md"
+    },
+    {
+      "path": "docs/plugins/discussion/02-how-craft-libs-is-consumed.md",
+      "from": "../../../README.md:26",
+      "to": "https://github.com/storytold/craft-libs/blob/fd5e2feff6ea25bed371a99cc732b3968d621/README.md#L26"
+    },
+    {
+      "path": "docs/plugins/discussion/02-how-craft-libs-is-consumed.md",
+      "from": "../../../crates/font-manager/src/lib.rs:3",
+      "to": "https://github.com/storytold/craft-libs/blob/fd5e2feff6ea25bed371a99cc732b3968d621/crates/font-manager/src/lib.rs#L3"
+    },
+    {
+      "path": "docs/plugins/draft/verification.md",
+      "from": "../../../crates/keymap/src/lib.rs",
+      "to": "https://github.com/storytold/craft-libs/blob/fd5e2feff6ea25bed371a99cc732b3968d621/crates/keymap/src/lib.rs"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "copied_files": 101,
+  "copied_source_and_destination_hashes": "pass",
+  "github_snapshot_git_blob_hashes": "pass",
+  "original_handover_hashes": "pass",
+  "active_local_markdown_file_links": "pass",
+  "unchanged_code_head": "a6c5fae8b8f6a92180c02e9188cd3559161c174b",
+  "tracked_changes": [
+    "README.md",
+    "docs/THREAT-MODEL.md"
+  ],
+  "historical_snapshot_missing_local_links": [],
+  "builds_or_tests_run": false
+}

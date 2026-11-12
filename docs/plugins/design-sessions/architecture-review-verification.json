@@ -1,0 +1,23 @@
+{
+  "date": "2026-11-12",
+  "local_markdown_files_checked": 106,
+  "local_file_links": "pass",
+  "scenario_ids_mapped": 40,
+  "walkthrough_mermaid_stages": 3,
+  "duplicate_key_headings": "pass",
+  "open_pr_snapshots": [
+    4,
+    5,
+    6,
+    8
+  ],
+  "local_code_revision": "a6c5fae8b8f6a92180c02e9188cd3559161c174b",
+  "tracked_changes_only": [
+    "README.md",
+    "docs/THREAT-MODEL.md"
+  ],
+  "builds_tests_or_pr_mutations": false,
+  "limits": "File-target checks do not validate every historical heading anchor or prove runtime behavior. New contract decisions remain open.",
+  "new_review_document_links_and_heading_anchors": "pass",
+  "new_review_document_links_checked": 114
+}

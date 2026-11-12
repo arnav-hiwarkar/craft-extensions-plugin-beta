@@ -1,0 +1,116 @@
+[
+  {
+    "number": 1,
+    "url": "https://github.com/storytold/craft-extensions/pull/1",
+    "title": "docs: propose the plugin architecture, its decisions and a gap analysis",
+    "state": "closed",
+    "merged": true,
+    "head_sha": "5ba16aae06f1b2953ea336dd340af75f5db7f353",
+    "merge_commit_sha": "8fdec26202eeed5bbe8a3419e1797b325fa3f4b1",
+    "merged_at": "2026-11-10T13:18:03Z",
+    "body": "## Summary\n\nDocs only. Shares the full design for the plugin and add-on system this repository would host, for the team to review and challenge, and compares it with what is on `main`.\n\n```diff\n README.md                          # + one paragraph pointing at the proposal; existing direction still applies\n docs/\n+├── ARCHITECTURE.md                # the proposed system: contracts, one operation path, permissions,\n+│                                  #   wasmi runtime, store lifecycle, catalogue, management in every app,\n+│                                  #   UI, projects, SDK, app adapters, delivery plan P0–P12\n+├── DESIGN-DECISIONS.md            # each choice behind it, with date and consequence\n+├── TOPIC-PROPOSALS.md             # per-topic reasoning, code evidence, rejected alternatives,\n+│                                  #   per-app work packages\n+├── ARCHITECTURE-GAP-ANALYSIS.md   # main a6c5fae vs the design: keep / change / missing / conflicts\n └── THREAT-MODEL.md                # unchanged\n```\n\nThe gap analysis has the findings in order of what matters:\n\n- **Section 3:** 14 concrete changes to existing code. Highlights:\n  - install enables every listed app (`store.rs:201`);\n  - update deletes the old release immediately (`store.rs:213`);\n  - the reader never re-verifies plugin bytes (`reader.rs:65`);\n  - older writers drop unknown state fields;\n  - same-version index replay is accepted (`index.rs:126`);\n  - the 64-character ID cap is too short for `io.github.<owner>.<name>` IDs.\n- **Section 4:** six places where the design **disagrees with decisions already recorded here**. The biggest: opening third party on light-review terms instead of gates G10 and G12, permissions instead of \"empty in v1\", and native plugins. These need a maintainer decision. Until then the README direction and `THREAT-MODEL.md` stay in force, and nothing in this PR changes them.\n\n## Evidence\n\n- **Before:** no description of the plugin system beyond the threat model.\n  **After:** four documents. Every relative link and heading anchor in them resolves (checked with a script). Line references were checked against `main` `a6c5fae`.\n- Docs only, so no build or tests were run.\n\n## Merge Danger\n\n**Door:** two-way\n\nDocs only: no code, schema, CI or feature-flag change. Accepting the design later is a separate decision.\n\n**Blast Radius:** none\n",
+    "comments": [
+      {
+        "url": "https://github.com/storytold/craft-extensions/pull/1#pullrequestreview-5842380838",
+        "body": "Approving. This is a clear, well-sourced proposal, and the gap analysis is honest about what is still open.\n\n## What I checked\n\n- Every file:line claim in section 3 of the gap analysis against `main` `a6c5fae`: `store.rs:181/184/187/201/213`, `reader.rs:65`, `state.rs:23/93`, `index.rs:126`, `id.rs:31`, `store/tests.rs:52/117`, the `Cargo.toml` repository URL, and that `is_revoked` has no caller in `ext-store`. All accurate.\n- The README change only points at the proposal and keeps the current direction and threat model in force. Good.\n- Docs only, so nothing to build or run.\n\n## Answers to section 4 (D1 to D6)\n\n**D1, third party.** Accept the open store as the target. Keep the `third-party` cargo feature off until P7. Keep an outside security review (G12) as a gate for the public launch (P12); an internal review alone is not enough for an open store. G10's two-maintainer review stays, but for native listings only.\n\n**D2, permissions.** Accept the permission families. G6 becomes \"declared, host-granted, generation-checked\" instead of \"empty\". Pilots ship transform plugins only until P2 (operations and permissions) lands.\n\n**D3, native code.** Accept, with a human look on every native release, never bot auto-merge (the design already does this; please keep it explicit in the threat model). OS confinement is a P10 goal, not a listing requirement.\n\n**D4, provenance.** Accept \"no store builds\". Every listing needs a source link and a pinned asset digest.\n\n**D5, ranking.** Accept GitHub stars fetched centrally, with no download telemetry.\n\n**D6, pilot order.** Accept EffectCraft, then FigCraft, then PhotoCraft. Each app's old plugin system is removed in the same change set as its new adapter.\n\n**Next step:** one follow-up docs PR that updates `THREAT-MODEL.md` and the README to these answers. After that, C1, C2 and C4 can go ahead as small store PRs with failing-first tests, as section 5 suggests.\n\n## Small notes (not blocking)\n\n- `ARCHITECTURE.md` section 9 says native plugins keep the protected core \"only through review\", while section 2 says \"protect users by design, not by review\". Worth one sentence in section 2 saying native is the stated exception.\n- Section 24 lists an owner as \"Maintainers and bosses\". Suggest \"Maintainers\".\n",
+        "review": "APPROVED",
+        "created_at": "2026-11-10T13:11:43Z",
+        "path": null,
+        "line": null
+      },
+      {
+        "url": "https://github.com/storytold/craft-extensions/pull/1#pullrequestreview-5842409428",
+        "body": "The two small notes from my approval, as inline suggestions.",
+        "review": "COMMENTED",
+        "created_at": "2026-11-10T13:13:37Z",
+        "path": null,
+        "line": null
+      },
+      {
+        "url": "https://github.com/storytold/craft-extensions/pull/1#discussion_r4525268270",
+        "body": "Section 9 says native plugins keep the protected core \"only through review\", so this principle has one stated exception. Suggest saying so here:\n\n```suggestion\n| Protect users by design, not by review | Sandbox, permissions, pinned digests and transactions hold even if a check misses something. Native plugins are the stated exception: they are protected by review and their full-access label (section 9) |\n```",
+        "review": null,
+        "created_at": "2026-11-10T13:13:38Z",
+        "path": "docs/ARCHITECTURE.md",
+        "line": null
+      },
+      {
+        "url": "https://github.com/storytold/craft-extensions/pull/1#discussion_r4525268304",
+        "body": "```suggestion\n| Name owners for every part; create and name the catalogue repository; assign key holders | Maintainers | P0 / P7 |\n```",
+        "review": null,
+        "created_at": "2026-11-10T13:13:38Z",
+        "path": "docs/ARCHITECTURE.md",
+        "line": null
+      },
+      {
+        "url": "https://github.com/storytold/craft-extensions/pull/1#pullrequestreview-5842454517",
+        "body": "Thanks for the careful check and for answering D1 to D6. I've accepted all six as written, including the outside security review before public launch and two maintainers for native releases.\n\nPushed in b2ce374:\n\n- `ARCHITECTURE.md`:\n  - section 2 now says native plugins are the stated exception to \"by design, not by review\";\n  - section 24 says \"Maintainers\";\n  - P12 now requires an independent outside security review;\n  - every native listing and release needs two maintainers and is never bot-merged;\n  - only transform plugins until P2, and `third-party` off until P7.\n- `ARCHITECTURE-GAP-ANALYSIS.md` section 4 records your answers.\n- `DESIGN-DECISIONS.md` has a row for them.\n\nCI on this PR is waiting for a maintainer to approve the workflow run from a fork. Could you approve it and merge when you're happy? Next I'll open the docs PR that updates `THREAT-MODEL.md` and the README, then C1, C2 and C4 as separate store PRs with failing-first tests.\n\nOne question: does anyone else, for example the craft-libs maintainers the README mentions, need to agree before the threat-model change?\n",
+        "review": "COMMENTED",
+        "created_at": "2026-11-10T13:16:33Z",
+        "path": null,
+        "line": null
+      },
+      {
+        "url": "https://github.com/storytold/craft-extensions/pull/1#discussion_r4525300406",
+        "body": "Done in 5ba16aa.",
+        "review": null,
+        "created_at": "2026-11-10T13:16:57Z",
+        "path": "docs/ARCHITECTURE.md",
+        "line": null
+      },
+      {
+        "url": "https://github.com/storytold/craft-extensions/pull/1#pullrequestreview-5842460519",
+        "body": "",
+        "review": "COMMENTED",
+        "created_at": "2026-11-10T13:16:57Z",
+        "path": null,
+        "line": null
+      },
+      {
+        "url": "https://github.com/storytold/craft-extensions/pull/1#discussion_r4525300730",
+        "body": "Done in 5ba16aa.",
+        "review": null,
+        "created_at": "2026-11-10T13:16:59Z",
+        "path": "docs/ARCHITECTURE.md",
+        "line": null
+      },
+      {
+        "url": "https://github.com/storytold/craft-extensions/pull/1#pullrequestreview-5842461112",
+        "body": "",
+        "review": "COMMENTED",
+        "created_at": "2026-11-10T13:16:59Z",
+        "path": null,
+        "line": null
+      }
+    ]
+  },
+  {
+    "number": 3,
+    "url": "https://github.com/storytold/craft-extensions/pull/3",
+    "title": "docs: align the threat model and README with the settled maintainer decisions",
+    "state": "closed",
+    "merged": true,
+    "head_sha": "83917e4e0380288155029cb27f1128cca0f6168f",
+    "merge_commit_sha": "98a151022a4bd4ff8aadda5161abb36789ae43b2",
+    "merged_at": "2026-11-11T14:08:00Z",
+    "body": "Sets the repository URL in Cargo.toml to storytold/craft-extensions (gap analysis C14).\n\nUpdates docs/THREAT-MODEL.md to the six maintainer decisions answered on PR #1:\n\n- D1: the open store is the target; the third-party feature stays off until the catalogue client lands; the outside security review (G12) is tied to public launch; the two-maintainer rule (G10) now covers native listings and native releases only\n- D2: G6 changes from empty permissions to permission families declared in the manifest, granted in the host and checked by generation on every call\n- D3: native plug-ins accepted, out of process, labelled 'Native: full access to your computer', with explicit consent and two-maintainer review of every native listing and release\n- D4: G9 settled; the store builds and hosts nothing, assets come from the author's GitHub Releases with a public source link and a pinned digest\n- D5/D6: ranking by centrally fetched GitHub stars, no download telemetry; pilots in order EffectCraft, FigCraft, PhotoCraft\n\nUpdates README.md (status, Direction, Rules, What is not done) to match, distinguishing what the code on main enforces today from the accepted target architecture.\n\nNo code changes. Verification: cargo fmt --check, clippy -D warnings, cargo test --workspace, both wasm32 checks, and the mutation harness for core and store all pass.\n",
+    "comments": [
+      {
+        "url": "https://github.com/storytold/craft-extensions/pull/3#pullrequestreview-5859865627",
+        "body": "Reviewed all three changed files at 83917e4e0380288155029cb27f1128cca0f6168f. No blocking findings.\n\n- Cross-checked D1–D6 against the accepted answers on PR #1, the gap analysis, and the architecture/decision record. The outside review before public launch, two-maintainer review for native listings and releases, permission generations, provenance requirements, ranking, and pilot order are carried through.\n- Checked the distinction between today's implementation and the target design against the manifest validator and third-party feature policy. This PR does not enable native execution, permissions, or third-party installs.\n- Verified the README/threat-model relative links resolve in this commit and both crates inherit the corrected workspace repository URL.\n\nValidation: documentation/source inspection and link checks. No builds or tests rerun because the complete diff is documentation plus the repository URL, with no source, dependency, feature, or workflow changes. GitHub currently reports no status checks for this head; the test results in the PR description are the author's reported results, not independently reproduced here.\n\nSmall non-blocking wording suggestion: the gate-list heading says the feature stays off until all listed gates pass, while G12 is specifically a P12 public-launch gate and D1 describes P7. Separating feature-enablement gates from public-launch gates would make that staging clearer without weakening either requirement.",
+        "review": "APPROVED",
+        "created_at": "2026-11-11T13:56:58Z",
+        "path": null,
+        "line": null
+      },
+      {
+        "url": "https://github.com/storytold/craft-extensions/pull/3#issuecomment-6797869456",
+        "body": "Went through it, no big changes from the architecture as currently being discussed. \r\nI'd say approve this one Jeremy",
+        "review": null,
+        "created_at": "2026-11-11T14:01:35Z",
+        "path": null,
+        "line": null
+      }
+    ]
+  }
+]

@@ -1,0 +1,86 @@
+{
+  "repository": "storytold/craft-extensions",
+  "revision": "ffd8512e5a3755637f58cf31cfcf2fdb09cfb943",
+  "branch": "wip/extensions-handover",
+  "captured": "2026-11-08",
+  "licence": "MIT",
+  "files": [
+    {
+      "source_path": "docs/THREAT-MODEL.md",
+      "snapshot_path": "THREAT-MODEL.md.txt",
+      "bytes": 6156,
+      "sha256": "01a1f5eca5aba9167161eaf08e88cb5df53a0c3fa121ba0d3ad1a8b43f9a5984",
+      "source_url": "https://github.com/storytold/craft-extensions/blob/ffd8512e5a3755637f58cf31cfcf2fdb09cfb943/docs/THREAT-MODEL.md"
+    },
+    {
+      "source_path": "docs/handoff/NEXT.md",
+      "snapshot_path": "NEXT.md.txt",
+      "bytes": 20076,
+      "sha256": "516e48dd75569fbf40667a3bd885ce263c038b2b33a0d2610ab47e000f74829d",
+      "source_url": "https://github.com/storytold/craft-extensions/blob/ffd8512e5a3755637f58cf31cfcf2fdb09cfb943/docs/handoff/NEXT.md"
+    },
+    {
+      "source_path": "docs/handoff/build.py",
+      "snapshot_path": "build.py.txt",
+      "bytes": 11974,
+      "sha256": "6d20c4044335f07e6c9d82a4a139c852bdf1e18486cf12a40a8876b6fba70d45",
+      "source_url": "https://github.com/storytold/craft-extensions/blob/ffd8512e5a3755637f58cf31cfcf2fdb09cfb943/docs/handoff/build.py"
+    },
+    {
+      "source_path": "docs/handoff/design-notes.md",
+      "snapshot_path": "design-notes.md.txt",
+      "bytes": 14603,
+      "sha256": "570da03959cf8d9168bb00ad706c52d2b3d85a1b3d4cd0f22cc70591ab436a61",
+      "source_url": "https://github.com/storytold/craft-extensions/blob/ffd8512e5a3755637f58cf31cfcf2fdb09cfb943/docs/handoff/design-notes.md"
+    },
+    {
+      "source_path": "docs/handoff/index.html",
+      "snapshot_path": "index.html.txt",
+      "bytes": 50230,
+      "sha256": "58482831ca55216b9f3cda54defff849cf42ab5c2070c24b6f80f2bdd6318f84",
+      "source_url": "https://github.com/storytold/craft-extensions/blob/ffd8512e5a3755637f58cf31cfcf2fdb09cfb943/docs/handoff/index.html"
+    },
+    {
+      "source_path": "docs/handoff/plan_data.py",
+      "snapshot_path": "plan_data.py.txt",
+      "bytes": 15550,
+      "sha256": "0ebd253379bb58435c2b0e73f17f356a0508e1ba97c09b85dc962dd55ad5c218",
+      "source_url": "https://github.com/storytold/craft-extensions/blob/ffd8512e5a3755637f58cf31cfcf2fdb09cfb943/docs/handoff/plan_data.py"
+    },
+    {
+      "source_path": "docs/handoff/plan_tasks.py",
+      "snapshot_path": "plan_tasks.py.txt",
+      "bytes": 20734,
+      "sha256": "ac03374210e0bed9b58289d2fa4f07d2357b6934a91246fa5544d5fed0bde563",
+      "source_url": "https://github.com/storytold/craft-extensions/blob/ffd8512e5a3755637f58cf31cfcf2fdb09cfb943/docs/handoff/plan_tasks.py"
+    },
+    {
+      "source_path": "docs/handoff/samples/sample-midnight.zip",
+      "snapshot_path": "samples/sample-midnight.zip",
+      "bytes": 584,
+      "sha256": "e51241c8380baaca3faae0d427b0b0919b6b66b89bbbd855291fa4be97336fd6",
+      "source_url": "https://github.com/storytold/craft-extensions/blob/ffd8512e5a3755637f58cf31cfcf2fdb09cfb943/docs/handoff/samples/sample-midnight.zip"
+    },
+    {
+      "source_path": "docs/handoff/samples/sample-ocean.zip",
+      "snapshot_path": "samples/sample-ocean.zip",
+      "bytes": 572,
+      "sha256": "074e98a20bb6da563b287f33dca5672068782ef5bc23c31c4f668ce829b4e260",
+      "source_url": "https://github.com/storytold/craft-extensions/blob/ffd8512e5a3755637f58cf31cfcf2fdb09cfb943/docs/handoff/samples/sample-ocean.zip"
+    },
+    {
+      "source_path": "docs/handoff/samples/sample-paper.zip",
+      "snapshot_path": "samples/sample-paper.zip",
+      "bytes": 583,
+      "sha256": "933d7093684ac0edd14391e92d9db2951ac945f74424a90dbd2cd5f6d42ffebf",
+      "source_url": "https://github.com/storytold/craft-extensions/blob/ffd8512e5a3755637f58cf31cfcf2fdb09cfb943/docs/handoff/samples/sample-paper.zip"
+    },
+    {
+      "source_path": "LICENSE-MIT",
+      "snapshot_path": "LICENSE-MIT.txt",
+      "bytes": 1063,
+      "sha256": "43926f67dadb4d5953e9ae79790b66df96a6ff87ecdd1d99e2677c096e4c7f2d",
+      "source_url": "https://github.com/storytold/craft-extensions/blob/ffd8512e5a3755637f58cf31cfcf2fdb09cfb943/LICENSE-MIT"
+    }
+  ]
+}

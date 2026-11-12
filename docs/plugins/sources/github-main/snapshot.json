@@ -1,0 +1,52 @@
+{
+  "repository": "storytold/craft-extensions",
+  "revision": "98a151022a4bd4ff8aadda5161abb36789ae43b2",
+  "captured": "2026-11-11",
+  "files": [
+    {
+      "path": "Cargo.toml",
+      "git_blob_sha": "ea3834505bbc179d7dedbfea0151fdc45590f5ec",
+      "url": "https://github.com/storytold/craft-extensions/blob/98a151022a4bd4ff8aadda5161abb36789ae43b2/Cargo.toml"
+    },
+    {
+      "path": "LICENSE-APACHE",
+      "git_blob_sha": "f433b1a53f5b830a205fd2df78e2b34974656c7b",
+      "url": "https://github.com/storytold/craft-extensions/blob/98a151022a4bd4ff8aadda5161abb36789ae43b2/LICENSE-APACHE"
+    },
+    {
+      "path": "LICENSE-MIT",
+      "git_blob_sha": "3b3b76401c7ad6e77da2dccb8c7e6b89fb5b6405",
+      "url": "https://github.com/storytold/craft-extensions/blob/98a151022a4bd4ff8aadda5161abb36789ae43b2/LICENSE-MIT"
+    },
+    {
+      "path": "README.md",
+      "git_blob_sha": "caade4e6cf157ad3456d70e09b42064ac2d469f2",
+      "url": "https://github.com/storytold/craft-extensions/blob/98a151022a4bd4ff8aadda5161abb36789ae43b2/README.md"
+    },
+    {
+      "path": "docs/ARCHITECTURE-GAP-ANALYSIS.md",
+      "git_blob_sha": "f175b8f06bcfbb94c9e34c464f9fcc0ff18c2d00",
+      "url": "https://github.com/storytold/craft-extensions/blob/98a151022a4bd4ff8aadda5161abb36789ae43b2/docs/ARCHITECTURE-GAP-ANALYSIS.md"
+    },
+    {
+      "path": "docs/ARCHITECTURE.md",
+      "git_blob_sha": "99bc65f64ceebdc1072ccbf92bdf670c8764be89",
+      "url": "https://github.com/storytold/craft-extensions/blob/98a151022a4bd4ff8aadda5161abb36789ae43b2/docs/ARCHITECTURE.md"
+    },
+    {
+      "path": "docs/DESIGN-DECISIONS.md",
+      "git_blob_sha": "aaea54663e3ff2f4e2d402be61b90645d3649b9c",
+      "url": "https://github.com/storytold/craft-extensions/blob/98a151022a4bd4ff8aadda5161abb36789ae43b2/docs/DESIGN-DECISIONS.md"
+    },
+    {
+      "path": "docs/THREAT-MODEL.md",
+      "git_blob_sha": "2601dbe7a812a38b073d29bed32503228ab7a145",
+      "url": "https://github.com/storytold/craft-extensions/blob/98a151022a4bd4ff8aadda5161abb36789ae43b2/docs/THREAT-MODEL.md"
+    },
+    {
+      "path": "docs/TOPIC-PROPOSALS.md",
+      "git_blob_sha": "d103ed90ea197849e8ae5b2ac5eaeb24ef1070fc",
+      "url": "https://github.com/storytold/craft-extensions/blob/98a151022a4bd4ff8aadda5161abb36789ae43b2/docs/TOPIC-PROPOSALS.md"
+    }
+  ]
+}
