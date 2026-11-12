@@ -104,7 +104,7 @@ pub struct SlotSpec {
 }
 
 /// Everything an app offers plugins. Rendered to `docs/plugins/contracts/<app>.md` by
-/// `craft-ext contract-docs` so authors can discover it.
+/// `<app>-cli plugin contract` so authors can discover it.
 pub struct AppContract {
     pub app: AppId,
     pub display_name: &'static str,

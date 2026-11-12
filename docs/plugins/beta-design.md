@@ -21,7 +21,7 @@ craft-extensions (shared, one version line)
   craft-ext-ui       the shared egui manager (Browse / Installed / Updates / Problems / Setup sheet /
                      project-open prompt); embedded by every app and the launcher
   craft-ext-cli      `plugin …` command library (embedded as `<app> plugin …`) + the `craft-ext` binary
-                     for authors (new, build, check, test, pack, contract-docs) and maintainers (catalogue …)
+                     for authors (new, build, check, test, pack, dev) and maintainers (catalogue …)
   craft-guest        author SDK (wasm side): params, filter entry point, session events, host calls, UI tree
   templates/, examples/, docs/plugins/{author-guide,user-guide,adapter-guide}.md
 
@@ -276,7 +276,7 @@ max = 64
   complete permission use), `craft-ext test` (runs a transform on a test image in the reference host), `craft-ext
   pack` (zip + digest + release record); `<app>-cli plugin contract` renders the app contract.
 - Each adapter publishes an `AppContract` value (contracts, ops with permission and JSON example,
-  events, UI slots); `contract-docs` renders it as Markdown into `docs/plugins/contracts/<app>.md`.
+  events, UI slots); `<app>-cli plugin contract` renders it as Markdown (committed as `docs/plugins/contracts/<app>.md`).
 
 ## B12. Evidence limits and deferred items
 
