@@ -21,6 +21,9 @@ pub const MAX_SESSION_MEMORY: usize = 64 * 1024 * 1024;
 pub const MAX_CALL_BYTES: usize = 1024 * 1024;
 /// Host-held pending result budget per instance.
 pub const MAX_PENDING_BYTES: usize = 8 * 1024 * 1024;
+/// Host-held pending result bytes across every plugin instance in the process.
+pub const MAX_APP_PENDING_BYTES: usize = 64 * 1024 * 1024;
+static APP_PENDING: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 const FUEL_SLICE: u64 = 20_000_000;
 const FUEL_BASE: u64 = 50_000_000;
 const FUEL_PER_PIXEL: u64 = 4_000;
@@ -112,11 +115,36 @@ struct HostData {
     limits: StoreLimits,
     plugin: String,
     log: LogFn,
-    pending: Option<Vec<u8>>,
+    pending: Option<Pending>,
     /// Present only for sessions: transforms get no `call`.
     session: Option<SessionCtx>,
     /// Revocation observed during this invocation.
     stopped: Option<String>,
+}
+
+/// Pending result bytes, charged to the app-wide budget until taken or dropped.
+struct Pending(Vec<u8>);
+
+impl Pending {
+    fn reserve(bytes: Vec<u8>) -> Option<Self> {
+        use std::sync::atomic::Ordering;
+        let n = bytes.len();
+        if n > MAX_PENDING_BYTES {
+            return None;
+        }
+        let prev = APP_PENDING.fetch_add(n, Ordering::AcqRel);
+        if prev.saturating_add(n) > MAX_APP_PENDING_BYTES {
+            APP_PENDING.fetch_sub(n, Ordering::AcqRel);
+            return None;
+        }
+        Some(Self(bytes))
+    }
+}
+
+impl Drop for Pending {
+    fn drop(&mut self) {
+        APP_PENDING.fetch_sub(self.0.len(), std::sync::atomic::Ordering::AcqRel);
+    }
 }
 
 struct SessionCtx {
@@ -175,22 +203,24 @@ fn linker(engine: &Engine) -> Linker<HostData> {
                 (serde_json::to_vec(&e.to_json()).unwrap_or_default(), e.code as i64)
             }
         };
-        if bytes.len() > MAX_PENDING_BYTES {
-            data.pending = None;
-            return Code::Budget as i64;
+        data.pending = None;
+        match Pending::reserve(bytes) {
+            Some(p) => {
+                data.pending = Some(p);
+                ret
+            }
+            None => Code::Budget as i64,
         }
-        data.pending = Some(bytes);
-        ret
     });
     let _ = l.func_wrap("craft", "take", |mut caller: Caller<'_, HostData>, dst: i32, len: i32| -> i32 {
         let Some(mem) = caller.get_export("memory").and_then(|e| e.into_memory()) else { return Code::Internal as i32 };
-        let Some(bytes) = caller.data_mut().pending.take() else { return Code::NotFound as i32 };
+        let Some(pending) = caller.data_mut().pending.take() else { return Code::NotFound as i32 };
         let (Ok(dst), Ok(len)) = (usize::try_from(dst), usize::try_from(len)) else { return Code::Invalid as i32 };
-        if len < bytes.len() {
+        if len < pending.0.len() {
             return Code::Invalid as i32;
         }
-        match mem.write(&mut caller, dst, &bytes) {
-            Ok(()) => bytes.len() as i32,
+        match mem.write(&mut caller, dst, &pending.0) {
+            Ok(()) => pending.0.len() as i32,
             Err(_) => Code::Invalid as i32,
         }
     });
@@ -279,7 +309,9 @@ fn write_scratch(inst: &mut Inst, bytes: &[u8]) -> Result<i32, PluginError> {
 
 /// A `raster.filter@1` transform instance. One per render thread; never shared.
 pub struct Filter {
-    inst: Inst,
+    inst: Option<Inst>,
+    plugin: Plugin,
+    log: LogFn,
 }
 
 impl Filter {
@@ -287,17 +319,38 @@ impl Filter {
         if !p.exports("craft_filter") {
             return Err(PluginError::Load("missing export craft_filter".into()));
         }
-        Ok(Self { inst: instantiate(p, MAX_TRANSFORM_MEMORY, log, None)? })
+        let inst = instantiate(p, MAX_TRANSFORM_MEMORY, log.clone(), None)?;
+        Ok(Self { inst: Some(inst), plugin: p.clone(), log })
     }
 
-    /// Runs the filter in place on premultiplied RGBA f32 pixels. `ctx` is the B4 JSON object.
-    /// `check` is called between fuel slices (cancel, deadline, kill list).
+    /// Runs the filter; on any failure the instance is discarded and a fresh one is made for the
+    /// next call, so no state from a failed run survives (B4). `pixels` is changed only on success.
     pub fn run(&mut self, ctx: &Value, pixels: &mut [f32], width: u32, height: u32, check: &dyn Fn() -> Result<(), PluginError>) -> Result<(), PluginError> {
+        check()?;
+        let mut inst = match self.inst.take() {
+            Some(i) => i,
+            None => instantiate(&self.plugin, MAX_TRANSFORM_MEMORY, self.log.clone(), None)?,
+        };
+        let out = Self::run_inner(&mut inst, ctx, pixels.len(), &*pixels, width, height, check);
+        match out {
+            Ok(result) => {
+                // Last check before anything reaches the caller (revocation, cancel, kill list).
+                check()?;
+                pixels.copy_from_slice(&result);
+                self.inst = Some(inst);
+                Ok(())
+            }
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Runs on premultiplied RGBA f32 pixels and returns the validated result. `ctx` is the B4 JSON
+    /// object. `check` is called between fuel slices (cancel, deadline, kill list).
+    fn run_inner(inst: &mut Inst, ctx: &Value, len: usize, pixels: &[f32], width: u32, height: u32, check: &dyn Fn() -> Result<(), PluginError>) -> Result<Vec<f32>, PluginError> {
         let n = (width as usize).checked_mul(height as usize).and_then(|n| n.checked_mul(4)).ok_or(PluginError::TooMuchMemory)?;
-        if pixels.len() != n {
+        if len != n {
             return Err(PluginError::InvalidOutput("pixel buffer size does not match".into()));
         }
-        let inst = &mut self.inst;
         inst.store.set_fuel(FUEL_BASE).map_err(|e| PluginError::Trap(e.to_string()))?;
         inst.reset.call(&mut inst.store, ()).map_err(|e| map_err(e, &inst.store))?;
         let ctx_bytes = serde_json::to_vec(ctx).map_err(|e| PluginError::InvalidOutput(e.to_string()))?;
@@ -315,15 +368,16 @@ impl Filter {
         }
         let start = usize::try_from(px_ptr).map_err(|_| PluginError::InvalidOutput("bad pointer".into()))?;
         inst.memory.read(&inst.store, start, &mut raw).map_err(|_| PluginError::InvalidOutput("pixels out of bounds".into()))?;
-        for (i, chunk) in raw.chunks_exact(4).enumerate() {
+        let mut out = Vec::with_capacity(n);
+        for chunk in raw.chunks_exact(4) {
             let v = f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
             if !v.is_finite() {
                 return Err(PluginError::InvalidOutput("a pixel is not a number".into()));
             }
-            pixels[i] = v;
+            out.push(v);
         }
-        for px in pixels.chunks_exact_mut(4) {
-            // Alpha clamps to 0..=1; colour is clamped to the premultiplied range when alpha is zero.
+        for px in out.chunks_exact_mut(4) {
+            // Alpha clamps to 0..=1; colour is zeroed where alpha is zero (premultiplied).
             px[3] = px[3].clamp(0.0, 1.0);
             if px[3] == 0.0 {
                 px[0] = 0.0;
@@ -331,7 +385,7 @@ impl Filter {
                 px[2] = 0.0;
             }
         }
-        Ok(())
+        Ok(out)
     }
 }
 
@@ -347,13 +401,24 @@ pub struct Session {
     event: TypedFunc<(i32, i32), i32>,
     failures: u32,
     pub paused: bool,
+    plugin: Plugin,
+    log: LogFn,
 }
 
 impl Session {
     pub fn new(p: &Plugin, api: Arc<dyn AppApi>, grants: Arc<dyn Grants>, log: LogFn) -> Result<Self, PluginError> {
-        let inst = instantiate(p, MAX_SESSION_MEMORY, log, Some(SessionCtx { api, grants, inv: None }))?;
+        let inst = instantiate(p, MAX_SESSION_MEMORY, log.clone(), Some(SessionCtx { api, grants, inv: None }))?;
         let event = inst.func::<(i32, i32), i32>("craft_event")?;
-        Ok(Self { inst, event, failures: 0, paused: false })
+        Ok(Self { inst, event, failures: 0, paused: false, plugin: p.clone(), log })
+    }
+
+    /// Replaces a failed instance with a fresh one (its in-memory state is lost, by design: B4).
+    /// The app re-sends `init` afterwards.
+    fn reinstantiate(&mut self, api: Arc<dyn AppApi>, grants: Arc<dyn Grants>) -> Result<(), PluginError> {
+        let inst = instantiate(&self.plugin, MAX_SESSION_MEMORY, self.log.clone(), Some(SessionCtx { api, grants, inv: None }))?;
+        self.event = inst.func::<(i32, i32), i32>("craft_event")?;
+        self.inst = inst;
+        Ok(())
     }
 
     /// Delivers one event as one transaction. Commits only if the guest returned 0, nothing was
@@ -370,7 +435,7 @@ impl Session {
             return Err(PluginError::Stopped("this plugin has been turned off".into()));
         }
         api.begin(&inv).map_err(|e| PluginError::Failed(e.code as i32, e.message))?;
-        let result = self.run_event(&inv, event);
+        let result = self.run_event(&inv, event, grants.as_ref());
         let still_ok = !grants.stopped(&inv.plugin, inv.version) && grants.generation(&inv.plugin) == inv.grant_generation && !inv.cancelled();
         let commit = result.is_ok() && still_ok;
         api.finish(&inv, commit);
@@ -385,10 +450,17 @@ impl Session {
                 Ok(())
             }
             Err(e) => {
-                if matches!(e, PluginError::Trap(_) | PluginError::TooSlow | PluginError::TooMuchMemory) {
-                    self.failures += 1;
-                    if self.failures >= 3 {
+                if matches!(e, PluginError::Trap(_) | PluginError::TooSlow | PluginError::TooMuchMemory | PluginError::Cancelled | PluginError::Stopped(_)) {
+                    // Interrupted mid-run: the guest's memory may be half-updated. Start clean.
+                    if matches!(e, PluginError::Trap(_) | PluginError::TooSlow | PluginError::TooMuchMemory) {
+                        self.failures += 1;
+                        if self.failures >= 3 {
+                            self.paused = true;
+                        }
+                    }
+                    if let Err(load) = self.reinstantiate(api, grants) {
                         self.paused = true;
+                        return Err(load);
                     }
                 }
                 Err(e)
@@ -396,7 +468,7 @@ impl Session {
         }
     }
 
-    fn run_event(&mut self, inv: &Invocation, event: &Value) -> Result<(), PluginError> {
+    fn run_event(&mut self, inv: &Invocation, event: &Value, grants: &dyn Grants) -> Result<(), PluginError> {
         let inst = &mut self.inst;
         inst.store.data_mut().stopped = None;
         if let Some(s) = inst.store.data_mut().session.as_mut() {
@@ -413,6 +485,10 @@ impl Session {
             }
             if inv2.cancelled() {
                 return Err(PluginError::Cancelled);
+            }
+            // Live check between slices, so pure computation also stops after revocation.
+            if grants.stopped(&inv2.plugin, inv2.version) || grants.generation(&inv2.plugin) != inv2.grant_generation {
+                return Err(PluginError::Stopped("permissions changed while this was running".into()));
             }
             Ok(())
         })?;

@@ -21,13 +21,19 @@ use std::io::{BufRead, BufReader, Read, Write};
 use std::path::Path;
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::Arc;
-use std::sync::mpsc::{Receiver, RecvTimeoutError, channel};
-use std::time::Duration;
+use craft_ext_core::id::ExtensionId;
+use craft_ext_core::version::Version;
+use std::sync::mpsc::{Receiver, RecvTimeoutError, sync_channel};
+use std::time::{Duration, Instant};
 
 pub const PROTOCOL: u32 = 1;
 const MAX_LINE: u64 = 1024 * 1024;
 const START_TIMEOUT: Duration = Duration::from_secs(10);
+/// Absolute limit for one event, however chatty the helper is.
 const EVENT_TIMEOUT: Duration = Duration::from_secs(60);
+/// Lines buffered from the helper; when full the reader blocks (backpressure), so a flooding helper
+/// cannot grow host memory beyond `QUEUE_LINES * MAX_LINE`.
+const QUEUE_LINES: usize = 64;
 
 /// The current platform key used in `native.executables` (`linux-x86_64`, `macos-aarch64`, …).
 pub fn platform() -> String {
@@ -42,11 +48,25 @@ pub struct Helper {
     grants: Arc<dyn Grants>,
     log: LogFn,
     next_id: u64,
+    plugin: ExtensionId,
+    version: Version,
 }
 
 impl Helper {
-    /// Starts `exe` (inside the release folder) with `work` as its working folder.
-    pub fn start(exe: &Path, work: &Path, api: Arc<dyn AppApi>, grants: Arc<dyn Grants>, log: LogFn) -> Result<Self, PluginError> {
+    /// Starts `exe` (inside the release folder) with `work` as its working folder. Refuses before
+    /// spawning anything unless the plugin has full-access consent and is not stopped.
+    pub fn start(
+        plugin: &ExtensionId,
+        version: Version,
+        exe: &Path,
+        work: &Path,
+        api: Arc<dyn AppApi>,
+        grants: Arc<dyn Grants>,
+        log: LogFn,
+    ) -> Result<Self, PluginError> {
+        if !grants.full_access(plugin) || grants.stopped(plugin, version) {
+            return Err(PluginError::Stopped("full access has not been allowed for this plugin".into()));
+        }
         let mut child = Command::new(exe)
             .current_dir(work)
             .env_clear()
@@ -58,7 +78,7 @@ impl Helper {
             .map_err(|e| PluginError::Load(format!("could not start the helper: {e}")))?;
         let stdin = child.stdin.take().ok_or_else(|| PluginError::Load("no stdin".into()))?;
         let stdout = child.stdout.take().ok_or_else(|| PluginError::Load("no stdout".into()))?;
-        let (tx, rx) = channel();
+        let (tx, rx) = sync_channel(QUEUE_LINES);
         std::thread::spawn(move || {
             let mut reader = BufReader::new(stdout);
             loop {
@@ -77,7 +97,7 @@ impl Helper {
                 }
             }
         });
-        let mut h = Helper { child, stdin, lines: rx, api, grants, log, next_id: 1 };
+        let mut h = Helper { child, stdin, lines: rx, api, grants, log, next_id: 1, plugin: plugin.clone(), version };
         let contracts: Vec<(String, String)> =
             h.api.contract().provided.contracts.iter().map(|(n, l)| (n.to_string(), l.to_string())).collect();
         h.send(&json!({"type":"hello","protocol":PROTOCOL,"app":h.api.contract().app.as_str(),"contracts":contracts}))?;
@@ -99,6 +119,16 @@ impl Helper {
     pub fn kill(&mut self) {
         let _ = self.child.kill();
         let _ = self.child.wait();
+    }
+
+    /// Supervision: call periodically (the adapter does on its tick). Kills the helper as soon as
+    /// consent is withdrawn or the plugin is stopped, even while idle. Returns false once killed.
+    pub fn supervise(&mut self) -> bool {
+        if !self.grants.full_access(&self.plugin) || self.grants.stopped(&self.plugin, self.version) {
+            self.kill();
+            return false;
+        }
+        matches!(self.child.try_wait(), Ok(None))
     }
 
     fn check(&self, inv: &Invocation) -> Result<(), OpError> {
@@ -134,8 +164,16 @@ impl Helper {
 
     fn run(&mut self, inv: &Invocation, id: u64, event: &Value) -> Result<(), PluginError> {
         self.send(&json!({"type":"event","id":id,"event":event}))?;
+        let deadline = Instant::now() + EVENT_TIMEOUT;
         loop {
-            let msg = match self.lines.recv_timeout(EVENT_TIMEOUT) {
+            let left = deadline.saturating_duration_since(Instant::now());
+            if left.is_zero() {
+                return Err(PluginError::TooSlow);
+            }
+            if self.check(inv).is_err() {
+                return Err(PluginError::Stopped("full access withdrawn or plugin turned off".into()));
+            }
+            let msg = match self.lines.recv_timeout(left) {
                 Ok(Some(v)) => v,
                 Ok(None) | Err(RecvTimeoutError::Disconnected) => return Err(PluginError::Trap("the helper stopped".into())),
                 Err(RecvTimeoutError::Timeout) => return Err(PluginError::TooSlow),

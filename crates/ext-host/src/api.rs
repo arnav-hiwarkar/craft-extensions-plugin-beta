@@ -167,6 +167,10 @@ pub struct Invocation {
     pub deadline: Option<Instant>,
     /// Undo label: "<contribution label> · <plugin name>".
     pub label: String,
+    /// Permissions the invoking contribution declared (required ∪ optional). A grant to the package
+    /// is usable only for permissions this contribution declared, so one contribution can never
+    /// borrow another's rights.
+    pub declared: Arc<[Permission]>,
 }
 
 impl Invocation {
@@ -210,6 +214,9 @@ pub fn authorize(contract: &AppContract, grants: &dyn Grants, inv: &Invocation, 
     }
     let spec = contract.op(op).ok_or_else(|| OpError::new(Code::NotFound, format!("this app has no operation {op}")))?;
     for p in (spec.requires)(args) {
+        if !inv.declared.iter().any(|d| d.covers(&p)) {
+            return Err(OpError::denied(format!("{} does not declare {p}", inv.contribution)));
+        }
         if !grants.allowed(&inv.plugin, &p) {
             return Err(OpError::denied(format!("permission needed: {p}")));
         }

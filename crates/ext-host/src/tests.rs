@@ -156,6 +156,7 @@ fn inv(generation: u64) -> Invocation {
         cancel: Arc::new(AtomicBool::new(false)),
         deadline: None,
         label: "Fill".into(),
+        declared: vec![Permission::parse("document.edit:selection").unwrap()].into(),
     }
 }
 
