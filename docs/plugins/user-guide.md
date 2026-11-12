@@ -10,7 +10,7 @@ A plugin can add:
 - **Panels and windows** — extra controls, usually in their own panel.
 - **Commands** — new entries in menus.
 - **Tools** — new ways to work on the canvas.
-- **Data add-ons** — presets, LUTs and fonts you can use like built-in ones.
+- **Data add-ons** — presets and LUTs you can use like built-in ones.
 
 Most plugins run in a **sandbox**. The app decides what a plugin can touch, and the plugin can only do what you allow. It cannot read your files or use the network unless you grant that.
 
@@ -128,3 +128,5 @@ Commands are the same in every app. Replace `effectcraft-cli` with your app's CL
 | Check a project | `effectcraft-cli plugin project <file>` |
 
 Plugins are made by their authors. ArtCraft lists them but does not build, host or guarantee them.
+
+Beta availability: `tool` contributions work in FigCraft only. Font and theme contributions are stored and listed but are not activated in this beta.

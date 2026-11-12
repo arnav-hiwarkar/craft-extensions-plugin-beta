@@ -142,16 +142,25 @@ impl<'de> Deserialize<'de> for ContractRef {
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Provided {
     pub contracts: Vec<(ContractName, Level)>,
+    #[serde(default)]
+    pub unsupported: Vec<(crate::manifest::ContributionKind, String)>,
 }
 
 impl Provided {
     pub fn new(list: &[(&str, u32, u32)]) -> Self {
         Self {
+            unsupported: Vec::new(),
             contracts: list
                 .iter()
                 .filter_map(|(n, a, b)| ContractName::new(n).ok().map(|n| (n, Level::new(*a, *b))))
                 .collect(),
         }
+    }
+
+    /// Marks a contribution kind unavailable even when its contract is provided.
+    pub fn without(mut self, kind: crate::manifest::ContributionKind, reason: impl Into<String>) -> Self {
+        self.unsupported.push((kind, reason.into()));
+        self
     }
 
     /// The level provided for `name` at `major`, if any.

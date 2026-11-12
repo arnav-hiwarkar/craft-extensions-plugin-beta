@@ -189,7 +189,12 @@ fn linker(engine: &Engine) -> Linker<HostData> {
         let data = caller.data_mut();
         let Some(session) = data.session.as_ref() else { return Code::Denied as i64 };
         let Some(inv) = session.inv.as_ref() else { return Code::Stale as i64 };
-        let outcome = authorize(session.api.contract(), session.grants.as_ref(), inv, &op, &args).and_then(|()| session.api.call(inv, &op, args));
+        let authorization = if session.api.authorizes_on_owner_thread() {
+            crate::api::authorize_preflight(session.api.contract(), session.grants.as_ref(), inv, &op)
+        } else {
+            authorize(session.api.contract(), session.grants.as_ref(), inv, &op, &args)
+        };
+        let outcome = authorization.and_then(|()| session.api.call(inv, &op, args));
         let (bytes, ret) = match outcome {
             Ok(v) => {
                 let b = serde_json::to_vec(&v).unwrap_or_default();
@@ -197,7 +202,7 @@ fn linker(engine: &Engine) -> Linker<HostData> {
                 (b, n)
             }
             Err(e) => {
-                if e.code == Code::Denied && (e.message.starts_with("permissions changed") || e.message.starts_with("this plugin has been turned off")) {
+                if session.grants.stopped(&inv.plugin, inv.version) || session.grants.generation(&inv.plugin) != inv.grant_generation {
                     data.stopped = Some(e.message.clone());
                 }
                 (serde_json::to_vec(&e.to_json()).unwrap_or_default(), e.code as i64)

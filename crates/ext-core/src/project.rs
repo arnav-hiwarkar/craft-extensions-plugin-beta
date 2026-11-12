@@ -25,6 +25,12 @@ pub struct PluginRef {
     /// Display name, so the prompt is readable even when nothing is installed.
     #[serde(default)]
     pub name: String,
+    /// Contributions used by this project; all must be enabled in the opening app.
+    #[serde(default)]
+    pub contributions: Vec<String>,
+    /// Saved state schema per contribution, when recorded by the app.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub state_versions: Option<std::collections::BTreeMap<String, u32>>,
 }
 
 /// A saved use of one contribution (an effect instance, a placed object…). Apps embed this in their
@@ -52,9 +58,9 @@ pub enum Status {
     /// Installed, set up and enabled in this app at a compatible version.
     Ready { version: Version },
     /// Installed but switched off (or permissions not granted) in this app.
-    NeedsEnable { version: Version },
+    NeedsEnable { version: Version, reason: String },
     /// Installed at a version that cannot load the saved data (older, or incompatible).
-    NeedsOtherVersion { installed: Version, wanted: Version },
+    NeedsOtherVersion { installed: Version, wanted: Version, reason: String },
     /// Not installed; the catalogue lists it.
     Downloadable,
     /// Not installed and not in the catalogue (a local-only plugin), or kill-listed.

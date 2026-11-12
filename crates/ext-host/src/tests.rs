@@ -179,3 +179,104 @@ fn contract_docs_render() {
     let md = app.contract.to_markdown();
     assert!(md.contains("`doc.fill`") && md.contains("testcraft.session"));
 }
+
+struct OwnerApp {
+    app: Arc<FakeApp>,
+    grants: Arc<FakeGrants>,
+}
+impl AppApi for OwnerApp {
+    fn contract(&self) -> &AppContract { &self.app.contract }
+    fn authorizes_on_owner_thread(&self) -> bool { true }
+    fn begin(&self, inv: &Invocation) -> Result<(), OpError> { self.app.begin(inv) }
+    fn call(&self, inv: &Invocation, op: &str, args: Value) -> Result<Value, OpError> {
+        std::thread::scope(|scope| {
+            std::thread::Builder::new().name("app-owner".into()).spawn_scoped(scope, || {
+                authorize(self.contract(), self.grants.as_ref(), inv, op, &args)?;
+                self.app.call(inv, op, args)
+            }).unwrap().join().unwrap()
+        })
+    }
+    fn finish(&self, inv: &Invocation, commit: bool) { self.app.finish(inv, commit) }
+}
+fn needs_edit_on_owner(args: &Value) -> Vec<Permission> {
+    assert_eq!(std::thread::current().name(), Some("app-owner"));
+    needs_edit(args)
+}
+#[test]
+fn owner_thread_authorization_and_recoverable_call_errors() {
+    let (_, mut app, grants) = session_fixture();
+    Arc::get_mut(&mut app).unwrap().contract.ops[0].requires = needs_edit_on_owner;
+    let api = Arc::new(OwnerApp { app: app.clone(), grants: grants.clone() });
+    // The guest handles an op denial, unknown op or invalid args, then completes the event.
+    let p = module(r#"(data (i32.const 16) "doc.fillunknown!")
+       (func (export "craft_event") (param i32 i32) (result i32)
+         (drop (call $call (i32.const 16) (i32.const 8) (i32.const 0) (i32.const 0)))
+         (drop (call $call (i32.const 24) (i32.const 8) (i32.const 0) (i32.const 0)))
+         (drop (call $call (i32.const 16) (i32.const 8) (i32.const 16) (i32.const 1)))
+         (i32.const 0))"#,
+       r#"(import "craft" "call" (func $call (param i32 i32 i32 i32) (result i64)))"#);
+    let mut s = Session::new(&p, api, grants.clone(), log()).unwrap();
+    s.dispatch(inv(1), &json!({})).unwrap();
+    grants.edit.store(false, Ordering::Relaxed);
+    s.dispatch(inv(1), &json!({})).unwrap();
+    assert_eq!(*app.committed.lock().unwrap(), vec![true, true]);
+    grants.generation.store(2, Ordering::Relaxed);
+    assert!(s.dispatch(inv(1), &json!({})).is_err());
+}
+
+#[cfg(unix)]
+struct NativeGrants(AtomicBool);
+#[cfg(unix)]
+impl Grants for NativeGrants {
+    fn generation(&self, _: &ExtensionId) -> u64 { 1 }
+    fn allowed(&self, _: &ExtensionId, _: &Permission) -> bool { false }
+    fn stopped(&self, _: &ExtensionId, _: Version) -> bool { false }
+    fn full_access(&self, _: &ExtensionId) -> bool { self.0.load(Ordering::Relaxed) }
+}
+#[cfg(unix)]
+fn native_helper(script: &str, api: Arc<dyn AppApi>, grants: Arc<dyn Grants>) -> crate::native::Helper {
+    use std::os::unix::fs::PermissionsExt;
+    let path = std::env::temp_dir().join(format!("craft-helper-{}-{}", std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+    std::fs::write(&path, format!("#!/bin/sh\nread hello\nprintf '%s\\n' '{{\"type\":\"ready\"}}'\n{script}\n")).unwrap();
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o700)).unwrap();
+    let i = inv(1);
+    let h = crate::native::Helper::start(&i.plugin, i.version, &path, &std::env::temp_dir(), api, grants, log()).unwrap();
+    std::fs::remove_file(path).unwrap();
+    h
+}
+#[test]
+#[cfg(unix)]
+fn silent_native_helper_detects_revocation_without_waiting_for_event_timeout() {
+    let (_, app, _) = session_fixture();
+    let grants = Arc::new(NativeGrants(AtomicBool::new(true)));
+    let mut helper = native_helper("while read line; do :; done", app, grants.clone());
+    let revoke = std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        grants.0.store(false, Ordering::Relaxed);
+    });
+    let start = std::time::Instant::now();
+    assert!(matches!(helper.dispatch(inv(1), &json!({})), Err(PluginError::Stopped(_))));
+    assert!(start.elapsed() < std::time::Duration::from_secs(2));
+    revoke.join().unwrap();
+}
+
+#[test]
+#[cfg(unix)]
+fn native_op_denial_is_recoverable() {
+    struct Denying(Arc<FakeApp>);
+    impl AppApi for Denying {
+        fn contract(&self) -> &AppContract { self.0.contract() }
+        fn begin(&self, i: &Invocation) -> Result<(), OpError> { self.0.begin(i) }
+        fn call(&self, _: &Invocation, _: &str, _: Value) -> Result<Value, OpError> { Err(OpError::denied("operation denied")) }
+        fn finish(&self, i: &Invocation, commit: bool) { self.0.finish(i, commit) }
+    }
+    let (_, app, _) = session_fixture();
+    let grants = Arc::new(NativeGrants(AtomicBool::new(true)));
+    let mut helper = native_helper(r#"read event
+printf '%s\n' '{"type":"call","id":1,"op":"doc.fill","args":{}}'
+read reply
+printf '%s\n' '{"type":"done","id":1,"code":0}'
+while read line; do :; done"#, Arc::new(Denying(app.clone())), grants);
+    helper.dispatch(inv(1), &json!({})).unwrap();
+    assert_eq!(*app.committed.lock().unwrap(), vec![true]);
+}

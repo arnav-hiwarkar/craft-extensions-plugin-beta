@@ -78,7 +78,7 @@ max = 64
 - Packages use semver. Contracts use `name@major.minor`; the contract name+major is also the ABI
   version (no separate ABI number). An app **provides** a list of contracts
   (e.g. EffectCraft: `raster.filter@1.0`, `effectcraft.session@1.0`, `resource.preset@1.0`,
-  `resource.lut@1.0`, `resource.font@1.0`, `craft-theme@1.0`). A package needs, per app,
+  `resource.lut@1.0`, `craft-theme@1.0`). A package needs, per app,
   `{contract: "major.minor"}` = same major, provided minor ≥ needed minor.
 - Every contribution names its contract and minimum level; it is available in an app only when that app
   provides it. Native packages also need a matching `os-arch` executable.
@@ -250,7 +250,7 @@ max = 64
 
 ## B9. Projects
 
-- A project stores a plugin list `[{id, version, sha256, source: catalogue|local, name}]` and each
+- A project stores a plugin list `[{id, version, sha256, source: catalogue|local, name, contributions, state_versions?}]` and each
   feature stores `{plugin, contribution, version, contract, state_version, params, state}`. Grants are
   never stored. Statuses: ready, needs enable, needs other version (incompatible / older), downloadable,
   unavailable (not listed, wrong platform, kill-listed — with the reason).
@@ -290,3 +290,5 @@ TUF, leases across processes, OS confinement for native, account permission, the
 (theme contributions are stored and listed; apps apply them once craft-theme lands — one format only,
 ext-core's palette is removed, R1), plugin object types, workflows, cross-plugin calls, web builds,
 native effects and pixel transport, temporal frame access, tiling/region requests, leases.
+
+Beta availability: `tool` contributions work in FigCraft only. Font and theme contributions are stored and listed but are not activated in this beta.

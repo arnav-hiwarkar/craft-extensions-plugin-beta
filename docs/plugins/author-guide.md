@@ -11,9 +11,9 @@ The design behind this is [beta-design.md](beta-design.md).
 | `effect` | Sandboxed wasm, `craft_filter` | `raster.filter@1.0` | EffectCraft effects, PhotoCraft filters, FigCraft image fills |
 | `panel` | Sandboxed wasm or native, `craft_event` | `<app>.session@1.0` | A dockable panel the app draws from your UI tree |
 | `command` | same | `<app>.session@1.0` | Menus, command search, the app's CLI and MCP |
-| `tool` | same | `<app>.session@1.0` | Pointer tool (begin / update / commit / cancel) |
+| `tool` | same | `<app>.session@1.0` | FigCraft only: pointer tool (begin / update / commit / cancel) |
 | `event-hook` | same | `<app>.session@1.0` | Reacts to app events (needs `app.events`) |
-| `preset`, `lut`, `font`, `theme`, `data` | Nothing runs | `resource.*@1.0`, `craft-theme@1.0` | The app's own preset, LUT and font lists |
+| `preset`, `lut`, `font`, `theme`, `data` | Nothing runs | `resource.*@1.0`, `craft-theme@1.0` | Preset and LUT lists; font and theme assets are stored only |
 
 Panels can open host-drawn **windows** (`ui.window.open`, needs `ui.window`). Plugins can add
 features, but they can never change or remove built-in commands, shortcuts, settings, undo or plugin
@@ -158,3 +158,9 @@ results. If a plugin fails three times in one session, it is paused.
 Store rules: free and open source only (OSI licences, public source, no paywalls, trials or licence
 keys), honest permissions, and your own namespace. Plugins are never refused for quality or for
 competing with built-in features.
+
+Beta availability: `tool` contributions work in FigCraft only. Font and theme contributions are stored and listed but are not activated in this beta.
+
+`craft-ext test` runs effects twice for deterministic, valid output. For packages with no effects it exits successfully with `"tested": []` and the message "No automated tests for panels/commands yet; run in the app with `craft-ext dev`". This does not verify panels or commands.
+
+Standalone `craft-ext plugin project <references.json>` reads a JSON array of plugin references. App CLIs implement `plugin project <project-file>` by extracting references and calling `craft_ext_cli::print_project_status`.

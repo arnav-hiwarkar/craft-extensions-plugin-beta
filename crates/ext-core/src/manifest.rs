@@ -391,6 +391,10 @@ impl Manifest {
         let mut ok = 0usize;
         let mut unavailable = Vec::new();
         for c in self.contributions_for(app) {
+            if let Some((_, reason)) = provided.unsupported.iter().find(|(kind, _)| *kind == c.kind) {
+                unavailable.push((c.id.clone(), reason.clone()));
+                continue;
+            }
             match c.contract.check(provided) {
                 Some(u) => unavailable.push((c.id.clone(), u.to_string())),
                 None => ok += 1,

@@ -5,7 +5,8 @@
 //!   [`AppContract`]. Unknown ops are refused. Management, undo/history, settings and plugin-management
 //!   ops are never listed, so they are unreachable by construction.
 //! - The host computes the permissions an op needs from its real arguments (`OpSpec::requires`) and
-//!   checks the grant on every call **before** the adapter sees the call, and again before commit.
+//!   checks the grant on every call and again before commit. Owner-thread adapters defer the full
+//!   check to their owning thread before execution; the worker performs only preflight checks.
 //! - One session event (command, tool gesture, UI event) = one transaction = one undo step, opened with
 //!   [`AppApi::begin`] and closed with [`AppApi::finish`]; `finish(false)` must roll back.
 
@@ -182,9 +183,16 @@ impl Invocation {
 /// The app side. Implemented once per app by its adapter crate.
 pub trait AppApi: Send + Sync {
     fn contract(&self) -> &AppContract;
+    /// Opt in when `OpSpec::requires` reads app state (for example selection).
+    /// The worker skips `requires`; `call` must marshal to the owning thread and call
+    /// `authorize` there with live grants before executing the operation.
+    fn authorizes_on_owner_thread(&self) -> bool { false }
     /// Opens the event's transaction and captures scope (selection, document, revision).
     fn begin(&self, inv: &Invocation) -> Result<(), OpError>;
-    /// Runs one op inside the open transaction. Permissions were already checked by the host.
+    /// Runs one op inside the open transaction. Owner-thread adapters must authorize on that
+    /// thread before execution. Return Err for a recoverable Denied/NotFound/Invalid operation;
+    /// do not abort the transaction. The guest may handle the error and continue.
+    /// Revocation, generation changes and stopped plugins stop the invocation.
     fn call(&self, inv: &Invocation, op: &str, args: Value) -> Result<Value, OpError>;
     /// Commits (one labelled undo step) or rolls back. Effects queued by ops run only after commit.
     fn finish(&self, inv: &Invocation, commit: bool);
@@ -203,15 +211,7 @@ pub trait Grants: Send + Sync {
 
 /// The one authorization function used for every host call (wasm and native).
 pub fn authorize(contract: &AppContract, grants: &dyn Grants, inv: &Invocation, op: &str, args: &Value) -> Result<(), OpError> {
-    if inv.cancelled() {
-        return Err(OpError::new(Code::Cancelled, "cancelled"));
-    }
-    if grants.stopped(&inv.plugin, inv.version) {
-        return Err(OpError::denied("this plugin has been turned off"));
-    }
-    if grants.generation(&inv.plugin) != inv.grant_generation {
-        return Err(OpError::denied("permissions changed while this was running"));
-    }
+    authorize_preflight(contract, grants, inv, op)?;
     let spec = contract.op(op).ok_or_else(|| OpError::new(Code::NotFound, format!("this app has no operation {op}")))?;
     for p in (spec.requires)(args) {
         if !inv.declared.iter().any(|d| d.covers(&p)) {
@@ -221,5 +221,20 @@ pub fn authorize(contract: &AppContract, grants: &dyn Grants, inv: &Invocation, 
             return Err(OpError::denied(format!("permission needed: {p}")));
         }
     }
+    Ok(())
+}
+
+/// Checks independent of arguments/app state; deliberately never evaluates `requires`.
+pub(crate) fn authorize_preflight(contract: &AppContract, grants: &dyn Grants, inv: &Invocation, op: &str) -> Result<(), OpError> {
+    if inv.cancelled() {
+        return Err(OpError::new(Code::Cancelled, "cancelled"));
+    }
+    if grants.stopped(&inv.plugin, inv.version) {
+        return Err(OpError::denied("this plugin has been turned off"));
+    }
+    if grants.generation(&inv.plugin) != inv.grant_generation {
+        return Err(OpError::denied("permissions changed while this was running"));
+    }
+    let _spec = contract.op(op).ok_or_else(|| OpError::new(Code::NotFound, format!("this app has no operation {op}")))?;
     Ok(())
 }

@@ -60,7 +60,7 @@ impl Args {
         if self.pos.len() == n { Ok(()) } else { Err(Usage("wrong number of arguments; use --help".into()).into()) }
     }
 }
-const HELP: &str = "plugin search <q> [--kind k]\nplugin info|versions|permissions|report <id>\nplugin list|updates|refresh\nplugin install <id> [--version req]\nplugin install-file <path>\nplugin setup <id> [--enable c1,c2|--all] [--grant permission] [--full-access]\nplugin enable|disable <id> <contribution>\nplugin grant|revoke <id> <permission>\nplugin update <id>|--all\nplugin rollback <id> <version>\nplugin pin <id> <req>\nplugin unpin|remove <id>\nplugin project <file.json>\nAll commands accept --json and --help. Install never enables; setup grants only named permissions.";
+const HELP: &str = "plugin search <q> [--kind k]\nplugin info|versions|permissions|report <id>\nplugin list|updates|refresh\nplugin install <id> [--version req]\nplugin install-file <path>\nplugin setup <id> [--enable c1,c2|--all] [--grant permission] [--full-access]\nplugin enable|disable <id> <contribution>\nplugin grant|revoke <id> <permission>\nplugin update <id>|--all\nplugin rollback <id> <version>\nplugin pin <id> <req>\nplugin unpin|remove <id>\nplugin project <references.json> (apps: plugin project <project-file> extracts references)\nAll commands accept --json and --help. Install never enables; setup grants only named permissions.";
 pub fn emit(out: &mut dyn Write, v: &Value, json: bool) -> std::io::Result<()> {
     if json {
         writeln!(out, "{}", serde_json::to_string(v)?)
@@ -69,6 +69,14 @@ pub fn emit(out: &mut dyn Write, v: &Value, json: bool) -> std::io::Result<()> {
     } else {
         writeln!(out, "{}", serde_json::to_string_pretty(v)?)
     }
+}
+/// Apps implement `plugin project <project-file>` by extracting references from their project
+/// format, then passing the parsed list here. Standalone CLI accepts `references.json` only.
+pub fn print_project_status(manager: &Manager, refs: &[craft_ext_core::project::PluginRef], json: bool, out: &mut dyn Write) -> Result<()> {
+    let rows = manager.check_project(refs)?;
+    let value = json!(rows.into_iter().map(|(r,s)|json!({"status":s,"install":format!("plugin install {} --version ={}",r.id,r.version),"setup":format!("plugin setup {} --all",r.id)})).collect::<Vec<_>>());
+    emit(out, &value, json)?;
+    Ok(())
 }
 pub fn run_plugin(manager: &Manager, args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i32 {
     let json = args.iter().any(|s| s == "--json");
@@ -180,8 +188,9 @@ fn plugin(m: &Manager, args: &[String]) -> Result<Value> {
         "project" => {
             a.arity(2)?;
             let refs = serde_json::from_slice::<Vec<craft_ext_core::project::PluginRef>>(&std::fs::read(a.at(1)?)?)?;
-            let rows = m.check_project(&refs)?;
-            return Ok(json!(rows.into_iter().map(|(r,s)|json!({"status":s,"install":format!("plugin install {} --version ={}",r.id,r.version),"setup":format!("plugin setup {} --all",r.id)})).collect::<Vec<_>>()));
+            let mut out = Vec::new();
+            print_project_status(m, &refs, true, &mut out)?;
+            return Ok(serde_json::from_slice(&out)?);
         }
         "update" if a.has("all") => {
             a.arity(1)?;

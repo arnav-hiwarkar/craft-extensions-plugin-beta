@@ -9,8 +9,8 @@ use craft_ext_store::manager::PermissionSheet;
 pub fn status_text(s: &Status) -> String {
     match s {
         Status::Ready { version } => format!("Ready ({version})"),
-        Status::NeedsEnable { version } => format!("Installed, needs enable ({version})"),
-        Status::NeedsOtherVersion { installed, wanted } => format!("Needs version {wanted}; installed {installed}"),
+        Status::NeedsEnable { version, reason } => format!("Installed, needs enable ({version}): {reason}"),
+        Status::NeedsOtherVersion { installed, wanted, reason } => format!("Needs version {wanted}; installed {installed}: {reason}"),
         Status::Downloadable => "Available to download".into(),
         Status::Unavailable { reason } => format!("Unavailable: {reason}"),
     }
@@ -26,6 +26,10 @@ pub fn compatibility(c: &Compat) -> String {
         }
         Compat::Incompatible { reasons } => format!("Incompatible: {}", reasons.join("; ")),
     }
+}
+/// Default Browse selection: the newest release this app can use, regardless of catalogue order.
+pub fn newest_compatible(versions: &[(craft_ext_core::version::Version, Compat)]) -> Option<craft_ext_core::version::Version> {
+    versions.iter().filter(|(_, c)| c.usable()).map(|(v, _)| *v).max()
 }
 pub fn permission_sheet(m: &Manifest, app: &craft_ext_core::id::AppId, selected: impl Fn(&str) -> bool) -> PermissionSheet {
     let (required, optional) = m.permissions_for(app, selected);
@@ -106,5 +110,20 @@ mod tests {
         assert!(!model[1].required);
         assert!(!model[1].checked);
         assert_eq!(model[1].why.as_deref(), Some("Copy the result"));
+    }
+}
+
+#[cfg(test)]
+mod browse_tests {
+    use super::*;
+    use craft_ext_core::version::Version;
+    #[test]
+    fn latest_incompatible_selects_newest_compatible() {
+        let old = Version::new(1,0,0);
+        let best = Version::new(2,0,0);
+        let latest = Version::new(3,0,0);
+        let bad = Compat::Incompatible { reasons: vec!["needs a newer contract".into()] };
+        assert_eq!(newest_compatible(&[(old, Compat::Compatible), (latest, bad.clone()), (best, Compat::Compatible)]), Some(best));
+        assert_eq!(newest_compatible(&[(latest, bad)]), None);
     }
 }

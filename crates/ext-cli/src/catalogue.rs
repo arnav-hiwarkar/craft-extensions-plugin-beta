@@ -42,6 +42,7 @@ struct Listing {
     #[serde(default)]
     tags: Vec<String>,
     licence_reviewed: Option<String>,
+    monetisation_reviewed: Option<String>,
 }
 #[derive(Default, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -68,6 +69,21 @@ fn github(repo: &str, suffix: &str) -> Result<Value> {
     }
     let text = request.call()?.body_mut().read_to_string()?;
     Ok(serde_json::from_str(&text)?)
+}
+fn validate_asset_url(repo: &str, tag: &str, url: &str) -> Result<()> {
+    let slug = repo.strip_prefix("https://github.com/").ok_or("listing must use a GitHub repository")?.trim_end_matches('/');
+    if slug.split('/').count() != 2 || slug.split('/').any(|s| s.is_empty() || !s.chars().all(|c| c.is_ascii_alphanumeric() || "-_.".contains(c))) {
+        return Err("invalid listing repository".into());
+    }
+    if tag.is_empty() || !tag.chars().all(|c| c.is_ascii_alphanumeric() || "._-/".contains(c)) {
+        return Err("invalid release tag".into());
+    }
+    let prefix = format!("https://github.com/{slug}/releases/download/{tag}/");
+    let file = url.strip_prefix(&prefix).ok_or("asset repository or tag differs from release listing")?;
+    if file.is_empty() || !file.chars().all(|c| c.is_ascii_alphanumeric() || "._-".contains(c)) || file == "." || file == ".." {
+        return Err("asset URL must name one release file".into());
+    }
+    Ok(())
 }
 fn check_online(l: &Listing, v: &VendorRecord, r: &Release, _warnings: &mut Vec<String>) -> Result<()> {
     let repo = github(&l.repo, "")?;
@@ -195,13 +211,16 @@ pub fn assemble(repo: &Path, offline: bool, only: Option<&str>) -> Result<(Index
                 return Err("release needs an asset".into());
             }
             for a in &r.assets {
-                if !a.url.starts_with("https://") || a.size == 0 || a.sha256.len() != 64 || hex::decode(&a.sha256).is_err() {
+                validate_asset_url(&l.repo, &r.tag, &a.url)?;
+                if a.size == 0 || a.sha256.len() != 64 || hex::decode(&a.sha256).is_err() {
                     return Err("invalid release asset".into());
                 }
             }
             for word in craft_ext_core::licence::monetisation_flags(&format!("{} {} {}", r.manifest.name, r.manifest.summary, r.manifest.description))
             {
-                warnings.push(format!("{}: review monetisation wording {word}", l.id));
+                if !l.monetisation_reviewed.as_ref().is_some_and(|note| !note.trim().is_empty()) {
+                    return Err(format!("{}: monetisation wording {word} requires monetisation_reviewed with a maintainer note", l.id).into());
+                }
             }
             if !offline {
                 check_online(&l, v, &r, &mut warnings)?
@@ -404,5 +423,70 @@ files=["data.json"]
         assert!(!craft_ext_store::catalogue::verify_index(b"tampered", &sig, &[&public]));
         build(p, true).unwrap();
         assert_eq!(Index::parse_cached(&fs::read(p.join("dist/index.json")).unwrap()).unwrap().serial, 2);
+        let release_path = p.join("plugins/io.github.alice.test/releases/1.0.0.toml");
+        let mut release = fixture();
+        release.manifest.summary = "Premium plugin".into();
+        fs::write(&release_path, toml::to_string_pretty(&release).unwrap()).unwrap();
+        assert!(assemble(p, true, None).unwrap_err().to_string().contains("monetisation_reviewed"));
+        let listing = p.join("plugins/io.github.alice.test/listing.toml");
+        let original = fs::read_to_string(&listing).unwrap();
+        fs::write(&listing, format!("{original}monetisation_reviewed='  '\n")).unwrap();
+        assert!(assemble(p, true, None).is_err());
+        fs::write(&listing, format!("{original}monetisation_reviewed='Maintainer confirmed this is free'\n")).unwrap();
+        assert!(assemble(p, true, None).is_ok());
+
+    }
+}
+
+#[cfg(test)]
+mod beta_tests {
+    use super::*;
+    #[test]
+    #[ignore = "maintainer publication: needs CRAFT_CATALOGUE_KEY and CRAFT_PLUGINS_REPO"]
+    fn publish_catalogue() {
+        let key = std::env::var("CRAFT_CATALOGUE_KEY").expect("CRAFT_CATALOGUE_KEY");
+        let repo = std::env::var("CRAFT_PLUGINS_REPO").expect("CRAFT_PLUGINS_REPO");
+        let keypath = Path::new(&key);
+        if !keypath.exists() {
+            fs::create_dir_all(keypath.parent().unwrap()).unwrap();
+            run(&["keygen".into(), "--repo".into(), repo.clone(), "--out".into(), key.clone()]).unwrap();
+        }
+        #[cfg(unix)] {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(keypath, fs::Permissions::from_mode(0o600)).unwrap();
+        }
+        build(Path::new(&repo), true).unwrap();
+        run(&["sign".into(), "--repo".into(), repo.clone(), "--key".into(), key.clone()]).unwrap();
+        let seed: [u8;32] = hex::decode(fs::read_to_string(keypath).unwrap().trim()).unwrap().try_into().unwrap();
+        let public = hex::encode(SigningKey::from_bytes(&seed).verifying_key().as_bytes());
+        // Only the public key is printed, never the secret seed.
+        println!("public_key={public}");
+    }
+    #[test]
+    fn repository_release_records_parse() {
+        let repo = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../craft-plugins");
+        if !repo.exists() { return; }
+        let mut count = 0;
+        for root in [repo.join("plugins"), repo.join("examples/pending")] {
+            for dir in entries(&root).unwrap().into_iter().filter(|p| p.is_dir()) {
+                for file in entries(&dir.join("releases")).unwrap() {
+                    let release: Release = read(&file).unwrap();
+                    release.manifest.validate().unwrap();
+                    count += 1;
+                }
+            }
+        }
+        assert_eq!(count, 3);
+        let (_, packages, _) = assemble(&repo, true, None).unwrap();
+        assert_eq!(packages.len(), 1);
+        assert_eq!(packages[0].id.as_str(), "io.github.arnav-hiwarkar.film-looks");
+    }
+    #[test]
+    fn asset_repository_tag_and_file_are_bound() {
+        let repo = "https://github.com/alice/test";
+        assert!(validate_asset_url(repo, "v1", "https://github.com/alice/test/releases/download/v1/a.zip").is_ok());
+        for url in ["https://github.com/bob/test/releases/download/v1/a.zip", "https://github.com/alice/test/releases/download/v2/a.zip", "https://github.com/alice/test/releases/download/v1/a.zip?x=1", "https://github.com/alice/test/releases/download/v1/../a.zip"] {
+            assert!(validate_asset_url(repo, "v1", url).is_err());
+        }
     }
 }

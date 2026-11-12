@@ -175,3 +175,5 @@ Pixels: premultiplied RGBA f32 in the project's working space (`color` is `linea
 ## Error codes
 
 `-1` invalid input, `-2` permission denied, `-3` not found, `-4` stale or busy, `-5` cancelled, `-6` over budget, `-7` internal.
+
+Tools are not supported in EffectCraft yet. Tool contributions are unavailable in compatibility and setup.

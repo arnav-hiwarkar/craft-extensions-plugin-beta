@@ -388,8 +388,28 @@ impl ManagerView {
         if mgr.app.is_none() {
             ui.label(format!("Apps: {}", p.apps.iter().map(ToString::to_string).collect::<Vec<_>>().join(", ")));
         }
-        let v = self.chooser(ui, mgr, &p.id, p.latest);
-        if ui.button("Install").clicked() {
+        if !self.versions.contains_key(&p.id) {
+            if ui.button("Find compatible releases").clicked() {
+                let m = mgr.clone();
+                let id = p.id.clone();
+                self.jobs.start(move || m.versions(&id).map(|v| Done::Versions(id, v)).map_err(|e| e.to_string()));
+            }
+            return;
+        }
+        let versions = &self.versions[&p.id];
+        let compatible = newest_compatible(versions);
+        let Some(best) = compatible else {
+            ui.label("No compatible release for this app");
+            return;
+        };
+        let latest = versions.iter().find(|(v, _)| *v == p.latest);
+        if let Some((_, c)) = latest.filter(|(_, c)| !c.usable()) {
+            let app = mgr.app.as_ref().map(ToString::to_string).unwrap_or_else(|| "this app".into());
+            ui.label(format!("Version {} doesn't work in {app}: {}. Install {best} instead?", p.latest, compatibility(c)));
+        }
+        let v = self.chooser(ui, mgr, &p.id, best);
+        let usable = self.versions[&p.id].iter().any(|(version, c)| *version == v && c.usable());
+        if ui.add_enabled(usable, egui::Button::new(format!("Install {v}"))).clicked() {
             self.install(mgr.clone(), p.id, Some(v));
         }
     }
@@ -515,10 +535,10 @@ impl ManagerView {
         }
     }
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum PromptOutcome {
-    Continue,
-    OpenWithoutPlugins,
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PromptOutcome {
+    pub skipped: Vec<ExtensionId>,
+    pub open_without: bool,
 }
 /// Project inspection does not download or enable anything until a button is clicked.
 pub struct ProjectPrompt {
@@ -570,7 +590,7 @@ impl ProjectPrompt {
                                 self.view.install(mgr.clone(), r.id.clone(), Some(r.version));
                             }
                         }
-                        project::Status::NeedsEnable { version } => {
+                        project::Status::NeedsEnable { version, .. } => {
                             if ui.button("Enable").clicked() {
                                 match mgr.store.state().and_then(|s| mgr.store.manifest(&s, &r.id, *version)) {
                                     Ok(m) => self.view.setup = Some(Setup::new(mgr.clone(), m)),
@@ -587,10 +607,10 @@ impl ProjectPrompt {
             }
             ui.label("Missing plugins keep their placeholders and saved data.");
             if ui.button("Open without them").clicked() {
-                outcome = Some(PromptOutcome::OpenWithoutPlugins);
+                outcome = Some(PromptOutcome { skipped: self.skipped.iter().cloned().collect(), open_without: true });
             }
             if ui.button("Continue").clicked() {
-                outcome = Some(PromptOutcome::Continue);
+                outcome = Some(PromptOutcome { skipped: self.skipped.iter().cloned().collect(), open_without: false });
             }
         });
         if outcome.is_some() {

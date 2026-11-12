@@ -75,3 +75,16 @@ fn shipped_examples_parse() {
         assert!(!m.contributions.is_empty());
     }
 }
+
+#[test]
+fn unsupported_kinds_are_unavailable_even_with_a_matching_contract() {
+    let mut m = Manifest::parse(SAMPLE.as_bytes()).unwrap();
+    m.contributions[0].kind = ContributionKind::Tool;
+    let reason = "Tools are not supported in EffectCraft yet";
+    let provided = Provided::new(&[("raster.filter", 1, 0)]).without(ContributionKind::Tool, reason);
+    assert_eq!(m.compat(&ec(), &provided), Compat::Incompatible { reasons: vec![reason.into()] });
+    m.contributions.push(Manifest::parse(SAMPLE.as_bytes()).unwrap().contributions.remove(0));
+    assert_eq!(m.compat(&ec(), &provided), Compat::Partly { unavailable: vec![("halftone".into(), reason.into())] });
+    let legacy: Provided = serde_json::from_str(r#"{"contracts":[]}"#).unwrap();
+    assert!(legacy.unsupported.is_empty());
+}

@@ -5,6 +5,16 @@ The FigCraft adapter foundation lives in `figcraft/crates/plugins`. It declares
 These declarations are not yet activated in the application.
 No `raster.filter` contract is advertised pending image-fill dispatch integration.
 
+## Contracts provided
+
+| Contract | Version |
+|---|---|
+| `figcraft.session` | 1.0 |
+| `resource.font` | 1.0 |
+| `craft-theme` | 1.0 |
+
+## Session protocol (integration pending)
+
 Session events: init, command `{id}`, ui `{surface,rev,widget,value}`, tool
 `{phase:begin|update|commit|cancel,at:[x,y],modifiers}`, app
 `{type:selection.changed|document.opened|page.changed}`, dispose.

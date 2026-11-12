@@ -169,6 +169,35 @@ fn project_digest_mismatch_requires_other_version() {
     let (app, id) = ids();
     let i = install(&s, "1.0.0", "");
     let m = crate::manager::Manager::new(s, Some(app), Provided::default(), "linux-x86_64".into());
-    let refs = [PluginRef { id, version: i.version, sha256: Some("0".repeat(64)), source: Source::Local, name: "Test".into() }];
+    let refs = [PluginRef { id, version: i.version, sha256: Some("0".repeat(64)), source: Source::Local, name: "Test".into(), contributions: vec![], state_versions: None }];
     assert!(matches!(m.check_project(&refs).unwrap()[0].1, Status::NeedsOtherVersion { .. }));
+}
+
+#[test]
+fn committed_catalogue_uses_trusted_beta_key() {
+    let dist = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../craft-plugins/dist");
+    if !dist.join("index.json").exists() { return; }
+    let bytes = std::fs::read(dist.join("index.json")).unwrap();
+    let sig = std::fs::read_to_string(dist.join("index.json.sig")).unwrap();
+    assert!(verify_index(&bytes, &sig, craft_ext_core::catalogue::TRUSTED_KEYS));
+}
+
+#[test]
+fn project_requires_each_contribution_and_saved_state_version() {
+    use craft_ext_core::{contract::Provided, project::{PluginRef, Source, Status}};
+    let t = tempfile::tempdir().unwrap();
+    let s = Store::at(t.path());
+    let (app, id) = ids();
+    let i = install(&s, "1.0.0", "");
+    s.set_active(&app, &id, i.version).unwrap();
+    let m = crate::Manager::new(s, Some(app.clone()), Provided::new(&[("app.session",1,0)]), "linux-x86_64".into());
+    let mut r = PluginRef { id: id.clone(), version: i.version, sha256: None, source: Source::Local, name: "Test".into(), contributions: vec!["run".into()], state_versions: None };
+    assert!(matches!(m.check_project(&[r.clone()]).unwrap()[0].1, Status::NeedsEnable { .. }));
+    m.store.set_enabled(&app, &id, "run", true).unwrap();
+    assert!(matches!(m.check_project(&[r.clone()]).unwrap()[0].1, Status::Ready { .. }));
+    r.state_versions = Some(std::collections::BTreeMap::from([("run".into(), 1)]));
+    assert!(matches!(m.check_project(&[r.clone()]).unwrap()[0].1, Status::NeedsOtherVersion { .. }));
+    r.state_versions = None;
+    r.contributions.push("missing".into());
+    assert!(matches!(m.check_project(&[r]).unwrap()[0].1, Status::NeedsOtherVersion { .. }));
 }

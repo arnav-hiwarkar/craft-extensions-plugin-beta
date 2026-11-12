@@ -277,12 +277,25 @@ impl Manager {
                 let status = if let Some(p) = s.packages.get(&r.id) {
                     if let Some(rec) = p.releases.get(&r.version) {
                         if r.sha256.as_ref().is_some_and(|sha| sha != &rec.sha256) {
-                            project::Status::NeedsOtherVersion { installed: r.version, wanted: r.version }
+                            project::Status::NeedsOtherVersion { installed: r.version, wanted: r.version, reason: "installed digest differs".into() }
                         } else if s.blocked(&r.id, r.version, &rec.sha256, catalogue::Severity::Disable) {
                             project::Status::Unavailable { reason: "release withdrawn or digest differs".into() }
+                        } else if let Some(reason) = self.store.manifest(&s, &r.id, r.version).ok().and_then(|m| {
+                            if !self.compat(&m).usable() { return Some("release is incompatible with this app".to_string()); }
+                            for id in r.contributions.iter().chain(r.state_versions.iter().flat_map(|v| v.keys())) {
+                                let Some(c) = m.contributions.iter().find(|c| &c.id == id) else { return Some(format!("contribution {id} is missing")); };
+                                if !self.app.as_ref().is_some_and(|app| m.contributions_for(app).any(|x| x.id == c.id)) || c.contract.check(&self.provided).is_some() || self.provided.unsupported.iter().any(|(kind, _)| *kind == c.kind) {
+                                    return Some(format!("contribution {id} is incompatible with this app"));
+                                }
+                                if r.state_versions.as_ref().and_then(|v| v.get(id)).is_some_and(|v| c.state_version < *v) { return Some(format!("contribution {id} cannot load the saved state version")); }
+                            }
+                            None
+                        }) {
+                            project::Status::NeedsOtherVersion { installed: r.version, wanted: r.version, reason }
                         } else if setup.is_some_and(|a| {
                             a.active == Some(r.version)
                                 && !a.enabled.is_empty()
+                                && r.contributions.iter().chain(r.state_versions.iter().flat_map(|v| v.keys())).all(|c| a.enabled.contains(c))
                                 && self.store.manifest(&s, &r.id, r.version).is_ok_and(|m| {
                                     (!m.is_native() || a.full_access)
                                         && self.app.as_ref().is_some_and(|app| {
@@ -293,10 +306,10 @@ impl Manager {
                         {
                             project::Status::Ready { version: r.version }
                         } else {
-                            project::Status::NeedsEnable { version: r.version }
+                            project::Status::NeedsEnable { version: r.version, reason: "required contributions are off or permissions are missing".into() }
                         }
                     } else if let Some(v) = p.releases.keys().next_back() {
-                        project::Status::NeedsOtherVersion { installed: *v, wanted: r.version }
+                        project::Status::NeedsOtherVersion { installed: *v, wanted: r.version, reason: "requested version is not installed".into() }
                     } else {
                         project::Status::Unavailable { reason: "no installed releases".into() }
                     }

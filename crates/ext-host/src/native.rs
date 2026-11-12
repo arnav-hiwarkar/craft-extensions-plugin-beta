@@ -123,6 +123,7 @@ impl Helper {
 
     /// Supervision: call periodically (the adapter does on its tick). Kills the helper as soon as
     /// consent is withdrawn or the plugin is stopped, even while idle. Returns false once killed.
+    /// Adapters must call this at least every second while the helper is idle.
     pub fn supervise(&mut self) -> bool {
         if !self.grants.full_access(&self.plugin) || self.grants.stopped(&self.plugin, self.version) {
             self.kill();
@@ -137,6 +138,9 @@ impl Helper {
         }
         if self.grants.stopped(&inv.plugin, inv.version) {
             return Err(OpError::denied("this plugin has been turned off"));
+        }
+        if self.grants.generation(&inv.plugin) != inv.grant_generation {
+            return Err(OpError::denied("permissions changed while this was running"));
         }
         if inv.cancelled() {
             return Err(OpError::new(Code::Cancelled, "cancelled"));
@@ -173,10 +177,10 @@ impl Helper {
             if self.check(inv).is_err() {
                 return Err(PluginError::Stopped("full access withdrawn or plugin turned off".into()));
             }
-            let msg = match self.lines.recv_timeout(left) {
+            let msg = match self.lines.recv_timeout(left.min(Duration::from_millis(250))) {
                 Ok(Some(v)) => v,
                 Ok(None) | Err(RecvTimeoutError::Disconnected) => return Err(PluginError::Trap("the helper stopped".into())),
-                Err(RecvTimeoutError::Timeout) => return Err(PluginError::TooSlow),
+                Err(RecvTimeoutError::Timeout) => continue,
             };
             match msg["type"].as_str() {
                 Some("log") => (self.log)(inv.plugin.as_str(), msg["level"].as_i64().unwrap_or(1).clamp(0, 3) as i32, msg["text"].as_str().unwrap_or("")),
@@ -189,7 +193,7 @@ impl Helper {
                         }
                         self.api.call(inv, &op, msg["args"].clone())
                     });
-                    let stopped = matches!(&out, Err(e) if e.code == Code::Denied);
+                    let stopped = self.check(inv).is_err();
                     let reply = match out {
                         Ok(v) => json!({"type":"result","id":call_id,"ok":v}),
                         Err(e) => json!({"type":"result","id":call_id,"error":e.to_json()}),

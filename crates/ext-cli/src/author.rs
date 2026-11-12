@@ -75,6 +75,35 @@ fn copy_template(src: &Path, dst: &Path, id: &str) -> Result<()> {
     }
     Ok(())
 }
+fn embedded_template(kind: &str, dst: &Path, id: &str) -> Result<()> {
+    let files: &[(&str, &str)] = match kind {
+        "effect" => &[
+            ("Cargo.toml", include_str!("../../../templates/effect/Cargo.toml")),
+            ("README.md", include_str!("../../../templates/effect/README.md")),
+            ("craft-plugin.toml", include_str!("../../../templates/effect/craft-plugin.toml")),
+            ("src/lib.rs", include_str!("../../../templates/effect/src/lib.rs")),
+        ],
+        "panel" => &[
+            ("Cargo.toml", include_str!("../../../templates/panel/Cargo.toml")),
+            ("README.md", include_str!("../../../templates/panel/README.md")),
+            ("craft-plugin.toml", include_str!("../../../templates/panel/craft-plugin.toml")),
+            ("src/lib.rs", include_str!("../../../templates/panel/src/lib.rs")),
+        ],
+        "data" => &[
+            ("README.md", include_str!("../../../templates/data/README.md")),
+            ("craft-plugin.toml", include_str!("../../../templates/data/craft-plugin.toml")),
+            ("luts/warm.cube", include_str!("../../../templates/data/luts/warm.cube")),
+            ("presets/looks.json", include_str!("../../../templates/data/presets/looks.json")),
+        ],
+        _ => return Err("unknown template".into()),
+    };
+    for (path, text) in files {
+        let path = dst.join(path);
+        if let Some(parent) = path.parent() { fs::create_dir_all(parent)?; }
+        fs::write(path, text.replace("io.github.YOUR-NAME.PLUGIN", id))?;
+    }
+    Ok(())
+}
 pub fn run(args: &[String]) -> Result<Value> {
     let a = Args::parse(args, &["id", "out", "tag", "commit", "url", "app", "size"], &["store", "release-record"])?;
     if a.pos.is_empty() || a.has("help") {
@@ -98,7 +127,8 @@ pub fn run(args: &[String]) -> Result<Value> {
         let root = std::env::var_os("CRAFT_TEMPLATES")
             .map(PathBuf::from)
             .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../templates"));
-        copy_template(&root.join(kind), dst, id)?;
+        if std::env::var_os("CRAFT_TEMPLATES").is_some() { copy_template(&root.join(kind), dst, id)?; }
+        else { embedded_template(kind, dst, id)?; }
         let guest = std::env::var_os("CRAFT_GUEST_PATH").map(PathBuf::from).or_else(|| {
             root.canonicalize().ok()?.ancestors().find(|p| p.join("crates/guest/Cargo.toml").is_file()).map(|p| p.join("crates/guest"))
         });
@@ -171,6 +201,9 @@ pub fn run(args: &[String]) -> Result<Value> {
             Ok(json!({"checked":m.id,"warnings":warnings}))
         }
         "test" => {
+            if !m.contributions.iter().any(|c| c.kind == ContributionKind::Effect) {
+                return Ok(json!({"tested": [], "message": "No automated tests for panels/commands yet; run in the app with `craft-ext dev`"}));
+            }
             let (w, h) = a.opt("size").unwrap_or("64x64").split_once('x').ok_or_else(|| Usage("size must be WxH".into()))?;
             let (w, h) = (w.parse::<u32>()?, h.parse::<u32>()?);
             if w == 0 || h == 0 || u64::from(w) * u64::from(h) > 16777216 {
@@ -298,4 +331,21 @@ fn check_wasm(bytes: &[u8], effect: bool) -> Result<()> {
         if !signature(import.ty(), &params, &results) { return Err(format!("invalid signature for import {}", import.name()).into()); }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod beta_tests {
+    use super::*;
+    #[test]
+    fn embedded_templates_and_non_effect_test_message() {
+        let t = tempfile::tempdir().unwrap();
+        for kind in ["data", "panel", "effect"] {
+            let dst = t.path().join(kind);
+            embedded_template(kind, &dst, "io.github.alice.test").unwrap();
+            assert_eq!(manifest(&dst).unwrap().id.as_str(), "io.github.alice.test");
+        }
+        let value = run(&["test".into(), t.path().join("panel").to_str().unwrap().into()]).unwrap();
+        assert_eq!(value["tested"], json!([]));
+        assert_eq!(value["message"], "No automated tests for panels/commands yet; run in the app with `craft-ext dev`");
+    }
 }
