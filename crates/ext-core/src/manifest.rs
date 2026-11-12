@@ -349,7 +349,7 @@ impl Manifest {
     }
 
     /// Permissions (required, optional) for a set of enabled contributions in one app: the union.
-    pub fn permissions_for<'a>(&self, app: &AppId, enabled: impl Fn(&str) -> bool) -> (Vec<Permission>, Vec<Permission>) {
+    pub fn permissions_for(&self, app: &AppId, enabled: impl Fn(&str) -> bool) -> (Vec<Permission>, Vec<Permission>) {
         let mut req = BTreeSet::new();
         let mut opt = BTreeSet::new();
         for c in self.contributions_for(app).filter(|c| enabled(&c.id)) {

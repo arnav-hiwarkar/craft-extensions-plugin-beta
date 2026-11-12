@@ -326,7 +326,7 @@ pub fn resolve<'a>(
     revoked: impl Fn(&Release) -> Option<Severity>,
 ) -> Resolution<'a> {
     let mut sorted: Vec<&Release> = releases.iter().filter(|r| req.matches(r.version)).collect();
-    sorted.sort_by(|a, b| b.version.cmp(&a.version));
+    sorted.sort_by_key(|r| std::cmp::Reverse(r.version));
     let mut why = Vec::new();
     for r in sorted {
         if revoked(r).is_some_and(|s| s >= Severity::BlockNew) {
