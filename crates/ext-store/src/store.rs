@@ -139,13 +139,22 @@ impl Store {
                     return Err(error("this release has been withdrawn"));
                 }
                 if let Some(p) = s.packages.get(&m.id) {
-                    if p.origin != origin {
-                        return Err(error("remove the installed package before changing its origin"));
+                    let same_origin = p.origin == origin || matches!((&p.origin, &origin), (Origin::Local { .. }, Origin::Local { .. }));
+                    if !same_origin {
+                        for apps in s.apps.values_mut() {
+                            if let Some(a) = apps.get_mut(&m.id) {
+                                a.grants.clear(); a.full_access = false; a.enabled.clear(); a.active = None; a.pending = None;
+                                a.grant_generation += 1;
+                            }
+                        }
                     }
                     if let Some(r) = p.releases.get(&m.version) {
                         if r.sha256 != sha {
                             return Err(error("this version already has different bytes"));
                         }
+                        let p = s.packages.get_mut(&m.id).unwrap();
+                        p.releases.get_mut(&m.version).unwrap().origin = Some(origin.clone());
+                        p.origin = origin.clone();
                         return Ok(());
                     }
                 }
@@ -154,9 +163,10 @@ impl Store {
                 moved = true;
                 s.packages
                     .entry(m.id.clone())
-                    .or_insert_with(|| PackageRec { origin, releases: Default::default() })
+                    .or_insert_with(|| PackageRec { origin: origin.clone(), releases: Default::default() })
                     .releases
-                    .insert(m.version, ReleaseRec { sha256: sha.clone(), tier, installed: now() });
+                    .insert(m.version, ReleaseRec { sha256: sha.clone(), tier, installed: now(), origin: Some(origin.clone()) });
+                s.packages.get_mut(&m.id).unwrap().origin = origin.clone();
                 Ok(())
             });
             if result.is_err() && moved {
@@ -181,9 +191,19 @@ impl Store {
             if !m.apps.contains(app) {
                 return Err(error("this plugin does not support this app"));
             }
+            let p = &s.packages[id];
+            let release_origin = p.releases[&v].origin.clone().unwrap_or_else(|| p.origin.clone());
+            if p.origin != release_origin && !matches!((&p.origin, &release_origin), (Origin::Local { .. }, Origin::Local { .. })) {
+                for apps in s.apps.values_mut() {
+                    if let Some(a) = apps.get_mut(id) {
+                        a.grants.clear(); a.full_access = false; a.enabled.clear(); a.active = None; a.pending = None; a.grant_generation += 1;
+                    }
+                }
+            }
+            s.packages.get_mut(id).unwrap().origin = release_origin;
             let setup = s.apps.entry(app.clone()).or_default().entry(id.clone()).or_default();
             let widened = m.permissions_for(app, |c| setup.enabled.contains(c)).0.iter().any(|p| !setup.grants.iter().any(|g| g.covers(p)));
-            if widened || (m.is_native() && !setup.full_access) {
+            if widened || (m.is_native() && (setup.active != Some(v) || !setup.full_access)) {
                 setup.pending = Some(v)
             } else {
                 setup.active = Some(v);
@@ -227,11 +247,21 @@ impl Store {
         })
     }
     pub fn set_enabled(&self, app: &AppId, id: &ExtensionId, c: &str, on: bool) -> Result<()> {
+        self.set_enabled_checked(app, id, c, on, None)
+    }
+    pub fn set_enabled_checked(&self, app: &AppId, id: &ExtensionId, c: &str, on: bool, context: Option<(&craft_ext_core::contract::Provided, &str)>) -> Result<()> {
         self.update(|s| {
             let a = s.apps.get(app).and_then(|a| a.get(id)).ok_or_else(|| error("choose an active release first"))?;
             let v = a.active.ok_or_else(|| error("choose an active release first"))?;
             let m = self.manifest(s, id, v)?;
             let contribution = m.contributions_for(app).find(|x| x.id == c).ok_or_else(|| error("this contribution is unavailable"))?;
+            if on {
+                if let Some((provided, platform)) = context {
+                    if let Some(reason) = contribution.contract.check(provided) { return Err(error(reason)); }
+                    if let craft_ext_core::manifest::Compat::Incompatible { reasons } = m.compat(app, provided) { return Err(error(reasons.join("; "))); }
+                    if m.native.as_ref().is_some_and(|n| !n.executables.contains_key(platform)) { return Err(error("no native executable for this platform")); }
+                }
+            }
             if on
                 && (s.blocked(id, v, &s.packages[id].releases[&v].sha256, Severity::BlockNew)
                     || contribution.permissions.iter().any(|p| !a.grants.iter().any(|g| g.covers(p)))
@@ -317,6 +347,15 @@ impl Store {
                     p.releases.iter().filter(|(v, r)| s.blocked(id, **v, &r.sha256, Severity::BlockNew)).map(|(v, _)| (id.clone(), *v))
                 })
                 .collect())
+        })
+    }
+    pub fn publish_catalogue(&self, serial: u64, now: u64, revocations: Vec<Revocation>) -> Result<()> {
+        self.update(|s| {
+            if serial < s.catalogue_serial { return Err(error("the catalogue is older than one already seen")); }
+            s.revocations = revocations;
+            s.catalogue_serial = serial;
+            s.last_refresh = now;
+            Ok(())
         })
     }
     pub fn record_catalogue(&self, serial: u64, now: u64) -> Result<()> {

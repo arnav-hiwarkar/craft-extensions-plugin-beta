@@ -23,7 +23,7 @@ type Result<T> = std::result::Result<T, String>;
 enum Done {
     Installed(Arc<Manager>, Box<InstallResult>),
     Versions(ExtensionId, Vec<(Version, craft_ext_core::manifest::Compat)>),
-    Updates(Vec<Update>),
+    Updates((Vec<Update>, Vec<(ExtensionId, String)>)),
     Refreshed,
 }
 /// One outstanding job. Cancelling discards its result; an in-flight download may finish staging,
@@ -241,7 +241,7 @@ impl ManagerView {
                 Ok(Done::Versions(id, v)) => {
                     self.versions.insert(id, v);
                 }
-                Ok(Done::Updates(v)) => self.updates = v,
+                Ok(Done::Updates((v, problems))) => { self.updates = v; self.problems = problems; },
                 Ok(Done::Refreshed) => {}
                 Err(e) => self.error = Some(e),
             }

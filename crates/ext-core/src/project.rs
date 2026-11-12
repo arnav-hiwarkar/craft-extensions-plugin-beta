@@ -31,6 +31,11 @@ pub struct PluginRef {
 /// own project format; `params` and `state` are kept byte for byte when the plugin is missing.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct FeatureRef {
+    #[serde(default)]
+    pub contract: Option<String>,
+    /// Preserve as a placeholder when this exceeds the loaded contribution's state_version.
+    #[serde(default)]
+    pub state_version: u32,
     pub plugin: ExtensionId,
     pub contribution: String,
     pub version: Version,

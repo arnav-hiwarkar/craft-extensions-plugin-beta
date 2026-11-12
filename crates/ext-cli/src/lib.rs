@@ -184,7 +184,9 @@ fn plugin(m: &Manager, args: &[String]) -> Result<Value> {
         "update" if a.has("all") => {
             a.arity(1)?;
             let mut rows = vec![];
-            for (id, _, _, _) in m.update_check()? {
+            let (updates, problems) = m.update_check()?;
+            rows.extend(problems.into_iter().map(|(id, reason)| json!({"id":id,"error":reason})));
+            for (id, _, _, _) in updates {
                 let (i, _, _) = m.update(&id)?;
                 rows.push(json!({"id":id,"permissions":sheet(&i.manifest),"pending":m.store.state()?.apps.get(m.app.as_ref().ok_or("choose an app")?).and_then(|s|s.get(&id)).and_then(|s|s.pending)}));
             }

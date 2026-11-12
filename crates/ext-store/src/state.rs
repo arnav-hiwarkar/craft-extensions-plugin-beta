@@ -28,6 +28,8 @@ impl Origin {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ReleaseRec {
+    #[serde(default)]
+    pub origin: Option<Origin>,
     pub sha256: String,
     pub tier: Tier,
     pub installed: u64,
@@ -81,7 +83,7 @@ impl StoreState {
         serde_json::from_value(v).map_err(error)
     }
     pub fn blocked(&self, id: &ExtensionId, v: Version, sha: &str, severity: Severity) -> bool {
-        let vendor = self.packages.get(id).and_then(|p| p.origin.vendor());
+        let vendor = self.packages.get(id).and_then(|p| p.releases.get(&v).and_then(|r| r.origin.as_ref()).unwrap_or(&p.origin).vendor());
         self.revocations.iter().any(|r| r.severity >= severity && r.matches(id, v, sha, vendor))
     }
 }

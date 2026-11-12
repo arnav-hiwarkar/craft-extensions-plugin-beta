@@ -142,12 +142,17 @@ pub fn unpack_into(bytes: &[u8], dest: &Path, caps: Caps) -> Result<Manifest, Un
         if size > RATIO_FLOOR && size / entry.compressed_size().max(1) > caps.max_ratio {
             return Err(UnpackError::Bomb);
         }
-        let target = dest.join(name);
+        let target = dest.join(&name);
         if let Some(parent) = target.parent() {
             fs::create_dir_all(parent).map_err(|_| UnpackError::Write)?;
         }
-        let mut out = fs::OpenOptions::new().write(true).create_new(true).open(target).map_err(|_| UnpackError::Write)?;
+        let mut out = fs::OpenOptions::new().write(true).create_new(true).open(&target).map_err(|_| UnpackError::Write)?;
         let copied = std::io::copy(&mut entry.take(size + 1), &mut out).map_err(|_| UnpackError::Write)?;
+        #[cfg(unix)]
+        if manifest.native.as_ref().is_some_and(|n| n.executables.values().any(|p| p == &name)) {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&target, fs::Permissions::from_mode(0o755)).map_err(|_| UnpackError::Write)?;
+        }
         if copied != size {
             return Err(UnpackError::SizeMismatch);
         }

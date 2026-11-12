@@ -10,7 +10,6 @@ publish = false
 crate-type = ["cdylib"]
 
 [dependencies]
-# During development this is the path to the SDK. A released plugin uses the published craft-guest.
-craft-guest = { path = "../../crates/guest" }
+craft-guest = { git = "https://github.com/arnav-hiwarkar/craft-extensions-plugin-beta", branch = "plugin-beta" }
 
 [workspace]

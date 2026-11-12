@@ -41,6 +41,7 @@ struct Listing {
     repo_id: u64,
     #[serde(default)]
     tags: Vec<String>,
+    licence_reviewed: Option<String>,
 }
 #[derive(Default, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -68,7 +69,7 @@ fn github(repo: &str, suffix: &str) -> Result<Value> {
     let text = request.call()?.body_mut().read_to_string()?;
     Ok(serde_json::from_str(&text)?)
 }
-fn check_online(l: &Listing, r: &Release, warnings: &mut Vec<String>) -> Result<()> {
+fn check_online(l: &Listing, v: &VendorRecord, r: &Release, _warnings: &mut Vec<String>) -> Result<()> {
     let repo = github(&l.repo, "")?;
     if repo["private"].as_bool() != Some(false) {
         return Err("repository must be public".into());
@@ -76,9 +77,17 @@ fn check_online(l: &Listing, r: &Release, warnings: &mut Vec<String>) -> Result<
     if repo["id"].as_u64() != Some(l.repo_id) {
         return Err("repository numeric id differs".into());
     }
+    let mut request = ureq::get(&format!("https://api.github.com/users/{}", v.login)).header("User-Agent", "craft-ext-cli");
+    if let Ok(token) = std::env::var("GITHUB_TOKEN") { request = request.header("Authorization", &format!("Bearer {token}")); }
+    let user: Value = serde_json::from_str(&request.call()?.body_mut().read_to_string()?)?;
+    if user["id"].as_u64() != Some(v.github_id)
+        || repo["owner"]["id"].as_u64() != Some(v.github_id)
+        || !repo["owner"]["login"].as_str().is_some_and(|login| login.eq_ignore_ascii_case(&v.login)) {
+        return Err("repository owner or vendor numeric id differs".into());
+    }
     let license = repo["license"]["spdx_id"].as_str().unwrap_or("NOASSERTION");
     if license == "NOASSERTION" {
-        warnings.push(format!("{}: GitHub did not detect a licence", l.id));
+        if !l.licence_reviewed.as_ref().is_some_and(|note| !note.trim().is_empty()) { return Err("GitHub did not detect a licence; licence_reviewed requires a maintainer note".into()); }
     } else if license != r.manifest.license {
         return Err(format!("{}: GitHub licence {license} differs from manifest {}", l.id, r.manifest.license).into());
     }
@@ -195,9 +204,22 @@ pub fn assemble(repo: &Path, offline: bool, only: Option<&str>) -> Result<(Index
                 warnings.push(format!("{}: review monetisation wording {word}", l.id));
             }
             if !offline {
-                check_online(&l, &r, &mut warnings)?
+                check_online(&l, v, &r, &mut warnings)?
             }
             releases.push(r);
+        }
+        let previous_path = repo.join(format!("dist/packages/{}.json", l.id));
+        match fs::read(previous_path) {
+            Ok(bytes) => {
+                let previous = PackageFile::parse(&bytes, &l.id)?;
+                for old in previous.releases {
+                    let new = releases.iter().find(|r| r.version == old.version).ok_or("published version was removed")?;
+                    let digests = |r: &Release| r.assets.iter().map(|a| (a.platform.clone(), a.sha256.clone())).collect::<BTreeMap<_, _>>();
+                    if digests(&old) != digests(new) { return Err("published asset digests changed or were removed".into()); }
+                }
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {},
+            Err(e) => return Err(e.into()),
         }
         releases.sort_by_key(|r| r.version);
         let newest = releases.last().ok_or("listing has no releases")?;

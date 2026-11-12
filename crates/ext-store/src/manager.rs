@@ -184,31 +184,34 @@ impl Manager {
         let sheet = self.sheet(&installed.manifest);
         Ok((installed, c, sheet))
     }
-    pub fn update_check(&self) -> Result<Vec<Update>> {
+    pub fn update_check(&self) -> Result<(Vec<Update>, Vec<(ExtensionId, String)>)> {
         let s = self.store.state()?;
         let app = self.app()?;
         let mut out = vec![];
+        let mut problems = vec![];
+        let index = self.index()?;
         if let Some(setups) = s.apps.get(app) {
             for (id, a) in setups {
                 if let Some(v) = a.active {
-                    let p = self.package(id)?;
-                    let index = self.index()?;
+                    if index.package(id).is_none() || s.packages.get(id).is_some_and(|p| matches!(p.origin, Origin::Local { .. })) { continue; }
+                    let p = match self.package(id) { Ok(p) => p, Err(e) => { problems.push((id.clone(), e.to_string())); continue; } };
+                    let candidates = p.releases.into_iter().filter(|r| r.asset_for(&self.platform).is_some()).collect::<Vec<_>>();
                     if let catalogue::Resolution::Use(r, _) =
-                        catalogue::resolve(&p.releases, app, &self.provided, a.pin.unwrap_or(VersionReq::Any), |r| {
+                        catalogue::resolve(&candidates, app, &self.provided, a.pin.unwrap_or(VersionReq::Any), |r| {
                             r.asset_for(&self.platform).and_then(|a| index.revocation(id, r.version, &a.sha256)).map(|r| r.severity)
                         })
                     {
                         if r.version > v && r.asset_for(&self.platform).is_some() {
                             let wide =
                                 r.manifest.permissions_for(app, |c| a.enabled.contains(c)).0.iter().any(|p| !a.grants.iter().any(|g| g.covers(p)))
-                                    || (r.manifest.is_native() && !a.full_access);
+                                    || r.manifest.is_native();
                             out.push((id.clone(), v, r.version, wide));
                         }
                     }
                 }
             }
         }
-        Ok(out)
+        Ok((out, problems))
     }
     pub fn update(&self, id: &ExtensionId) -> Result<InstallResult> {
         let r = self.install(id, None)?;
@@ -241,7 +244,7 @@ impl Manager {
         self.store.set_pin(self.app()?, id, None)
     }
     pub fn enable(&self, id: &ExtensionId, c: &str) -> Result<()> {
-        self.store.set_enabled(self.app()?, id, c, true)
+        self.store.set_enabled_checked(self.app()?, id, c, true, Some((&self.provided, &self.platform)))
     }
     pub fn disable(&self, id: &ExtensionId, c: &str) -> Result<()> {
         self.store.set_enabled(self.app()?, id, c, false)
@@ -258,8 +261,7 @@ impl Manager {
     #[cfg(feature = "net")]
     pub fn refresh(&self, now: u64) -> Result<()> {
         let i = Catalogue::fetch(&self.catalogue_base, &self.cache(), now, self.store.state()?.catalogue_serial)?;
-        self.store.apply_revocations(i.revocations)?;
-        self.store.record_catalogue(i.serial, now)
+        self.store.publish_catalogue(i.serial, now, i.revocations)
     }
     #[cfg(not(feature = "net"))]
     pub fn refresh(&self, _now: u64) -> Result<()> {
@@ -274,9 +276,9 @@ impl Manager {
                 let setup = self.app.as_ref().and_then(|a| s.apps.get(a)).and_then(|a| a.get(&r.id));
                 let status = if let Some(p) = s.packages.get(&r.id) {
                     if let Some(rec) = p.releases.get(&r.version) {
-                        if s.blocked(&r.id, r.version, &rec.sha256, catalogue::Severity::Disable)
-                            || r.sha256.as_ref().is_some_and(|sha| sha != &rec.sha256)
-                        {
+                        if r.sha256.as_ref().is_some_and(|sha| sha != &rec.sha256) {
+                            project::Status::NeedsOtherVersion { installed: r.version, wanted: r.version }
+                        } else if s.blocked(&r.id, r.version, &rec.sha256, catalogue::Severity::Disable) {
                             project::Status::Unavailable { reason: "release withdrawn or digest differs".into() }
                         } else if setup.is_some_and(|a| {
                             a.active == Some(r.version)
@@ -299,7 +301,18 @@ impl Manager {
                         project::Status::Unavailable { reason: "no installed releases".into() }
                     }
                 } else if index.as_ref().is_some_and(|i| i.package(&r.id).is_some()) {
-                    project::Status::Downloadable
+                    match self.package(&r.id) {
+                        Ok(p) => match p.releases.iter().find(|x| x.version == r.version) {
+                            None => project::Status::Unavailable { reason: "version not listed".into() },
+                            Some(release) => match release.asset_for(&self.platform) {
+                                None => project::Status::Unavailable { reason: "wrong platform".into() },
+                                Some(a) if r.sha256.as_ref().is_some_and(|sha| sha != &a.sha256) => project::Status::Unavailable { reason: "digest not listed".into() },
+                                Some(a) if index.as_ref().and_then(|i| i.revocation(&r.id, r.version, &a.sha256)).is_some_and(|x| x.severity >= catalogue::Severity::BlockNew) => project::Status::Unavailable { reason: "release withdrawn".into() },
+                                Some(_) => project::Status::Downloadable,
+                            }
+                        },
+                        Err(e) => project::Status::Unavailable { reason: e.to_string() },
+                    }
                 } else {
                     project::Status::Unavailable { reason: "this plugin is not listed".into() }
                 };

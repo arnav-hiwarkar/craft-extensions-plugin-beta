@@ -193,6 +193,7 @@ dependencies = [
  "tempfile",
  "toml",
  "ureq",
+ "wasmi",
  "zip",
 ]
 

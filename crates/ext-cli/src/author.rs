@@ -99,6 +99,18 @@ pub fn run(args: &[String]) -> Result<Value> {
             .map(PathBuf::from)
             .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../templates"));
         copy_template(&root.join(kind), dst, id)?;
+        let guest = std::env::var_os("CRAFT_GUEST_PATH").map(PathBuf::from).or_else(|| {
+            root.canonicalize().ok()?.ancestors().find(|p| p.join("crates/guest/Cargo.toml").is_file()).map(|p| p.join("crates/guest"))
+        });
+        if let Some(guest) = guest {
+            let guest = guest.canonicalize()?;
+            let cargo = dst.join("Cargo.toml");
+            if cargo.exists() {
+                let mut doc: toml::Table = toml::from_str(&fs::read_to_string(&cargo)?)?;
+                doc["dependencies"]["craft-guest"] = toml::Value::Table(toml::Table::from_iter([("path".into(), toml::Value::String(guest.to_string_lossy().into_owned()))]));
+                fs::write(cargo, toml::to_string_pretty(&doc)?)?;
+            }
+        }
         return Ok(json!("Plugin created"));
     }
     if a.pos.len() > 2 {
@@ -143,11 +155,7 @@ pub fn run(args: &[String]) -> Result<Value> {
             }
             for c in &m.contributions {
                 if let Some(module) = &c.module {
-                    let p = craft_ext_host::wasm::Plugin::load(&m.id.to_string(), &fs::read(dir.join(module))?)?;
-                    let export = if c.kind == ContributionKind::Effect { "craft_filter" } else { "craft_event" };
-                    if !p.exports(export) {
-                        return Err(format!("{} does not export {export}", c.id).into());
-                    }
+                    check_wasm(&fs::read(dir.join(module))?, c.kind == ContributionKind::Effect)?;
                 }
             }
             if let Err(term) = craft_ext_core::licence::check_osi(&m.license) {
@@ -257,4 +265,37 @@ pub fn run(args: &[String]) -> Result<Value> {
         }
         _ => Err(Usage(format!("unknown author command {cmd}")).into()),
     }
+}
+
+fn check_wasm(bytes: &[u8], effect: bool) -> Result<()> {
+    use wasmi::{Engine, Module, ValType};
+    use ValType::{I32, I64};
+    let engine = Engine::default();
+    let module = Module::new(&engine, bytes)?;
+    let signature = |ty: &wasmi::ExternType, params: &[ValType], results: &[ValType]| {
+        ty.func().is_some_and(|f| f.params() == params && f.results() == results)
+    };
+    for (name, params, results) in [
+        ("craft_abi", vec![], vec![I32]), ("craft_alloc", vec![I32], vec![I32]),
+        ("craft_reset", vec![], vec![]),
+        ("craft_filter", vec![I32; 5], vec![I32]),
+        ("craft_event", vec![I32; 2], vec![I32]),
+    ] {
+        let export = match module.exports().find(|e| e.name() == name) {
+            Some(e) => e,
+            None if (name == "craft_filter" && !effect) || (name == "craft_event" && effect) => continue,
+            None => return Err(format!("missing export {name}").into()),
+        };
+        if !signature(export.ty(), &params, &results) { return Err(format!("invalid signature for {name}").into()); }
+    }
+    for import in module.imports() {
+        let (params, results) = match (import.module(), import.name()) {
+            ("craft", "log") => (vec![I32; 3], vec![]),
+            ("craft", "call") => (vec![I32; 4], vec![I64]),
+            ("craft", "take") => (vec![I32; 2], vec![I32]),
+            _ => return Err("unsupported Wasm import".into()),
+        };
+        if !signature(import.ty(), &params, &results) { return Err(format!("invalid signature for import {}", import.name()).into()); }
+    }
+    Ok(())
 }
