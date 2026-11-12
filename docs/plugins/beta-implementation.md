@@ -13,14 +13,14 @@ most; no runtime, hostile-module, GUI or download evidence was produced (B12).
 | `crates/ext-core` | Pure data and validation; no disk, network or clock | `manifest::Manifest`, `contract::{ContractRef, Provided, Compat, Unmet}`, `permission::Permission`, `catalogue::{Index, PackageSummary, Revocation, search, resolve}`, `project::{PluginRef, Status}`, `tier::{VendorTier, Tier}`, `licence::{check_osi, monetisation_flags}`, `ui` tree, `version` |
 | `crates/ext-store` | Shared disk store v2, grants, catalogue cache, one management API | `Store` (`store-v2.json`, `releases/<id>/<v>-<sha12>/`), `Manager` (search, install, update, rollback, pin, enable, grant, revoke, remove, refresh, check_project, report_url), `view::GrantView`, `state`, `catalogue`, `unpack` |
 | `crates/ext-host` | Runtime shared by every app | `api::AppApi`, `api::AppContract` (+ `to_markdown`), `api::authorize`, `wasm::Filter`, `wasm::Session`, `native::Helper` |
-| `crates/ext-ui` | Embeddable egui manager | `ManagerView` (Browse / Installed / Updates / Problems, setup sheet, versions), `ProjectPrompt`, `Setup` |
+| `crates/ext-ui` | Embeddable egui manager | `ManagerView` (Browse / Installed / Updates / Problems, setup sheet, versions; Browse selects the newest release this app can use), `ProjectPrompt`, `Setup` |
 | `crates/ext-cli` | `plugin …` command library plus the `craft-ext` binary | `run_plugin` (embedded as `<app> plugin …`), `author::run` (`new`, `build`, `check`, `test`, `pack`, `dev`), `catalogue::run` (`check`, `build`, `sign`, `keygen`), `known_apps` |
 | `crates/guest` | Author SDK, wasm side (ABI v1) | `filter!`, `session!`, `FilterCtx`, `Image`, `ui`, `call`, `Event` |
 | `effectcraft/crates/plugins` (`effectcraft_plugins`) | EffectCraft adapter: contract, effects, sessions, projects, ManagerView, CLI | `contract.rs`, `effects.rs`, `runtime.rs`, `grants.rs`, `ops.rs` |
 | `photocraft/crates/plugins` (`photocraft_plugins`) | PhotoCraft adapter: filters, session bridge, resources | `filter.rs`, `runtime.rs`, `document_thread.rs`, `resources.rs` |
-| `figcraft/crates/plugins` (`figcraft_plugins`) | FigCraft adapter: contract and grants only (inactive) | `contract.rs`, `grants.rs` |
+| `figcraft/crates/plugins` (`figcraft_plugins`) | FigCraft adapter: active from app startup — sessions, commands, panels, windows, tools, canvas overlays, projects, Plugins window, CLI | `contract.rs`, `grants.rs`, `runtime.rs`, `lib.rs` |
 | `craft-launcher/crates/ui-egui/src/plugins.rs` | Launcher Plugins dialog, shared `ManagerView` for all apps | header button in `views.rs` (`Glyph::Plugins`); desktop only |
-| `../craft-plugins` | Metadata-only catalogue repo | `vendors/<login>.toml`, `plugins/<id>/listing.toml`, `releases/<version>.toml`, `revocations.toml`, `dist/index.json(.sig)`, `MAINTAINERS.md` |
+| `../craft-plugins` | Metadata-only catalogue repo; `dist/` is signed (serial 1, film-looks only) | `vendors/<login>.toml`, `plugins/<id>/listing.toml`, `releases/<version>.toml`, `revocations.toml`, `dist/index.json(.sig)`, `dist/packages/`, `MAINTAINERS.md`; halftone and color-notes wait in `examples/pending/` |
 
 ## Workflows, end to end
 
@@ -100,27 +100,48 @@ document thread, wire projects/`ProjectPrompt`, embed `ManagerView` and `run_plu
 |---|---|---|
 | Native and wasm plugins | `ext-host::wasm` (`Filter`, `Session`), `ext-host::native::Helper` (JSON-lines, out of process) | Done in code; native helpers unrun (`CONFORMANCE`) |
 | Permissions enforced and revocable | `ext-core::permission`, `api::authorize` on every call, `GrantView` generation refresh, commit re-check | Done in code; runtime unverified (`CONFORMANCE`) |
-| SDK and adapters | `crates/guest`; `effectcraft-plugins`, `photocraft-plugins`, `figcraft-plugins` | Partial — FigCraft adapter is contract+grants only (`SESSION-REGISTRY`, `PANEL-UI`, `MANAGEMENT`) |
-| Windows, panels, effects, tools, commands, data | `ext-core::ui`, `wasm::Session`, contribution kinds; EC/PC effects, panels, windows, presets, LUTs | Partial — tool gestures unwired (`TOOL-GESTURES`); fonts/themes stored only (B15) |
-| Events | `app.events`, `craft_event`, event hooks; EC and PC deliver ordered events | Done in code for EC/PC; FigCraft pending (`SESSION-REGISTRY`) |
-| Contract docs, templates, tooling | `docs/plugins/contracts/*.md`, `templates/{effect,panel,data}`, `ext-cli::author`, `AppContract::to_markdown` | Done — each app prints its contract with `<app>-cli plugin contract`; pages committed under `docs/plugins/contracts/` |
-| Catalogue metadata-only | `craft-plugins`: listings + release records, files on author Releases, digest-pinned | Done |
+| SDK and adapters | `crates/guest`; `effectcraft-plugins`, `photocraft-plugins`, `figcraft-plugins` | Done in code — all three adapters active; FigCraft TODOs `PLUGIN-CANVAS-NAV`, `PLUGIN-PANEL-DOCK`, `PLUGIN-FAILURE-RESET`, `RESOURCES`, `SCOPE`, `CONTRACT-DOCS` |
+| Windows, panels, effects, tools, commands, data | `ext-core::ui`, `wasm::Session`, contribution kinds; EC/PC effects, panels, windows, presets, LUTs; FigCraft commands, panels, windows, tools | Partial — tools work only in FigCraft (gesture begin/update/commit, Escape rollback, `canvas.overlay.set`); EffectCraft and PhotoCraft mark Tool contributions unsupported; fonts/themes stored only (B15, FigCraft `RESOURCES`); EC `B5-WINDOW-LIMIT` |
+| Events | `app.events`, `craft_event`, event hooks; ordered events in all three apps | Partial — delivery unverified (`CONFORMANCE`); EC `B4-DISPOSE` (no guest dispose callback before workers stop) and `B4-WORKER-ORDER` (ordering is per plugin/module, not per package) |
+| Contract docs, templates, tooling | `docs/plugins/contracts/*.md`, `templates/{effect,panel,data}`, `ext-cli::author`, `AppContract::to_markdown` | Done in code — each app prints its contract with `<app>-cli plugin contract`; the FigCraft page still says "integration pending" (`CONTRACT-DOCS`) |
+| Catalogue metadata-only | `craft-plugins`: listings + release records, files on author Releases, digest-pinned; signed `dist/` serial 1 lists film-looks only | Done |
 | Vendors | `craft-plugins/vendors/<login>.toml` with numeric GitHub id; namespace check | Done |
 | Tiers official / verified / community | `ext-core::tier` (`VendorTier`, `Tier` + Local/Dev), catalogue vendor records | Done |
 | Stars | `craft-ext catalogue build` fetches stars; `stars_date` shown | Done (network path unrun) |
 | Search everywhere | `ext-core::catalogue::search` via `Manager::search`; `ManagerView`, launcher, `plugin search` | Done |
+| Newest compatible release in Browse | `ext-ui::helpers::newest_compatible` fed by the app's `Compat` for every version | Done in code; GUI unverified |
 | Reports and kill list | `Manager::report_url`, `plugin report`, issue form; `revocations.toml`, `Revocation::matches` (id/version/digest/vendor) | Done; 6-hour refresh scheduling is `B8-REFRESH` |
-| FOSS enforcement | `licence::check_osi`, `monetisation_flags`, `catalogue check` (licence, source, tag→commit, assets) | Done |
-| One-maintainer allow flow | `MAINTAINERS.md`, `catalogue check` → merge → `build` → `sign` | Done |
+| FOSS enforcement | `licence::check_osi`, `monetisation_flags`, `catalogue check` (licence, public source, tag→commit, assets) | Done in code — asset URLs must be that repo's own GitHub Release assets for the declared tag; monetisation wording blocks the PR unless `monetisation_reviewed` carries a maintainer note |
+| One-maintainer allow flow | `MAINTAINERS.md`, `catalogue check` → merge → `build` → `sign` (real beta key in `TRUSTED_KEYS`, serial 1 published) | Done |
 | Semver, pin, rollback | `ext-core::version`, `Manager::{versions, rollback, pin, unpin}` | Done |
 | Contract-based compatibility | `ContractRef`/`Provided`/`Compat`; `Unmet` renders "needs … update the app" | Done |
 | Multi-app packages | `Manifest.apps`, per-contribution contracts, per-app setup in `ext-store` | Done |
 | Clear incompatibility UX | `Compat::{Partly, Incompatible}` reasons in the setup sheet, versions list and `plugin info` | Done in code; GUI unverified |
-| Projects record plugins | `ext-core::project`, EC save/open + `ProjectPrompt`, `plugin project` | Partial — EC `B9-FEATURE-STATE`; FigCraft `PROJECTS`; PhotoCraft needs none today |
+| Projects record plugins | `ext-core::project`, EC/FigCraft save/open + `ProjectPrompt`, `plugin project` | Partial — EC `B9-FEATURE-STATE`; PhotoCraft needs none today. Readiness checks every recorded contribution (present, this app, contract, enabled) plus its saved state version |
 | No auto-download or auto-enable | Install never enables; `check_project` is read-only; prompt buttons only | Done |
-| Safe degradation | Placeholders, preview pass-through, export refusal, safe mode, rollback, pause after 3 failures | Partial — FigCraft `SAFE-MODE`; EC `B9-FEATURE-STATE` |
-| Manage without the launcher | `ManagerView` embedded in each app; `<app>-cli plugin …` | Partial — EC and PC wired; FigCraft `MANAGEMENT` |
+| Safe degradation | Placeholders, preview pass-through, export refusal, safe mode, rollback, pause after 3 failures | Partial — EC `B9-FEATURE-STATE`; FigCraft `PLUGIN-FAILURE-RESET` (the pause is per process and has no resume in the manager) |
+| Manage without the launcher | `ManagerView` embedded in each app; `<app>-cli plugin …` | Done in code for EC, PC and FigCraft (Plugins window plus `figcraft-cli plugin`) and the launcher; GUI unverified |
+
+All three adapters passed a sol-high phase review and a final suite review; the findings were fixed in
+`41ae75ab`/`02105f91` (EffectCraft), `c370b115e`/`28bb50274` (PhotoCraft), `140a831f` (FigCraft) and
+`c326340` (shared). Where an app's `docs/plugin-migration.md` still names a TODO, the row above stays
+Partial under that name:
+
+- EffectCraft: `B9-FEATURE-STATE`, `B4-DISPOSE`, `B4-WORKER-ORDER`, `B5-WINDOW-LIMIT`, `CONFORMANCE`.
+- PhotoCraft: `TODO(PhotoCraft-plugin-examples)` (halftone and film-looks not exercised on real
+  packages); its transactions, panels, filter gaps and catalogue rows are done.
+- FigCraft: `PLUGIN-CANVAS-NAV`, `PLUGIN-PANEL-DOCK`, `PLUGIN-FAILURE-RESET`, `RESOURCES`, `SCOPE`,
+  `CONTRACT-DOCS`; `LEGACY-REMOVAL` is complete.
 
 Shared deferrals unchanged: theme activation, native effects and pixel transport, temporal access,
 tiling, TUF, process leases (B12). Runtime, hostile modules, revocation races, real downloads and GUI
 interaction remain unverified; compiling is not a security proof.
+
+## Verification
+
+Only scoped `cargo check` and per-crate tests were run: `cargo test -p effectcraft-plugins` (11),
+`-p photocraft-plugins` (16), `-p figcraft-plugins` (13) and `-p craft-ext-core` (42), with scoped
+native and wasm32 checks of the touched app crates. No application was built or run, no workspace,
+clippy or `xtask` gate was run, and the published catalogue was not fetched. Runtime behaviour,
+hostile modules, revocation races, native-helper shutdown, downloads and GUI interaction are
+unverified.
