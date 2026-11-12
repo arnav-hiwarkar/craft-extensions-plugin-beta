@@ -1,0 +1,21 @@
+[package]
+name = "craft-guest"
+description = "Author SDK for Craft plugins (wasm side): raster filter and session entry points, host calls, declarative UI trees."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+# The workspace forbids unsafe code. This crate does not inherit that lint: it denies unsafe code
+# crate-wide and allows it in exactly one module, `abi`, which reads host-written scratch memory.
+[lints.rust]
+unsafe_code = "deny"
+
+[lints.clippy]
+dbg_macro = "warn"
+todo = "warn"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true

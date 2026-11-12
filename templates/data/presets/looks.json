@@ -1,0 +1,5 @@
+{
+  "presets": [
+    { "id": "default", "label": "Default", "effects": [] }
+  ]
+}

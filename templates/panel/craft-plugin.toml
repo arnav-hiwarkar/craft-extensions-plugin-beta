@@ -1,0 +1,25 @@
+schema = 2
+id = "io.github.YOUR-NAME.PLUGIN"
+name = "My panel"
+version = "0.1.0"
+license = "MIT OR Apache-2.0"
+source = "https://github.com/YOUR-NAME/PLUGIN"
+summary = "One-line description of the panel"
+apps = ["effectcraft"]
+
+[[contribution]]
+id = "panel"
+kind = "panel"
+contract = "effectcraft.session@1.0"
+label = "My panel"
+module = "plugin.wasm"
+permissions = ["document.read:selection"]
+
+[[contribution]]
+id = "hello"
+kind = "command"
+contract = "effectcraft.session@1.0"
+label = "Say hello"
+category = "My plugin"
+module = "plugin.wasm"
+permissions = []

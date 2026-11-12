@@ -1,0 +1,12 @@
+[package]
+name = "craft-ext-ui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+[lints]
+workspace = true
+[dependencies]
+craft-ext-core.workspace = true
+craft-ext-store = { path = "../ext-store", features = ["net"] }
+egui = { version = "0.37", default-features = false }

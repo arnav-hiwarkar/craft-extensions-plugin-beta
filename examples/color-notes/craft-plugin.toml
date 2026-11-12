@@ -1,0 +1,30 @@
+schema = 2
+id = "io.github.arnav-hiwarkar.color-notes"
+name = "Color notes"
+version = "1.0.0"
+license = "MIT OR Apache-2.0"
+source = "https://github.com/arnav-hiwarkar/color-notes"
+summary = "A panel that lists the selected layers and adds note markers"
+apps = ["effectcraft"]
+
+[why]
+"document.edit:document" = "Adds a note marker to the document when you press the button"
+
+[[contribution]]
+id = "notes"
+kind = "panel"
+contract = "effectcraft.session@1.0"
+label = "Color notes"
+module = "color_notes.wasm"
+permissions = ["document.read:selection"]
+optional_permissions = ["document.edit:document"]
+
+[[contribution]]
+id = "add-marker"
+kind = "command"
+contract = "effectcraft.session@1.0"
+label = "Add note marker"
+category = "Notes"
+module = "color_notes.wasm"
+permissions = ["document.read:selection"]
+optional_permissions = ["document.edit:document"]

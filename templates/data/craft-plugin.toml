@@ -1,0 +1,22 @@
+schema = 2
+id = "io.github.YOUR-NAME.PLUGIN"
+name = "My looks"
+version = "0.1.0"
+license = "MIT OR Apache-2.0"
+source = "https://github.com/YOUR-NAME/PLUGIN"
+summary = "One-line description of the data"
+apps = ["effectcraft", "photocraft"]
+
+[[contribution]]
+id = "warm"
+kind = "lut"
+contract = "resource.lut@1.0"
+label = "Warm"
+files = ["luts/warm.cube"]
+
+[[contribution]]
+id = "looks"
+kind = "preset"
+contract = "resource.preset@1.0"
+label = "Looks"
+files = ["presets/looks.json"]

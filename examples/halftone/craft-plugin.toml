@@ -1,0 +1,37 @@
+schema = 2
+id = "io.github.arnav-hiwarkar.halftone"
+name = "Halftone"
+version = "1.0.0"
+license = "MIT OR Apache-2.0"
+source = "https://github.com/arnav-hiwarkar/halftone"
+summary = "Round halftone dots on a rotated grid, sized by local darkness"
+apps = ["effectcraft", "photocraft", "figcraft"]
+
+[[contribution]]
+id = "halftone"
+kind = "effect"
+contract = "raster.filter@1.0"
+label = "Halftone"
+category = "Stylize"
+module = "halftone.wasm"
+permissions = []
+
+[[contribution.param]]
+id = "size"
+label = "Dot size"
+type = "slider"
+default = 8
+min = 2
+max = 64
+
+[[contribution.param]]
+id = "angle"
+label = "Grid angle"
+type = "angle"
+default = 45
+
+[[contribution.param]]
+id = "mono"
+label = "Black and white"
+type = "checkbox"
+default = true

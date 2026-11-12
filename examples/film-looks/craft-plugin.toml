@@ -1,0 +1,27 @@
+schema = 2
+id = "io.github.arnav-hiwarkar.film-looks"
+name = "Film looks"
+version = "1.0.0"
+license = "MIT OR Apache-2.0"
+source = "https://github.com/arnav-hiwarkar/film-looks"
+summary = "A warm film LUT and halftone print presets (data only, no code)"
+apps = ["effectcraft", "photocraft"]
+
+[requires]
+"io.github.arnav-hiwarkar.halftone" = "^1.0"
+
+[[contribution]]
+id = "film-warm"
+kind = "lut"
+contract = "resource.lut@1.0"
+label = "Film warm"
+category = "Film"
+files = ["luts/film-warm.cube"]
+
+[[contribution]]
+id = "print-looks"
+kind = "preset"
+contract = "resource.preset@1.0"
+label = "Halftone print looks"
+category = "Film"
+files = ["presets/print-looks.json"]

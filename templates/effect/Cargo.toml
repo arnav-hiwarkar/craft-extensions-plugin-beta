@@ -1,0 +1,16 @@
+[package]
+name = "plugin"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.90"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+# During development this is the path to the SDK. A released plugin uses the published craft-guest.
+craft-guest = { path = "../../crates/guest" }
+
+[workspace]

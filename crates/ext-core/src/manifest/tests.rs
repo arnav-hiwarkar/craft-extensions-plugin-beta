@@ -63,3 +63,15 @@ fn compat_by_contract() {
     assert!(req.is_empty() && opt.len() == 1);
     assert!(!m.compat(&AppId::new("figcraft").unwrap(), &Provided::new(&[("raster.filter", 1, 0)])).usable());
 }
+
+#[test]
+fn shipped_examples_parse() {
+    for text in [
+        include_str!("../../../../examples/halftone/craft-plugin.toml"),
+        include_str!("../../../../examples/film-looks/craft-plugin.toml"),
+        include_str!("../../../../examples/color-notes/craft-plugin.toml"),
+    ] {
+        let m = Manifest::parse(text.as_bytes()).unwrap_or_else(|e| panic!("{e}"));
+        assert!(!m.contributions.is_empty());
+    }
+}

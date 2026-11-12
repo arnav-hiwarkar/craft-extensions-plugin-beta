@@ -1,0 +1,25 @@
+schema = 2
+id = "io.github.YOUR-NAME.PLUGIN"
+name = "My effect"
+version = "0.1.0"
+license = "MIT OR Apache-2.0"
+source = "https://github.com/YOUR-NAME/PLUGIN"
+summary = "One-line description of the effect"
+apps = ["effectcraft", "photocraft", "figcraft"]
+
+[[contribution]]
+id = "effect"
+kind = "effect"
+contract = "raster.filter@1.0"
+label = "My effect"
+category = "Stylize"
+module = "plugin.wasm"
+permissions = []
+
+[[contribution.param]]
+id = "amount"
+label = "Amount"
+type = "slider"
+default = 0.5
+min = 0
+max = 1

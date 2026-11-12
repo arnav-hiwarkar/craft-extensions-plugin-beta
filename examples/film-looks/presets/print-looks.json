@@ -1,0 +1,18 @@
+{
+  "presets": [
+    {
+      "id": "halftone-print",
+      "label": "Halftone print",
+      "effects": [
+        { "effect": "io.github.arnav-hiwarkar.halftone/halftone", "params": { "size": 6, "angle": 45, "mono": true } }
+      ]
+    },
+    {
+      "id": "halftone-colour",
+      "label": "Colour halftone",
+      "effects": [
+        { "effect": "io.github.arnav-hiwarkar.halftone/halftone", "params": { "size": 10, "angle": 15, "mono": false } }
+      ]
+    }
+  ]
+}
