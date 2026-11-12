@@ -274,7 +274,7 @@ max = 64
   --target wasm32-unknown-unknown --release + copy), `craft-ext check` (validates the manifest and the
   module's imports/exports against its contract; it *warns* about ops a module may call but cannot prove
   complete permission use), `craft-ext test` (runs a transform on a test image in the reference host), `craft-ext
-  pack` (zip + digest + release record), `craft-ext contract-docs <app>` (renders the app contract).
+  pack` (zip + digest + release record); `<app>-cli plugin contract` renders the app contract.
 - Each adapter publishes an `AppContract` value (contracts, ops with permission and JSON example,
   events, UI slots); `contract-docs` renders it as Markdown into `docs/plugins/contracts/<app>.md`.
 

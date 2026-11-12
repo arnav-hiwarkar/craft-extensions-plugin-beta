@@ -129,7 +129,7 @@ impl AppContract {
     pub fn to_markdown(&self) -> String {
         let mut s = String::new();
         let _ = writeln!(s, "# {} plugin contract\n", self.display_name);
-        let _ = writeln!(s, "Generated from the `{}` adapter by `craft-ext contract-docs`. Do not edit by hand.\n", self.app);
+        let _ = writeln!(s, "Generated from the `{}` adapter by `<app>-cli plugin contract`. Do not edit by hand.\n", self.app);
         let _ = writeln!(s, "## Contracts provided\n\n| Contract | Version |\n|---|---|");
         for (n, l) in &self.provided.contracts {
             let _ = writeln!(s, "| `{n}` | {l} |");
