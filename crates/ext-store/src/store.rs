@@ -1,70 +1,41 @@
-//! The write side of the shared store: install, remove, enable, choose a theme.
-//!
-//! Layout under the store root:
-//!   packages/<id>/<version>/...   unpacked, never edited afterwards
-//!   staging/<unique>/             where a package is unpacked and checked before it counts
-//!   state.json                    what is installed and enabled (see `state`)
-//!   .lock                         held while the state file changes
-//!
-//! Invariants: an install is all or nothing. The package is unpacked and checked outside the lock, the
-//! lock covers only the move into place and the state write, the state file is replaced atomically with
-//! a bumped generation, and a failure leaves the previous state and no stray package folder. A file
-//! can never replace a first-party extension, and a downgrade is refused.
-
-use crate::state::{Installed, STATE_FILE, State, StateError};
-use crate::unpack::{Caps, UnpackError, unpack_into};
-use craft_ext_core::id::{AppId, ExtensionId};
-use craft_ext_core::manifest::{Kind, THEME_FILE};
-use craft_ext_core::palette::{ThemeError, ThemeFile};
-use craft_ext_core::tier::{Policy, Tier, TierError};
-use std::fmt;
-use std::fs::{self, File, TryLockError};
-use std::io::Read;
-use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-
-const LOCK_WAIT: Duration = Duration::from_secs(5);
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum StoreError {
-    Unpack(UnpackError),
-    Tier(TierError),
-    BadTheme(ThemeError),
-    State(StateError),
-    Busy,
-    Downgrade,
-    AlreadyInstalled,
-    WouldReplaceFirstParty,
-    NotInstalled,
-    NotForThisApp,
-    NotATheme,
-    NotEnabled,
-    Io,
-}
-
-impl fmt::Display for StoreError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            StoreError::Unpack(e) => write!(f, "{e}"),
-            StoreError::Tier(e) => write!(f, "{e}"),
-            StoreError::BadTheme(e) => write!(f, "{e}"),
-            StoreError::State(e) => write!(f, "{e}"),
-            StoreError::Busy => f.write_str("another ArtCraft app is changing extensions right now; try again in a moment"),
-            StoreError::Downgrade => f.write_str("a newer version of this extension is already installed"),
-            StoreError::AlreadyInstalled => f.write_str("this version of the extension is already installed"),
-            StoreError::WouldReplaceFirstParty => f.write_str("this file would replace an extension made by ArtCraft, which is not allowed"),
-            StoreError::NotInstalled => f.write_str("that extension is not installed"),
-            StoreError::NotForThisApp => f.write_str("that extension is not made for this app"),
-            StoreError::NotATheme => f.write_str("only a theme can be chosen as the look of an app"),
-            StoreError::NotEnabled => f.write_str("turn the theme on for this app before choosing it"),
-            StoreError::Io => f.write_str("the extension files could not be saved"),
-        }
+//! All transitions serialize under the cross-process lock and atomically publish generation+1.
+use crate::{
+    state::*,
+    unpack::{Caps, unpack_into},
+};
+use craft_ext_core::{
+    catalogue::{Revocation, Severity},
+    id::{AppId, ExtensionId},
+    manifest::{MANIFEST_NAME, Manifest},
+    permission::Permission,
+    tier::Tier,
+    version::{Version, VersionReq},
+};
+use sha2::{Digest, Sha256};
+use std::{
+    fs::{self, File, TryLockError},
+    path::{Path, PathBuf},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
+};
+#[derive(Debug)]
+pub struct StoreError(pub String);
+impl std::fmt::Display for StoreError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
     }
 }
-
 impl std::error::Error for StoreError {}
-
+pub type Result<T> = std::result::Result<T, StoreError>;
+pub(crate) fn error(e: impl std::fmt::Display) -> StoreError {
+    StoreError(e.to_string())
+}
+pub fn digest(b: &[u8]) -> String {
+    hex::encode(Sha256::digest(b))
+}
+pub fn now() -> u64 {
+    SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
+}
+const LOCK_WAIT: Duration = Duration::from_secs(5);
 /// Holds the cross-process lock for as long as it lives.
 struct Lock(File);
 
@@ -77,206 +48,285 @@ impl Drop for Lock {
 #[derive(Clone, Debug)]
 pub struct Store {
     root: PathBuf,
-    policy: Policy,
-    caps: Caps,
 }
-
-fn unique_name() -> String {
-    static COUNTER: AtomicU64 = AtomicU64::new(0);
-    let nanos = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
-    format!("{}-{}-{}", std::process::id(), nanos, COUNTER.fetch_add(1, Ordering::Relaxed))
+#[derive(Clone, Debug)]
+pub struct Installed {
+    pub id: ExtensionId,
+    pub version: Version,
+    pub sha256: String,
+    pub dir: PathBuf,
+    pub manifest: Manifest,
 }
-
 impl Store {
-    pub fn at(root: impl Into<PathBuf>) -> Store {
-        Store { root: root.into(), policy: Policy::standard(), caps: Caps::default() }
+    pub fn at(root: impl Into<PathBuf>) -> Self {
+        Self { root: root.into() }
     }
-
     pub fn root(&self) -> &Path {
         &self.root
     }
-
-    pub fn package_dir(&self, id: &ExtensionId, version: craft_ext_core::version::Version) -> PathBuf {
-        self.root.join("packages").join(id.as_str()).join(version.to_string())
-    }
-
     fn state_path(&self) -> PathBuf {
         self.root.join(STATE_FILE)
     }
-
-    pub fn state(&self) -> Result<State, StoreError> {
-        State::read(&self.state_path()).map_err(StoreError::State)
+    pub fn state(&self) -> Result<StoreState> {
+        StoreState::read(&self.state_path())
     }
-
-    fn lock(&self) -> Result<Lock, StoreError> {
-        fs::create_dir_all(&self.root).map_err(|_| StoreError::Io)?;
-        let file = fs::OpenOptions::new().create(true).truncate(false).write(true).open(self.root.join(".lock")).map_err(|_| StoreError::Io)?;
+    fn lock(&self) -> Result<Lock> {
+        fs::create_dir_all(&self.root).map_err(|_| error("the store files could not be saved"))?;
+        let file = fs::OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .write(true)
+            .open(self.root.join(".lock"))
+            .map_err(|_| error("the store files could not be saved"))?;
         let started = Instant::now();
         loop {
             match file.try_lock() {
                 Ok(()) => return Ok(Lock(file)),
                 Err(TryLockError::WouldBlock) if started.elapsed() < LOCK_WAIT => std::thread::sleep(Duration::from_millis(20)),
-                Err(TryLockError::WouldBlock) => return Err(StoreError::Busy),
-                Err(TryLockError::Error(_)) => return Err(StoreError::Io),
+                Err(TryLockError::WouldBlock) => return Err(error("another app is changing plugins; try again")),
+                Err(TryLockError::Error(_)) => return Err(error("the store files could not be saved")),
             }
         }
     }
 
-    /// Runs `change` on the current state under the lock and saves the result with the generation bumped.
-    fn update<T>(&self, change: impl FnOnce(&mut State) -> Result<T, StoreError>) -> Result<T, StoreError> {
+    fn update<T>(&self, f: impl FnOnce(&mut StoreState) -> Result<T>) -> Result<T> {
+        self.update_cleanup(|s| f(s).map(|out| (out, Vec::new())))
+    }
+    // Publish removals before deleting bytes: a failed state write must retain every recorded release.
+    fn update_cleanup<T>(&self, f: impl FnOnce(&mut StoreState) -> Result<(T, Vec<PathBuf>)>) -> Result<T> {
         let _lock = self.lock()?;
-        let mut state = self.state()?;
-        let out = change(&mut state)?;
-        state.generation = state.generation.saturating_add(1);
-        self.save(&state)?;
+        let mut s = self.state()?;
+        let (out, remove) = f(&mut s)?;
+        s.generation = s.generation.checked_add(1).ok_or_else(|| error("store generation exhausted"))?;
+        let b = serde_json::to_vec(&s).map_err(error)?;
+        if b.len() > MAX_STATE_BYTES {
+            return Err(error("the store is too large"));
+        }
+        craft_atomic::atomic_write(&self.state_path(), &b).map_err(error)?;
+        for dir in remove {
+            if dir.exists() {
+                fs::remove_dir_all(dir).map_err(error)?
+            }
+        }
         Ok(out)
     }
-
-    fn save(&self, state: &State) -> Result<(), StoreError> {
-        let bytes = serde_json::to_vec_pretty(state).map_err(|_| StoreError::Io)?;
-        craft_atomic::atomic_write(&self.state_path(), &bytes).map_err(|_| StoreError::Io)
+    pub fn release_dir(&self, id: &ExtensionId, v: Version, sha: &str) -> PathBuf {
+        self.root.join("releases").join(id.as_str()).join(format!("{v}-{}", sha.get(..12).unwrap_or(sha)))
     }
-
-    /// Installs a package from an archive held in memory. `tier` is where the caller got it from.
-    pub fn install_zip(&self, bytes: &[u8], tier: Tier) -> Result<Installed, StoreError> {
-        self.policy.admit(tier).map_err(StoreError::Tier)?;
-        let staging = self.root.join("staging").join(unique_name());
-        let outcome = self.install_staged(bytes, tier, &staging);
-        // On success the folder was moved away and this finds nothing; on failure it removes the debris.
-        let _ = fs::remove_dir_all(&staging);
-        outcome
+    pub fn manifest(&self, s: &StoreState, id: &ExtensionId, v: Version) -> Result<Manifest> {
+        let r = s.packages.get(id).and_then(|p| p.releases.get(&v)).ok_or_else(|| error("that release is not installed"))?;
+        Manifest::parse(&fs::read(self.release_dir(id, v, &r.sha256).join(MANIFEST_NAME)).map_err(error)?).map_err(error)
     }
-
-    /// Installs a package from a file, refusing to read one past the size limit.
-    pub fn install_file(&self, path: &Path, tier: Tier) -> Result<Installed, StoreError> {
-        let file = File::open(path).map_err(|_| StoreError::Io)?;
-        let mut bytes = Vec::new();
-        file.take(self.caps.max_archive + 1).read_to_end(&mut bytes).map_err(|_| StoreError::Io)?;
-        if bytes.len() as u64 > self.caps.max_archive {
-            return Err(StoreError::Unpack(UnpackError::TooBig));
+    pub fn install_bytes(&self, b: &[u8], tier: Tier, origin: Origin) -> Result<Installed> {
+        let sha = digest(b);
+        if let Origin::Local { sha256 } = &origin {
+            if sha256 != &sha {
+                return Err(error("local origin digest does not match"));
+            }
         }
-        self.install_zip(&bytes, tier)
-    }
-
-    fn install_staged(&self, bytes: &[u8], tier: Tier, staging: &Path) -> Result<Installed, StoreError> {
-        let manifest = unpack_into(bytes, staging, self.caps).map_err(StoreError::Unpack)?;
-        self.policy.check_id(tier, &manifest.id).map_err(StoreError::Tier)?;
-        if manifest.kind == Kind::Theme {
-            let text = fs::read(staging.join(THEME_FILE)).map_err(|_| StoreError::Io)?;
-            ThemeFile::parse(&text).map_err(StoreError::BadTheme)?;
-        }
-        let record = Installed {
-            id: manifest.id.clone(),
-            version: manifest.version,
-            kind: manifest.kind,
-            name: manifest.name.clone(),
-            tier,
-            apps: manifest.compat.keys().cloned().collect(),
-        };
-        let destination = self.package_dir(&record.id, record.version);
-        let mut old_dir = None;
-        self.update(|state| {
-            if let Some(existing) = state.find(&record.id) {
-                if existing.tier == Tier::FirstParty && tier != Tier::FirstParty {
-                    return Err(StoreError::WouldReplaceFirstParty);
+        let stage = self.root.join("staging").join(format!(
+            "{}-{}",
+            std::process::id(),
+            SystemTime::now().duration_since(UNIX_EPOCH).map_err(error)?.as_nanos()
+        ));
+        let result = (|| {
+            let m = unpack_into(b, &stage, Caps::default()).map_err(error)?;
+            craft_ext_core::tier::check_id(tier, &m.id).map_err(error)?;
+            let dir = self.release_dir(&m.id, m.version, &sha);
+            let mut moved = false;
+            let result = self.update(|s| {
+                if s.revocations.iter().any(|r| r.severity >= Severity::BlockNew && r.matches(&m.id, m.version, &sha, origin.vendor())) {
+                    return Err(error("this release has been withdrawn"));
                 }
-                if record.version < existing.version {
-                    return Err(StoreError::Downgrade);
+                if let Some(p) = s.packages.get(&m.id) {
+                    if p.origin != origin {
+                        return Err(error("remove the installed package before changing its origin"));
+                    }
+                    if let Some(r) = p.releases.get(&m.version) {
+                        if r.sha256 != sha {
+                            return Err(error("this version already has different bytes"));
+                        }
+                        return Ok(());
+                    }
                 }
-                if record.version == existing.version {
-                    return Err(StoreError::AlreadyInstalled);
-                }
-                old_dir = Some(self.package_dir(&existing.id, existing.version));
-            }
-            if let Some(parent) = destination.parent() {
-                fs::create_dir_all(parent).map_err(|_| StoreError::Io)?;
-            }
-            if destination.exists() {
-                return Err(StoreError::Io);
-            }
-            fs::rename(staging, &destination).map_err(|_| StoreError::Io)?;
-            state.installed.retain(|i| i.id != record.id);
-            state.installed.push(record.clone());
-            for app in &record.apps {
-                state.enabled.entry(app.clone()).or_default().insert(record.id.clone());
-            }
-            Ok(())
-        })
-        .inspect_err(|_| {
-            // The package was moved into place but the state could not be saved: put things back.
-            if !staging.exists() && destination.exists() && self.state().is_ok_and(|s| s.find(&record.id).is_none_or(|i| i.version != record.version))
-            {
-                let _ = fs::remove_dir_all(&destination);
-            }
-        })?;
-        if let Some(dir) = old_dir {
-            let _ = fs::remove_dir_all(dir);
-        }
-        Ok(record)
-    }
-
-    /// Removes an extension everywhere: its files, its enablement and any app's choice of it as theme.
-    pub fn uninstall(&self, id: &ExtensionId) -> Result<(), StoreError> {
-        let dir = self.update(|state| {
-            let existing = state.find(id).ok_or(StoreError::NotInstalled)?.clone();
-            state.installed.retain(|i| &i.id != id);
-            state.enabled.values_mut().for_each(|set| {
-                set.remove(id);
+                fs::create_dir_all(dir.parent().ok_or_else(|| error("invalid release directory"))?).map_err(error)?;
+                fs::rename(&stage, &dir).map_err(error)?;
+                moved = true;
+                s.packages
+                    .entry(m.id.clone())
+                    .or_insert_with(|| PackageRec { origin, releases: Default::default() })
+                    .releases
+                    .insert(m.version, ReleaseRec { sha256: sha.clone(), tier, installed: now() });
+                Ok(())
             });
-            state.active_theme.retain(|_, chosen| chosen != id);
-            Ok(self.package_dir(&existing.id, existing.version))
-        })?;
-        let _ = fs::remove_dir_all(dir);
-        // Only succeeds when no other version folder is left.
-        let _ = fs::remove_dir(self.root.join("packages").join(id.as_str()));
-        Ok(())
-    }
-
-    /// Turns an installed extension on or off for one app. Turning a theme off also stops the app using it.
-    pub fn set_enabled(&self, app: &AppId, id: &ExtensionId, on: bool) -> Result<(), StoreError> {
-        self.update(|state| {
-            let existing = state.find(id).ok_or(StoreError::NotInstalled)?;
-            if !existing.apps.contains(app) {
-                return Err(StoreError::NotForThisApp);
+            if result.is_err() && moved {
+                let _ = fs::remove_dir_all(&dir);
             }
-            let set = state.enabled.entry(app.clone()).or_default();
-            if on {
-                set.insert(id.clone());
+            result?;
+            Ok(Installed { id: m.id.clone(), version: m.version, sha256: sha, dir, manifest: m })
+        })();
+        let _ = fs::remove_dir_all(stage);
+        result
+    }
+    pub fn private_dir(&self, app: &AppId, id: &ExtensionId) -> PathBuf {
+        self.root.join("data").join(app.as_str()).join(id.as_str())
+    }
+    pub fn set_active(&self, app: &AppId, id: &ExtensionId, v: Version) -> Result<()> {
+        self.update(|s| {
+            let m = self.manifest(s, id, v)?;
+            let r = &s.packages[id].releases[&v];
+            if s.blocked(id, v, &r.sha256, Severity::BlockNew) {
+                return Err(error("this release has been withdrawn"));
+            }
+            if !m.apps.contains(app) {
+                return Err(error("this plugin does not support this app"));
+            }
+            let setup = s.apps.entry(app.clone()).or_default().entry(id.clone()).or_default();
+            let widened = m.permissions_for(app, |c| setup.enabled.contains(c)).0.iter().any(|p| !setup.grants.iter().any(|g| g.covers(p)));
+            if widened || (m.is_native() && !setup.full_access) {
+                setup.pending = Some(v)
             } else {
-                set.remove(id);
-                if state.active_theme.get(app) == Some(id) {
-                    state.active_theme.remove(app);
-                }
+                setup.active = Some(v);
+                setup.pending = None;
             }
             Ok(())
         })
     }
+    pub fn accept_pending(&self, app: &AppId, id: &ExtensionId) -> Result<()> {
+        self.update(|s| {
+            let a = s.apps.get(app).and_then(|a| a.get(id)).ok_or_else(|| error("there is no pending release"))?;
+            let v = a.pending.ok_or_else(|| error("there is no pending release"))?;
+            let m = self.manifest(s, id, v)?;
+            if s.blocked(id, v, &s.packages[id].releases[&v].sha256, Severity::BlockNew) {
+                return Err(error("this release has been withdrawn"));
+            }
+            if (m.is_native() && !a.full_access)
+                || m.permissions_for(app, |c| a.enabled.contains(c)).0.iter().any(|p| !a.grants.iter().any(|g| g.covers(p)))
+            {
+                return Err(error("grant the required access before accepting this release"));
+            }
+            let a = s.apps.entry(app.clone()).or_default().entry(id.clone()).or_default();
+            a.active = Some(v);
+            a.pending = None;
+            Ok(())
+        })
+    }
 
-    /// Chooses which installed theme an app uses, or none to return to its own.
-    pub fn set_active_theme(&self, app: &AppId, id: Option<&ExtensionId>) -> Result<(), StoreError> {
-        self.update(|state| {
-            match id {
-                None => {
-                    state.active_theme.remove(app);
-                }
-                Some(id) => {
-                    let existing = state.find(id).ok_or(StoreError::NotInstalled)?;
-                    if existing.kind != Kind::Theme {
-                        return Err(StoreError::NotATheme);
+    pub fn set_pin(&self, app: &AppId, id: &ExtensionId, pin: Option<VersionReq>) -> Result<()> {
+        self.setup(app, id, |a| {
+            a.pin = pin;
+            Ok(())
+        })
+    }
+    fn setup(&self, app: &AppId, id: &ExtensionId, f: impl FnOnce(&mut AppSetup) -> Result<()>) -> Result<()> {
+        self.update(|s| {
+            if !s.packages.contains_key(id) {
+                return Err(error("that plugin is not installed"));
+            }
+            f(s.apps.entry(app.clone()).or_default().entry(id.clone()).or_default())
+        })
+    }
+    pub fn set_enabled(&self, app: &AppId, id: &ExtensionId, c: &str, on: bool) -> Result<()> {
+        self.update(|s| {
+            let a = s.apps.get(app).and_then(|a| a.get(id)).ok_or_else(|| error("choose an active release first"))?;
+            let v = a.active.ok_or_else(|| error("choose an active release first"))?;
+            let m = self.manifest(s, id, v)?;
+            let contribution = m.contributions_for(app).find(|x| x.id == c).ok_or_else(|| error("this contribution is unavailable"))?;
+            if on
+                && (s.blocked(id, v, &s.packages[id].releases[&v].sha256, Severity::BlockNew)
+                    || contribution.permissions.iter().any(|p| !a.grants.iter().any(|g| g.covers(p)))
+                    || (m.is_native() && !a.full_access))
+            {
+                return Err(error("grant the required access before enabling this contribution"));
+            }
+            let a = s.apps.entry(app.clone()).or_default().entry(id.clone()).or_default();
+            if on {
+                a.enabled.insert(c.into());
+            } else {
+                a.enabled.remove(c);
+            }
+            Ok(())
+        })
+    }
+    pub fn grant(&self, app: &AppId, id: &ExtensionId, p: Permission) -> Result<()> {
+        self.setup(app, id, |a| {
+            a.grants.insert(p);
+            a.grant_generation += 1;
+            Ok(())
+        })
+    }
+    pub fn revoke(&self, app: &AppId, id: &ExtensionId, p: &Permission) -> Result<()> {
+        self.setup(app, id, |a| {
+            a.grants.remove(p);
+            a.grant_generation += 1;
+            Ok(())
+        })
+    }
+    pub fn set_full_access(&self, app: &AppId, id: &ExtensionId, on: bool) -> Result<()> {
+        self.setup(app, id, |a| {
+            a.full_access = on;
+            a.grant_generation += 1;
+            Ok(())
+        })
+    }
+    pub fn uninstall(&self, id: &ExtensionId) -> Result<()> {
+        self.update_cleanup(|s| {
+            s.packages.remove(id);
+            let mut remove = vec![self.root.join("releases").join(id.as_str())];
+            for (app, a) in &mut s.apps {
+                a.remove(id);
+                remove.push(self.private_dir(app, id));
+            }
+            let data = self.root.join("data");
+            if data.exists() {
+                for entry in fs::read_dir(data).map_err(error)? {
+                    let entry = entry.map_err(error)?;
+                    if entry.file_type().map_err(error)?.is_dir() {
+                        remove.push(entry.path().join(id.as_str()));
                     }
-                    if !existing.apps.contains(app) {
-                        return Err(StoreError::NotForThisApp);
-                    }
-                    if !state.is_enabled(app, id) {
-                        return Err(StoreError::NotEnabled);
-                    }
-                    state.active_theme.insert(app.clone(), id.clone());
                 }
             }
+            Ok(((), remove))
+        })
+    }
+    pub fn remove_unused_versions(&self) -> Result<()> {
+        self.update_cleanup(|s| {
+            let mut remove = vec![];
+            for (id, p) in &mut s.packages {
+                p.releases.retain(|v, r| {
+                    let keep = s
+                        .apps
+                        .values()
+                        .filter_map(|a| a.get(id))
+                        .any(|a| a.active == Some(*v) || a.pending == Some(*v) || a.pin.is_some_and(|p| p.matches(*v)));
+                    if !keep {
+                        remove.push(self.release_dir(id, *v, &r.sha256));
+                    }
+                    keep
+                });
+            }
+            Ok(((), remove))
+        })
+    }
+    pub fn apply_revocations(&self, list: Vec<Revocation>) -> Result<Vec<(ExtensionId, Version)>> {
+        self.update(|s| {
+            s.revocations = list;
+            Ok(s.packages
+                .iter()
+                .flat_map(|(id, p)| {
+                    p.releases.iter().filter(|(v, r)| s.blocked(id, **v, &r.sha256, Severity::BlockNew)).map(|(v, _)| (id.clone(), *v))
+                })
+                .collect())
+        })
+    }
+    pub fn record_catalogue(&self, serial: u64, now: u64) -> Result<()> {
+        self.update(|s| {
+            if serial < s.catalogue_serial {
+                return Err(error("the catalogue is older than one already seen"));
+            }
+            s.catalogue_serial = serial;
+            s.last_refresh = now;
             Ok(())
         })
     }
 }
-
-#[cfg(test)]
-mod tests;

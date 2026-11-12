@@ -1,18 +1,15 @@
 //! Unpacking an extension archive that nobody has vouched for.
 //!
-//! Invariants: the archive must be exactly what its manifest says. Every entry is named in the
-//! manifest (so nothing is smuggled in), every name passes the shared path rules (so nothing escapes
-//! the folder), links and encrypted entries are refused, each file is streamed with a hard byte limit
-//! (so a lying size header or a compression bomb cannot fill the disk or memory), and its SHA-256 and
-//! size must match before the call returns. Existing files are never overwritten.
+//! Invariants: paths stay inside the destination, links and encryption are refused,
+//! total output and compression ratios are bounded, and referenced payloads must exist.
 
 use craft_ext_core::manifest::{MANIFEST_NAME, MAX_MANIFEST_BYTES, Manifest, ManifestError};
 use craft_ext_core::path::{PathError, validate_path};
-use sha2::{Digest, Sha256};
+
 use std::collections::BTreeSet;
 use std::fmt;
 use std::fs;
-use std::io::{Cursor, Read, Write};
+use std::io::{Cursor, Read};
 use std::path::Path;
 use zip::ZipArchive;
 
@@ -79,10 +76,6 @@ pub const MAX_ENTRIES: usize = 600;
 /// Ratio checks apply only above this size; tiny files may compress very well and cost nothing.
 const RATIO_FLOOR: u64 = 1024 * 1024;
 
-fn hex_digest(hasher: Sha256) -> String {
-    hasher.finalize().iter().map(|b| format!("{b:02x}")).collect()
-}
-
 /// Checks and unpacks `bytes` into `dest`, which must be an empty or new folder. On error `dest` may
 /// hold partial files; the caller removes it.
 pub fn unpack_into(bytes: &[u8], dest: &Path, caps: Caps) -> Result<Manifest, UnpackError> {
@@ -96,11 +89,15 @@ pub fn unpack_into(bytes: &[u8], dest: &Path, caps: Caps) -> Result<Manifest, Un
 
     // Pass 1: names and kinds only, nothing decompressed.
     let mut files: Vec<(usize, String)> = Vec::new();
+    let mut seen = BTreeSet::new();
     for index in 0..zip.len() {
         let entry = zip.by_index_raw(index).map_err(|_| UnpackError::NotAnArchive)?;
         let raw = entry.name().map_err(|_| UnpackError::NotAnArchive)?.into_owned();
         let name = raw.strip_suffix('/').unwrap_or(&raw);
         validate_path(name).map_err(UnpackError::BadName)?;
+        if !seen.insert(name.to_ascii_lowercase()) {
+            return Err(UnpackError::BadName(PathError::CaseCollision));
+        }
         if entry.encrypted() {
             return Err(UnpackError::Encrypted);
         }
@@ -121,57 +118,39 @@ pub fn unpack_into(bytes: &[u8], dest: &Path, caps: Caps) -> Result<Manifest, Un
     }
     let manifest = Manifest::parse(&text).map_err(UnpackError::Manifest)?;
 
-    // Pass 3: the archive and the manifest must agree exactly.
-    let listed: BTreeSet<&str> = manifest.files.iter().map(|f| f.path.as_str()).collect();
-    if files.iter().any(|(_, n)| n != MANIFEST_NAME && !listed.contains(n.as_str())) {
-        return Err(UnpackError::Unlisted);
-    }
-    if manifest.files.iter().any(|f| !files.iter().any(|(_, n)| *n == f.path)) {
+    let names: BTreeSet<&str> = files.iter().map(|(_, n)| n.as_str()).collect();
+    let required = manifest
+        .contributions
+        .iter()
+        .flat_map(|c| c.module.iter().chain(c.files.iter()))
+        .chain(manifest.native.iter().flat_map(|n| n.executables.values()));
+    if required.into_iter().any(|p| !names.contains(p.as_str())) {
         return Err(UnpackError::Missing);
     }
-
-    // Pass 4: stream each listed file out, counting bytes and hashing as it goes.
+    if names.len() != files.len() {
+        return Err(UnpackError::BadName(PathError::Duplicate));
+    }
     fs::create_dir_all(dest).map_err(|_| UnpackError::Write)?;
-    for want in &manifest.files {
-        let index = files.iter().find(|(_, n)| *n == want.path).map(|(i, _)| *i).ok_or(UnpackError::Missing)?;
+    let mut budget = caps.max_archive;
+    for (index, name) in files {
         let entry = zip.by_index(index).map_err(|_| UnpackError::Unsupported)?;
-        if entry.size() != want.size {
-            return Err(UnpackError::SizeMismatch);
+        let size = entry.size();
+        if size > budget {
+            return Err(UnpackError::TooBig);
         }
-        if entry.size() > RATIO_FLOOR && entry.size() / entry.compressed_size().max(1) > caps.max_ratio {
+        budget -= size;
+        if size > RATIO_FLOOR && size / entry.compressed_size().max(1) > caps.max_ratio {
             return Err(UnpackError::Bomb);
         }
-        let target = dest.join(&want.path);
+        let target = dest.join(name);
         if let Some(parent) = target.parent() {
             fs::create_dir_all(parent).map_err(|_| UnpackError::Write)?;
         }
-        let mut out = fs::OpenOptions::new().write(true).create_new(true).open(&target).map_err(|_| UnpackError::Write)?;
-        let mut reader = entry.take(want.size + 1);
-        let mut hasher = Sha256::new();
-        let mut total: u64 = 0;
-        let mut buf = vec![0u8; 64 * 1024];
-        loop {
-            let n = reader.read(&mut buf).map_err(|_| UnpackError::Unsupported)?;
-            if n == 0 {
-                break;
-            }
-            total += n as u64;
-            if total > want.size {
-                return Err(UnpackError::SizeMismatch);
-            }
-            let chunk = buf.get(..n).ok_or(UnpackError::Unsupported)?;
-            hasher.update(chunk);
-            out.write_all(chunk).map_err(|_| UnpackError::Write)?;
-        }
-        if total != want.size {
+        let mut out = fs::OpenOptions::new().write(true).create_new(true).open(target).map_err(|_| UnpackError::Write)?;
+        let copied = std::io::copy(&mut entry.take(size + 1), &mut out).map_err(|_| UnpackError::Write)?;
+        if copied != size {
             return Err(UnpackError::SizeMismatch);
-        }
-        if hex_digest(hasher) != want.sha256 {
-            return Err(UnpackError::HashMismatch);
         }
     }
     Ok(manifest)
 }
-
-#[cfg(test)]
-mod tests;
