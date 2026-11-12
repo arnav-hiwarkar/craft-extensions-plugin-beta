@@ -25,6 +25,8 @@ A contribution declaring `contract = "name@major.minor"` works here when the maj
 | `preset` | Plugin filter presets |
 | `lut` | plugin.resources |
 
+Tools are not supported in PhotoCraft yet. Tool contributions are unavailable even when their declared contract matches.
+
 ## Operations (session plugins: `craft::call(op, args)`)
 
 
