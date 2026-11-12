@@ -8,7 +8,9 @@ use craft_ext_core::{
 use craft_ext_store::Manager;
 use serde_json::{Value, json};
 use std::{io::Write, path::Path};
+#[cfg(feature = "tools")]
 pub mod author;
+#[cfg(feature = "tools")]
 pub mod catalogue;
 pub mod known_apps;
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;

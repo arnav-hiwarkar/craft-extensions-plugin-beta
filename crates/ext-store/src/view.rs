@@ -56,6 +56,21 @@ impl GrantView {
     pub fn is_disabled(&self, id: &ExtensionId, v: Version, sha: &str) -> bool {
         self.state.blocked(id, v, sha, Severity::Disable)
     }
+    /// This app's setup of `id` (active release, enabled contributions, grants, consent).
+    pub fn setup(&self, id: &ExtensionId) -> Option<&AppSetup> {
+        self.state.apps.get(&self.app).and_then(|a| a.get(id))
+    }
+    /// Native helper consent of `id` in this app.
+    pub fn full_access(&self, id: &ExtensionId) -> bool {
+        self.setup(id).is_some_and(|a| a.full_access)
+    }
+    /// Whether release `v` of `id` must not run in this app: kill-listed, no longer the active
+    /// release, or nothing of it enabled. Unknown packages are stopped.
+    pub fn stopped(&self, id: &ExtensionId, v: Version) -> bool {
+        let Some(a) = self.setup(id) else { return true };
+        let Some(r) = self.state.packages.get(id).and_then(|p| p.releases.get(&v)) else { return true };
+        a.active != Some(v) || a.enabled.is_empty() || self.is_disabled(id, v, &r.sha256)
+    }
     pub fn enabled_contributions(&self, app: &AppId) -> Result<Vec<EnabledRelease>> {
         let mut out = vec![];
         if let Some(setups) = self.state.apps.get(app) {

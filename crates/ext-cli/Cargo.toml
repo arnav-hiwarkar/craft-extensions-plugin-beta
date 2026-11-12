@@ -10,20 +10,27 @@ path = "src/lib.rs"
 [[bin]]
 name = "craft-ext"
 path = "src/main.rs"
+required-features = ["tools"]
+
+[features]
+# Author and maintainer tools (craft-ext new/build/check/test/pack/dev, catalogue …). Apps and the
+# launcher embed only `run_plugin` and use `default-features = false`.
+default = ["tools"]
+tools = ["dep:craft-ext-host", "dep:wasmi", "dep:zip", "dep:getrandom", "dep:ed25519-dalek", "dep:hex"]
 
 [dependencies]
 craft-ext-core.workspace = true
 craft-ext-store = { path = "../ext-store", features = ["net"] }
-craft-ext-host = { path = "../ext-host" }
+craft-ext-host = { path = "../ext-host", optional = true }
 serde.workspace = true
 serde_json.workspace = true
 toml.workspace = true
 ureq.workspace = true
-ed25519-dalek.workspace = true
-hex.workspace = true
-zip = { version = "9.0.4", default-features = false, features = ["deflate"] }
-getrandom = "0.4"
-wasmi = { version = "2", default-features = false, features = ["std", "validate", "deterministic", "portable-dispatch"] }
+ed25519-dalek = { workspace = true, optional = true }
+hex = { workspace = true, optional = true }
+zip = { version = "9.0.4", default-features = false, features = ["deflate"], optional = true }
+getrandom = { version = "0.4", optional = true }
+wasmi = { version = "2", default-features = false, features = ["std", "validate", "deterministic", "portable-dispatch"], optional = true }
 
 [dev-dependencies]
 tempfile = "3.27.0"
