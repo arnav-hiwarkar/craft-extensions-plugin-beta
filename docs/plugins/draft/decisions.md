@@ -132,3 +132,27 @@ Following the simplicity request and [Opus reconciliation](review-reconciliation
 Earlier research suggested a possible central hub build service, catalogue hosting alternatives and download-count ranking. The current direction is publisher GitHub Release assets, a new reviewed metadata repository, official precedence and GitHub-star popularity. Earlier source evidence remains useful, but those alternatives are not the default draft architecture.
 
 The earlier research is preserved. No recommendation to finish only minimal pure-computation functionality limits the full design scope now requested. Delivery remains phased so each implemented contract proves its promises.
+
+## Beta decisions (2026-11-12)
+
+Made autonomously during the overnight beta build under the user's standing instruction ("take the smartest, simplest decision for the whole suite"). Normative detail: [beta-design.md](../beta-design.md). Reviewed by gpt-6.1-sol (high) before implementation; review outcomes are folded in.
+
+| # | Decision | Supersedes |
+|---|---|---|
+| B-01 | One manifest format, `craft-plugin.toml` (schema 2), used both in source and inside the `.craftplugin` zip; no per-file list — the archive SHA-256 binds the bytes | schema-1 `craft-extension.json` with file list; `Craft.toml` + custom-section split |
+| B-02 | Contributions, parameters and permissions are declared per contribution in the manifest (not wasm custom sections), so catalogue/manager show everything without running code | macro-written custom sections (§20) |
+| B-03 | Compatibility = contribution contract `name@major.minor` vs. what the app provides; package lists `apps = [...]`; result compatible / partly / incompatible with reasons; resolution picks the newest compatible listed release honouring pins | per-app contract tables at package level |
+| B-04 | Permissions `family:scope`, closed vocabulary in ext-core; grants per (app, package) bound to origin; checked on every host call and before commit; revocation via store generation + GrantView refresh (≤250 ms) | — (implements §8; resolves AR07 for beta) |
+| B-05 | ABI v1 with explicit `craft_alloc`/`craft_reset` scratch ownership (R2), JSON control plane, `call`/`take` host results, host byte budgets (R8) | provisional ABI v1 without reset |
+| B-06 | `raster.filter@1` beta = whole-frame spatial filter, premultiplied RGBA f32 in the named working space; unsupported colour modes refused; no temporal access | — |
+| B-07 | Native plugins: out-of-process helper, JSON-lines session protocol; host checks full-access consent, enablement and kill list on every call; no native effects in beta | §9 two-maintainer native approval (see B-10) |
+| B-08 | Store v2 in new files `store-v2.json` + `releases/<id>/<v>-<sha12>/` so schema-1 binaries never touch it (R4); install never enables; widened permissions → pending; **no automatic cleanup in beta** (explicit "remove unused versions") | R3/AR01 retention mechanics (conservative superset) |
+| B-09 | Catalogue = `craft-plugins` repo (metadata only), one ed25519-signed `index.json` binding package files by hash; serial high-water + 30-day expiry; key in app with two rotation slots. TUF deferred | TUF for launch (§13) |
+| B-10 | **Anyone submits by PR; one maintainer runs `craft-ext catalogue check`, merges, builds and signs. No bot, no CI, no two-maintainer gates, no 48-hour hold** (user's latest instruction) | §12 bot pipeline, 48-hour hold, two-maintainer native approval, outside review gate for beta |
+| B-11 | Tiers: official / verified vendor / community (+ local, dev labels); vendors register `vendors/<login>.toml` with numeric GitHub id | Official/listing/not-reviewed labels |
+| B-12 | Store listing: every SPDX term OSI-approved (not only MIT/Apache), public source, no payment fields, monetisation wording flagged — checked by `catalogue check` | MIT/Apache-only store licence |
+| B-13 | Reports via GitHub issue template; one security report or three distinct reports → `needs-review`; kill list `revocations.toml` (`advisory`/`block-new`/`disable`) applies to local installs too and survives expiry | — |
+| B-14 | Projects record `{id, version, sha256, source, name}`; opening never downloads/enables; one prompt; only rendering contributions block export | — |
+| B-15 | Themes: one format (`craft-theme`); ext-core palette removed (R1); theme contributions stored, not activated until craft-theme lands | ext-core palette schema 1 |
+| B-16 | No existing app plugin system is kept: EffectCraft `crates/plugin`, helper-host, Plug-in Library; PhotoCraft filter ABI; FigCraft manifest API levels — all removed and replaced by adapters | "preserve existing interfaces through adapters" |
+| B-17 | Shared crates: ext-core, ext-store, ext-host, ext-ui (egui manager), ext-cli (`plugin` command + `craft-ext` tool), guest (SDK) | illustrative crate list §5 |

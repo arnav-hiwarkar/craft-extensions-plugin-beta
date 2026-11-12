@@ -1,5 +1,7 @@
 # Craft plugin system guide
 
+> **Beta implementation (2026-11-12):** the code follows [beta-design.md](beta-design.md), which simplifies this design where they differ (one-maintainer store admission, signed index instead of TUF, per-contribution contracts and permissions, no bot). The superseded points are listed in [draft/decisions.md](draft/decisions.md#beta-decisions-2026-11-12).
+
 Written 2026-11-12 at the user's request: every part and workflow of the plugin system, explained in plain language, one part at a time. It explains the decided design. **[The architecture](architecture.md) remains the authority**; where this guide and the architecture differ, the architecture wins and this guide should be corrected. Decisions and their dates are in [the decision record](draft/decisions.md#design-session-decisions).
 
 This is a design explanation. It does not authorize implementation, builds, publication or releases.

@@ -1,5 +1,7 @@
 # Craft plugin and add-on design record
 
+> **Beta implementation (2026-11-12):** the code follows [beta-design.md](beta-design.md), which simplifies this design where they differ (one-maintainer store admission, signed index instead of TUF, per-contribution contracts and permissions, no bot). The superseded points are listed in [draft/decisions.md](draft/decisions.md#beta-decisions-2026-11-12).
+
 Updated 2026-11-11. Start here when working on Craft plugins and add-ons.
 
 ## Read this first
