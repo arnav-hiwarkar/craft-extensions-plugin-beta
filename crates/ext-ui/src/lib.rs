@@ -198,8 +198,9 @@ impl Setup {
                     self.mgr.grant(id, p.permission.clone())?;
                 }
             }
-            self.mgr.store.set_full_access(app, id, self.native)?;
+            // Activate first: a new native version clears earlier consent, then this sheet's choice applies.
             self.mgr.store.set_active(app, id, self.manifest.version)?;
+            self.mgr.store.set_full_access(app, id, self.native)?;
             if self.mgr.store.state()?.apps.get(app).and_then(|a| a.get(id)).is_some_and(|a| a.pending.is_some()) {
                 self.mgr.store.accept_pending(app, id)?;
             }

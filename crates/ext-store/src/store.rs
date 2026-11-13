@@ -152,8 +152,8 @@ impl Store {
                         if r.sha256 != sha {
                             return Err(error("this version already has different bytes"));
                         }
-                        let p = s.packages.get_mut(&m.id).unwrap();
-                        let release = p.releases.get_mut(&m.version).unwrap();
+                        let p = s.packages.get_mut(&m.id).ok_or_else(|| error("package record missing"))?;
+                        let release = p.releases.get_mut(&m.version).ok_or_else(|| error("release record missing"))?;
                         release.origin = Some(origin.clone());
                         release.tier = tier;
                         p.origin = origin.clone();
@@ -161,6 +161,11 @@ impl Store {
                     }
                 }
                 fs::create_dir_all(dir.parent().ok_or_else(|| error("invalid release directory"))?).map_err(error)?;
+                // Not recorded in state, so any directory here is left from an interrupted install
+                // (its name carries the archive digest); clear it so this version can install again.
+                if dir.exists() {
+                    fs::remove_dir_all(&dir).map_err(error)?;
+                }
                 fs::rename(&stage, &dir).map_err(error)?;
                 moved = true;
                 s.packages
@@ -168,7 +173,9 @@ impl Store {
                     .or_insert_with(|| PackageRec { origin: origin.clone(), releases: Default::default() })
                     .releases
                     .insert(m.version, ReleaseRec { sha256: sha.clone(), tier, installed: now(), origin: Some(origin.clone()) });
-                s.packages.get_mut(&m.id).unwrap().origin = origin.clone();
+                if let Some(p) = s.packages.get_mut(&m.id) {
+                    p.origin = origin.clone();
+                }
                 Ok(())
             });
             if result.is_err() && moved {
@@ -202,8 +209,15 @@ impl Store {
                     }
                 }
             }
-            s.packages.get_mut(id).unwrap().origin = release_origin;
+            if let Some(p) = s.packages.get_mut(id) {
+                p.origin = release_origin;
+            }
             let setup = s.apps.entry(app.clone()).or_default().entry(id.clone()).or_default();
+            // Full access is consent to one native executable: another version must ask again.
+            if m.is_native() && setup.active != Some(v) && setup.full_access {
+                setup.full_access = false;
+                setup.grant_generation += 1;
+            }
             let widened = m.permissions_for(app, |c| setup.enabled.contains(c)).0.iter().any(|p| !setup.grants.iter().any(|g| g.covers(p)));
             if widened || (m.is_native() && (setup.active != Some(v) || !setup.full_access)) {
                 setup.pending = Some(v)
@@ -277,8 +291,10 @@ impl Store {
             let a = s.apps.entry(app.clone()).or_default().entry(id.clone()).or_default();
             if on {
                 a.enabled.insert(c.into());
-            } else {
-                a.enabled.remove(c);
+            } else if a.enabled.remove(c) {
+                // Hosts recheck the generation between steps and before commit, so work already
+                // running for the disabled contribution stops even while others stay enabled.
+                a.grant_generation += 1;
             }
             Ok(())
         })
