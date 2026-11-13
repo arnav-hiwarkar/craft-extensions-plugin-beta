@@ -332,3 +332,44 @@ files = ["look.cube"]
     assert!(manager.remove(&id).unwrap_err().to_string().contains("org.example.dependent"));
     manager.remove_force(&id, true).unwrap();
 }
+
+
+#[test]
+fn partly_compatible_package_cannot_enable_an_unsupported_kind() {
+    let root = tempfile::tempdir().unwrap();
+    let store = Store::at(root.path());
+    let (app, id) = ids();
+    let manifest = br#"schema = 2
+id = "org.example.test"
+name = "Test"
+version = "1.0.0"
+license = "MIT"
+source = "https://github.com/example/test"
+summary = "Partly compatible"
+apps = ["photocraft"]
+[[contribution]]
+id = "run"
+kind = "command"
+contract = "app.session@1.0"
+module = "run.wasm"
+label = "Run"
+permissions = []
+[[contribution]]
+id = "panel"
+kind = "panel"
+contract = "app.session@1.0"
+module = "run.wasm"
+label = "Panel"
+permissions = []
+"#;
+    let bytes = zip_of(&[(craft_ext_core::manifest::MANIFEST_NAME, manifest), ("run.wasm", b"wasm")]);
+    let installed = store.install_bytes(&bytes, Tier::Local, Origin::Local { sha256: digest(&bytes) }).unwrap();
+    store.set_active(&app, &id, installed.version).unwrap();
+    let provided = craft_ext_core::contract::Provided::new(&[("app.session", 1, 0)])
+        .without(craft_ext_core::manifest::ContributionKind::Command, "Commands unavailable in this host");
+    assert!(matches!(installed.manifest.compat(&app, &provided), craft_ext_core::manifest::Compat::Partly { .. }));
+    let error = store.set_enabled_checked(&app, &id, "run", true, Some((&provided, "test"))).unwrap_err();
+    assert!(error.to_string().contains("Commands unavailable"));
+    store.set_enabled_checked(&app, &id, "panel", true, Some((&provided, "test"))).unwrap();
+    assert_eq!(store.state().unwrap().apps[&app][&id].enabled, ["panel".to_string()].into_iter().collect::<std::collections::BTreeSet<_>>());
+}

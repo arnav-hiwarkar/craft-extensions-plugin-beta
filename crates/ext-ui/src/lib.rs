@@ -82,7 +82,28 @@ struct Setup {
 }
 impl Setup {
     fn new(mgr: Arc<Manager>, manifest: Manifest) -> Self {
-        Self { mgr, manifest, choices: BTreeMap::new(), permissions: vec![], native: false, error: None }
+        let mut setup = Self { mgr, manifest, choices: BTreeMap::new(), permissions: vec![], native: false, error: None };
+        if let Some(app) = setup.mgr.app.as_ref() {
+            match setup.mgr.store.state() {
+                Ok(state) => {
+                    if let Some(saved) = state.apps.get(app).and_then(|apps| apps.get(&setup.manifest.id)) {
+                        for c in setup.manifest.contributions_for(app) {
+                            let available = c.contract.check(&setup.mgr.provided).is_none()
+                                && !setup.mgr.provided.unsupported.iter().any(|(kind, _)| *kind == c.kind);
+                            setup.choices.insert(c.id.clone(), available && saved.enabled.contains(&c.id));
+                        }
+                        setup.permissions = sheet_model(&permission_sheet(&setup.manifest, app, |id| setup.choices.get(id).copied().unwrap_or(false)));
+                        for p in &mut setup.permissions {
+                            p.checked = saved.grants.contains(&p.permission);
+                        }
+                        // A new native release still requires an explicit confirmation of full access.
+                        setup.native = saved.active == Some(setup.manifest.version) && saved.full_access && setup.manifest.is_native();
+                    }
+                }
+                Err(e) => setup.error = Some(e.to_string()),
+            }
+        }
+        setup
     }
     fn show(&mut self, ctx: &egui::Context) -> bool {
         let mut close = false;
@@ -97,7 +118,9 @@ impl Setup {
             };
             let mut changed = self.permissions.is_empty();
             for c in self.manifest.contributions_for(app) {
-                let reason = c.contract.check(&self.mgr.provided).map(|r| r.to_string());
+                let reason = self.mgr.provided.unsupported.iter().find(|(kind, _)| *kind == c.kind)
+                    .map(|(_, reason)| reason.clone())
+                    .or_else(|| c.contract.check(&self.mgr.provided).map(|r| r.to_string()));
                 let v = self.choices.entry(c.id.clone()).or_insert(false);
                 ui.add_enabled_ui(reason.is_none(), |ui| {
                     changed |= ui.checkbox(v, &c.label).changed();
@@ -133,7 +156,11 @@ impl Setup {
             if !platform_ok {
                 ui.label("Unavailable: no native executable for this platform");
             }
-            let ready = platform_ok
+            let selected = self.choices.values().any(|on| *on);
+            if !selected {
+                ui.label("Choose at least one contribution to enable.");
+            }
+            let ready = selected && platform_ok
                 && self.manifest.compat(app, &self.mgr.provided).usable()
                 && self.permissions.iter().all(|p| !p.required || p.checked)
                 && (!sheet.native || self.native);
@@ -150,6 +177,9 @@ impl Setup {
         close
     }
     fn confirm(&self) -> Result<()> {
+        if !self.choices.values().any(|on| *on) {
+            return Err("Choose at least one contribution to enable.".into());
+        }
         let app = self.mgr.app.as_ref().ok_or("Choose an app")?;
         let id = &self.manifest.id;
         let run = || -> store::Result<()> {
@@ -671,5 +701,39 @@ mod app_problem_tests {
             }).drop_without_applying_deltas();
         }
         assert_eq!(calls, 2);
+    }
+}
+
+
+#[cfg(test)]
+mod setup_tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+    use super::*;
+
+    #[test]
+    fn reopening_setup_preserves_existing_choices_but_installation_grants_nothing() {
+        let manifest = Manifest::parse(include_bytes!("../../../examples/color-notes/craft-plugin.toml")).unwrap();
+        let app = AppId::new("effectcraft").unwrap();
+        let root = std::env::temp_dir().join(format!("craft-setup-{}-{}", std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        std::fs::create_dir_all(&root).unwrap();
+        let mgr = Arc::new(Manager::new(craft_ext_store::Store::at(root.clone()), Some(app.clone()), craft_ext_core::contract::Provided::new(&[("effectcraft.session",1,0)]), "test".into()));
+        let fresh = Setup::new(mgr.clone(), manifest.clone());
+        assert!(fresh.choices.values().all(|on| !on));
+        assert!(fresh.permissions.iter().all(|p| !p.checked));
+        assert!(!fresh.native);
+        assert_eq!(fresh.confirm().unwrap_err(), "Choose at least one contribution to enable.");
+        assert!(!root.join(craft_ext_store::state::STATE_FILE).exists());
+        let permission = craft_ext_core::permission::Permission::parse("document.read:selection").unwrap();
+        let mut state = craft_ext_store::state::StoreState::default();
+        state.apps.entry(app).or_default().insert(manifest.id.clone(), craft_ext_store::state::AppSetup {
+            active: Some(manifest.version), enabled: ["notes".into()].into_iter().collect(), grants: [permission.clone()].into_iter().collect(), ..Default::default()
+        });
+        std::fs::write(root.join(craft_ext_store::state::STATE_FILE), serde_json::to_vec(&state).unwrap()).unwrap();
+        let reopened = Setup::new(mgr, manifest);
+        assert_eq!(reopened.choices.get("notes"), Some(&true));
+        assert_eq!(reopened.choices.get("add-marker"), Some(&false));
+        assert!(reopened.permissions.iter().any(|p| p.permission == permission && p.checked));
+        assert!(reopened.permissions.iter().filter(|p| p.permission != permission).all(|p| !p.checked));
+        std::fs::remove_dir_all(root).unwrap();
     }
 }

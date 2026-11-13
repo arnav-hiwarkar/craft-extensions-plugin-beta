@@ -259,6 +259,9 @@ impl Store {
             let contribution = m.contributions_for(app).find(|x| x.id == c).ok_or_else(|| error("this contribution is unavailable"))?;
             if on {
                 if let Some((provided, platform)) = context {
+                    if let Some((_, reason)) = provided.unsupported.iter().find(|(kind, _)| *kind == contribution.kind) {
+                        return Err(error(reason));
+                    }
                     if let Some(reason) = contribution.contract.check(provided) { return Err(error(reason)); }
                     if let craft_ext_core::manifest::Compat::Incompatible { reasons } = m.compat(app, provided) { return Err(error(reasons.join("; "))); }
                     if m.native.as_ref().is_some_and(|n| !n.executables.contains_key(platform)) { return Err(error("no native executable for this platform")); }
