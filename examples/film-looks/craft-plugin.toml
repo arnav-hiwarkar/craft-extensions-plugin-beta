@@ -1,7 +1,7 @@
 schema = 2
 id = "io.github.arnav-hiwarkar.film-looks"
 name = "Film looks"
-version = "1.0.0"
+version = "1.1.0"
 license = "MIT OR Apache-2.0"
 source = "https://github.com/arnav-hiwarkar/film-looks"
 summary = "A warm film LUT and halftone print presets (data only, no code)"
