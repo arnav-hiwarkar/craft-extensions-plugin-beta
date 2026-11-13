@@ -128,6 +128,12 @@ half='io.github.arnav-hiwarkar.halftone'; notes='io.github.arnav-hiwarkar.color-
 for app in ['effectcraft','photocraft','figcraft']:
     plugin('refresh',app=app)
     rows=plugin('search','halftone',app=app)
+    if app=='figcraft':
+        # Search lists only packages for this app; FigCraft has no raster.filter.
+        assert half not in [r['id'] for r in rows], rows
+        plugin('install',half,'--version','=2.0.0',app=app,fail='no compatible')
+        plugin('install',half,app=app,fail='no compatible')
+        continue
     assert rows[0]['id']==half and rows[0]['stars']==111 and rows[0]['tier']=='community',rows
     plugin('info',half,app=app)
     versions=plugin('versions',half,app=app)
