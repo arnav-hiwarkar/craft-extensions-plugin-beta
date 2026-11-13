@@ -16,6 +16,7 @@ Design only. Implementation, new repositories, publication and releases each nee
 |---|---|
 | How the system works | [Architecture](architecture.md) |
 | A plain-language walkthrough of every part and workflow, with 2026-11-12 review findings | [System guide](system-guide.md) |
+| What a plugin's panels and windows can contain, and how apps draw them | [Plugin UI reference](ui.md) |
 | Detailed workflow/component/stage traces and all forty scenarios | [Walkthrough](design-sessions/system-walkthrough.md), [scenario coverage](design-sessions/workflow-coverage-2026-11-12.md) |
 | Six-agent architecture corrections, open contracts, and PR evidence | [Correction register](design-sessions/architecture-review-2026-11-12.md) |
 | Latest meeting reconciliation, confirmed choices, and deferrals | [Post-call current understanding](design-sessions/post-call-reconciliation.md#current-understanding-after-the-first-pass) |

@@ -15,7 +15,9 @@ The design behind this is [beta-design.md](beta-design.md).
 | `event-hook` | same | `<app>.session@1.0` | Reacts to app events (needs `app.events`) |
 | `preset`, `lut`, `font`, `theme`, `data` | Nothing runs | `resource.*@1.0`, `craft-theme@1.0` | Preset and LUT lists; font and theme assets are stored only |
 
-Panels can open host-drawn **windows** (`ui.window.open`, needs `ui.window`). Plugins can add
+Panels can open host-drawn **windows** (`ui.window.open`, needs `ui.window`). Panels and windows
+are described as data and drawn by the app; the full vocabulary (tabs, tables, lists, canvases with
+paths and gradients, pointer and key events, icons) is in the [UI reference](ui.md). Plugins can add
 features, but they can never change or remove built-in commands, shortcuts, settings, undo or plugin
 management.
 
@@ -146,7 +148,15 @@ session!(handle);
 
 Each event is **one transaction and one undo step**, labelled with your contribution and plugin name.
 `craft_guest::call(op, args)` runs an app operation from its contract page. UI trees are drawn by the
-app: every control needs an id and a visible label.
+app with an engine the app chooses; you cannot choose or detect it. Every control needs a stable id
+and a visible label, events carry the tree revision, and edits arrive when they end (a released
+drag, Enter). See the [UI reference](ui.md) for every node, draw op, event and limit.
+
+**UI levels.** The original nodes are ui 1.0. If your tree uses anything newer (tabs, tables,
+lists, number fields, toggles, icons, hints, paths, gradients, canvas wheel/key events…), declare the
+session contract at `@1.1`, for example `contract = "effectcraft.session@1.1"`, so an older app
+asks the person to update instead of failing to draw your panel. `craft_guest::ui::level(&tree)`
+tells you which level a tree needs; `ui::check(&tree)` runs the app's validation in your tests.
 
 Limits: fuel (time), memory (512 MiB for effects, 64 MiB for sessions), 1 MiB per call, 8 MiB pending
 results. If a plugin fails three times in one session, it is paused.

@@ -192,6 +192,12 @@ Filter context `params` is the typed form Values map keyed by parameter keys.
 - Menus/commands/tools are contributions; the host places them after built-ins, grouped by plugin.
   Plugins cannot change built-ins, shortcuts, settings, undo, or plugin management.
 
+UI level 1.1 ([ui.md](ui.md), `craft_ext_core::ui::tree`) extends that vocabulary (tabs, collapsible,
+scroll, grid, table/list selection, number, text area, progress, toggle, radio, named icons, hints;
+canvas paths, gradients, clips, images, opt-in pointer/wheel/key events) as a JSON superset of 1.0,
+carried by `<app>.session@1.1`. Unknown node types degrade to a notice or their `fallback`. Every app
+draws through one shared renderer (`craft_ext_ui::plugin_ui`) with an engine the app chooses.
+
 `Node::Form { form, values }` delegates rendering to the framework; widget events use param keys.
 `Node::Component { key, name, version, props, fallback }` requests a named versioned framework
 component; unknown components render the recursively validated fallback. Props are capped at 64 KiB.
