@@ -155,70 +155,81 @@ jobs:
       - uses: actions/upload-artifact@v4
         with: { name: '${{ matrix.app }}-linux', path: '${{ matrix.app }}-linux.tgz', retention-days: 7 }
 
-  app-macos:
-    name: ${{ matrix.app }} (macOS arm64)
-    runs-on: macos-15
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { app: effectcraft, build: -p effectcraft -p effectcraft-cli, bins: effectcraft effectcraft-cli }
-          - { app: photocraft, build: -p photocraft -p photocraft-cli, bins: photocraft photocraft-cli }
-          - { app: figcraft, build: -p figcraft -p figcraft-cli, bins: figcraft figcraft-cli }
-    steps:
-      - uses: actions/checkout@v4
-        with: { path: craft-extensions }
-      - uses: actions/checkout@v4
-        with: { repository: '${{ env.OWNER }}/${{ matrix.app }}-plugin-beta', ref: '${{ env.APPS_REF }}', path: '${{ matrix.app }}' }
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-        with: { workspaces: '${{ matrix.app }} -> target', key: 'macos-${{ matrix.app }}' }
-      - name: Build
-        working-directory: ${{ matrix.app }}
-        run: cargo build ${{ matrix.build }}
-      - run: tar -C ${{ matrix.app }}/target/debug -czf ${{ matrix.app }}-macos-arm64.tgz ${{ matrix.bins }}
-      - uses: actions/upload-artifact@v4
-        with: { name: '${{ matrix.app }}-macos-arm64', path: '${{ matrix.app }}-macos-arm64.tgz', retention-days: 14 }
-
-  # macOS arm64 runners are capacity-limited: the launcher shares this job to keep concurrency at four.
-  tools-macos:
-    name: craft-ext + native helper + launcher (macOS arm64)
+  # macOS arm64 hosted runners are capacity-limited and GitHub cancels jobs it cannot place within
+  # 15 minutes, so macOS work uses at most two runners: a tiny helper job (all the catalogue needs)
+  # and one job that builds every macOS binary in turn.
+  helper-macos:
+    name: native helper (macOS arm64)
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
         with: { path: craft-extensions }
       - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-        with: { workspaces: craft-extensions -> target, key: macos-tools }
-      - name: Build craft-ext
-        working-directory: craft-extensions
-        run: cargo build -p craft-ext-cli --all-features
       - name: Build the native example helper
         working-directory: craft-extensions/examples/native-system-stamp
-        run: cargo build --release && cp target/release/native_system_stamp ../../target/debug/helper-macos-aarch64
-      - run: tar -C craft-extensions/target/debug -czf craft-ext-macos-arm64.tgz craft-ext helper-macos-aarch64
+        run: cargo build --release && mkdir -p ../../../helpers && cp target/release/native_system_stamp ../../../helpers/helper-macos-aarch64
       - uses: actions/upload-artifact@v4
-        with: { name: craft-ext-macos-arm64, path: craft-ext-macos-arm64.tgz, retention-days: 14 }
+        with: { name: helper-macos, path: helpers/helper-macos-aarch64, retention-days: 14 }
+
+  build-macos:
+    name: apps, launcher and craft-ext (macOS arm64)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with: { path: craft-extensions }
+      - uses: actions/checkout@v4
+        with: { repository: '${{ env.OWNER }}/effectcraft-plugin-beta', ref: '${{ env.APPS_REF }}', path: effectcraft }
+      - uses: actions/checkout@v4
+        with: { repository: '${{ env.OWNER }}/photocraft-plugin-beta', ref: '${{ env.APPS_REF }}', path: photocraft }
+      - uses: actions/checkout@v4
+        with: { repository: '${{ env.OWNER }}/figcraft-plugin-beta', ref: '${{ env.APPS_REF }}', path: figcraft }
       - uses: actions/checkout@v4
         with: { repository: '${{ env.OWNER }}/craft-launcher-plugin-beta', ref: '${{ env.APPS_REF }}', path: craft-launcher }
+      - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-        with: { workspaces: craft-launcher -> target, key: macos-craft-launcher }
+        with:
+          key: macos-all
+          workspaces: |
+            craft-extensions -> target
+            effectcraft -> target
+            photocraft -> target
+            figcraft -> target
+            craft-launcher -> target
+      - name: Build craft-ext
+        working-directory: craft-extensions
+        run: cargo build -p craft-ext-cli --all-features && tar -C target/debug -czf ../craft-ext-macos-arm64.tgz craft-ext
+      - uses: actions/upload-artifact@v4
+        with: { name: craft-ext-macos-arm64, path: craft-ext-macos-arm64.tgz, retention-days: 14 }
+      - name: Build EffectCraft
+        working-directory: effectcraft
+        run: cargo build -p effectcraft -p effectcraft-cli && tar -C target/debug -czf ../effectcraft-macos-arm64.tgz effectcraft effectcraft-cli
+      - uses: actions/upload-artifact@v4
+        with: { name: effectcraft-macos-arm64, path: effectcraft-macos-arm64.tgz, retention-days: 14 }
+      - name: Build PhotoCraft
+        working-directory: photocraft
+        run: cargo build -p photocraft -p photocraft-cli && tar -C target/debug -czf ../photocraft-macos-arm64.tgz photocraft photocraft-cli
+      - uses: actions/upload-artifact@v4
+        with: { name: photocraft-macos-arm64, path: photocraft-macos-arm64.tgz, retention-days: 14 }
+      - name: Build FigCraft
+        working-directory: figcraft
+        run: cargo build -p figcraft -p figcraft-cli && tar -C target/debug -czf ../figcraft-macos-arm64.tgz figcraft figcraft-cli
+      - uses: actions/upload-artifact@v4
+        with: { name: figcraft-macos-arm64, path: figcraft-macos-arm64.tgz, retention-days: 14 }
       - name: Build the launcher
         working-directory: craft-launcher
-        run: cargo build -p artcraft-launcher
-      - run: tar -C craft-launcher/target/debug -czf craft-launcher-macos-arm64.tgz artcraft-launcher
+        run: cargo build -p artcraft-launcher && tar -C target/debug -czf ../craft-launcher-macos-arm64.tgz artcraft-launcher
       - uses: actions/upload-artifact@v4
         with: { name: craft-launcher-macos-arm64, path: craft-launcher-macos-arm64.tgz, retention-days: 14 }
 
   catalogue:
     name: signed test catalogue
-    needs: [shared, examples, tools-macos]
+    needs: [shared, examples, helper-macos]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with: { path: craft-extensions }
       - uses: actions/download-artifact@v4
-        with: { path: dl, pattern: '{craft-ext-linux,examples-built,wasm-packages,helper-linux,craft-ext-macos-arm64}' }
+        with: { path: dl, pattern: '{craft-ext-linux,examples-built,wasm-packages,helper-linux,helper-macos}' }
       - name: Unpack
         run: |
           mkdir -p bin && tar -C bin -xzf dl/craft-ext-linux/craft-ext-linux.tgz
@@ -226,7 +237,7 @@ jobs:
           mkdir -p packages && cp dl/wasm-packages/*.craftplugin packages/
           d=craft-extensions/examples/native-system-stamp; mkdir -p $d/bin
           cp dl/helper-linux/helper-linux-x86_64 $d/bin/
-          tar -C $d/bin -xzf dl/craft-ext-macos-arm64/craft-ext-macos-arm64.tgz helper-macos-aarch64
+          cp dl/helper-macos/helper-macos-aarch64 $d/bin/
           chmod +x $d/bin/*
       - name: Pack the native example (Linux x86_64 + macOS arm64 helpers)
         run: |
@@ -280,7 +291,7 @@ jobs:
 
   smoke-macos:
     name: smokes (macOS arm64)
-    needs: [app-macos, tools-macos, catalogue]
+    needs: [build-macos, catalogue]
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4

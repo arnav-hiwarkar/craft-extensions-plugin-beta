@@ -16,7 +16,7 @@ for a in effectcraft-macos-arm64 photocraft-macos-arm64 figcraft-macos-arm64 cra
 done
 mkdir -p bin && for t in */*.tgz; do tar -C bin -xzf "$t"; done
 xattr -dr com.apple.quarantine bin 2>/dev/null || true   # only needed if you downloaded in a browser
-ls bin   # effectcraft effectcraft-cli photocraft photocraft-cli figcraft figcraft-cli artcraft-launcher craft-ext helper-macos-aarch64
+ls bin   # effectcraft effectcraft-cli photocraft photocraft-cli figcraft figcraft-cli artcraft-launcher craft-ext
 ```
 
 The binaries are unsigned. If macOS still refuses one, right-click it in Finder ▸ Open once.
