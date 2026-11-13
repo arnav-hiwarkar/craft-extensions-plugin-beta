@@ -454,7 +454,7 @@ null
 | `command` | `{"event":"command","id":"<contribution>"}` | no | A command contribution ran (one undo step). |
 | `ui` | `{"event":"ui","surface":"<panel>","rev":4,"widget":"<id>","value":null}` | no | A widget in your panel or window changed; stale revisions are dropped. |
 | `app` | `{"event":"app","name":"selection.changed","payload":{"layers":[12]}}` | yes | `selection.changed`, `time.changed` (at most 4 per second), `document.changed` (coalesced per pump; layers, keys, markers, effects, assets/settings), `document.opened`, `render.finished`. |
-| `dispose` | `{"event":"dispose"}` | no | The plugin is being turned off or reloaded. |
+| `dispose` | `{"event":"dispose"}` | no | Reserved lifecycle event; beta unload and revocation stop workers immediately without guest notification. |
 
 ## Notes
 
