@@ -106,6 +106,17 @@ impl Form {
         }
         self
     }
+    /// Sets the last row's help: hover text for its label and control.
+    pub fn help(mut self, text: impl Into<Word>) -> Self {
+        if let Some(p) = self.0.params.last_mut() {
+            p.help = Some(text.into())
+        }
+        self
+    }
+    /// The craft-framework name for [`Form::help`] (`Param::tooltip`).
+    pub fn tooltip(self, text: impl Into<Word>) -> Self {
+        self.help(text)
+    }
     /// Enables preview with comparison.
     pub fn preview(mut self) -> Self {
         self.0.preview = Some(wire::Preview { enabled: true, compare: true });
