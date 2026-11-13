@@ -89,14 +89,12 @@ for app in ["effectcraft", "photocraft", "figcraft"]:
     if app == "effectcraft":
         base=work/"base.ecproj"
         run(b,"--empty","run","comp.new",'{"name":"Main","width":32,"height":32}',"layer.newSolid",'{"name":"Original","color":"#808080"}',"--save-as",base)
-        out=json.loads(run(b,"--project",base,"run","plugin."+r+".effectcraft-apply","{}","layer.list","{}","--json"))
-        assert out[-1]["result"]["layers"][0]["name"] == "Reviewed", out
-        undone=json.loads(run(b,"--project",base,"run","edit.undo","{}","layer.list","{}","--json"))
-        assert [l["name"] for l in undone[-1]["result"]["layers"]] == ["Original"], undone
-        native=json.loads(run(b,"--project",base,"run","plugin."+n+".effectcraft-apply","{}","layer.list","{}","--json"))
-        assert native[-1]["result"]["layers"][0]["name"] == "System stamp", native
-        native_undo=json.loads(run(b,"--project",base,"run","edit.undo","{}","layer.list","{}","--json"))
-        assert [l["name"] for l in native_undo[-1]["result"]["layers"]] == ["Original"], native_undo
+        # Apply, inspect, Undo and inspect in one session, so Undo is the real one-step check.
+        def names(step): return [l["name"] for l in step["result"]["layers"]]
+        out=json.loads(run(b,"--project",base,"run","plugin."+r+".effectcraft-apply","{}","comp.info","{}","edit.undo","{}","comp.info","{}","--json"))
+        assert names(out[1]) == ["Reviewed"] and names(out[3]) == ["Original"], out
+        native=json.loads(run(b,"--project",base,"run","plugin."+n+".effectcraft-apply","{}","comp.info","{}","edit.undo","{}","comp.info","{}","--json"))
+        assert names(native[1])[0] == "System stamp" and names(native[3]) == ["Original"], native
         run(b,"--project",base,"render-frame","--out",work/"base.png")
         fx=work/"fx.ecproj"
         run(b,"--project",base,"run","layer.select",'{"layers":["Original"]}',"effect.apply",json.dumps({"effect":v+"/vignette"}),"--save-as",fx)

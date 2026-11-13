@@ -222,6 +222,12 @@ jobs:
         run: |
           d=craft-extensions/examples/native-system-stamp
           bin/craft-ext check $d && bin/craft-ext pack $d --out packages/native-system-stamp.craftplugin
+      - name: An older Film looks release, so update, pin and rollback can be tried
+        run: |
+          cp -R craft-extensions/examples/film-looks film-looks-1.0.0
+          sed -i 's/^version = "1.1.0"/version = "1.0.0"/' film-looks-1.0.0/craft-plugin.toml
+          grep -q '^version = "1.0.0"' film-looks-1.0.0/craft-plugin.toml
+          bin/craft-ext pack film-looks-1.0.0 --out packages/film-looks-1.0.0.craftplugin
       - name: Build and sign the catalogue with a throwaway TEST key
         run: python3 craft-extensions/scripts/build-test-catalogue.py --craft-ext bin/craft-ext --packages packages --out test-catalogue
       - uses: actions/upload-artifact@v4
@@ -236,7 +242,7 @@ jobs:
         with: { path: craft-extensions }
       - uses: actions/checkout@v4
         with: { repository: '${{ env.OWNER }}/effectcraft-plugin-beta', ref: '${{ env.APPS_REF }}', path: effectcraft }
-      - run: sudo apt-get update -q && sudo apt-get install -yq --no-install-recommends libasound2 libwayland-client0 libxkbcommon0 libfontconfig1 libgtk-3-0 libayatana-appindicator3-1 libxdo3 libpipewire-0.3-0
+      - run: sudo apt-get update -q && sudo apt-get install -yq --no-install-recommends $LINUX_DEPS  # pulls the runtime libraries
       - uses: dtolnay/rust-toolchain@stable
         with: { targets: wasm32-unknown-unknown }
       - uses: Swatinem/rust-cache@v2
