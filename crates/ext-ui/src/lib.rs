@@ -243,6 +243,11 @@ impl ManagerView {
         self.launcher.map(|f| Arc::new(f(app)))
     }
     pub fn show(&mut self, ui: &mut egui::Ui, mgr: &Arc<Manager>) {
+        self.show_with_app_problems(ui, mgr, |_| {});
+    }
+    /// Adds session-local app problems and actions to the Problems tab. Update checks never
+    /// overwrite this section. Existing callers can continue using `show`.
+    pub fn show_with_app_problems(&mut self, ui: &mut egui::Ui, mgr: &Arc<Manager>, app_problems: impl FnOnce(&mut egui::Ui)) {
         if let Some(r) = self.jobs.poll() {
             match r {
                 Ok(Done::Installed(m, r)) => self.setup = Some(Setup::new(m, r.0.manifest)),
@@ -332,7 +337,7 @@ impl ManagerView {
                     }
                 }
             }
-            _ => self.installed(ui, mgr, true),
+            _ => { app_problems(ui); self.installed(ui, mgr, true); },
         }
         ui.separator();
         ui.label("Plugins are made by their authors. ArtCraft lists them but does not build, host or guarantee them.");
@@ -643,5 +648,28 @@ impl ProjectPrompt {
             self.closed = true;
         }
         outcome
+    }
+}
+
+#[cfg(test)]
+mod app_problem_tests {
+    use super::*;
+    #[test]
+    fn app_problems_draw_only_on_the_problems_tab_and_survive_update_results() {
+        let mut view = ManagerView::new();
+        let mgr = Arc::new(Manager::new(craft_ext_store::Store::at(&std::env::temp_dir().join("ext-ui-app-problems")),
+            None, craft_ext_core::contract::Provided::new(&[]), "test".into()));
+        let ctx = egui::Context::default();
+        let mut calls = 0;
+        for tab in [0, 3, 1, 3] {
+            view.tab = tab;
+            view.set_problems(vec![]);
+            ctx.run_ui(Default::default(), |ui| {
+                egui::CentralPanel::default().show(ui, |ui| {
+                    view.show_with_app_problems(ui, &mgr, |ui| { calls += 1; ui.label("Resume a paused plugin"); });
+                });
+            }).drop_without_applying_deltas();
+        }
+        assert_eq!(calls, 2);
     }
 }

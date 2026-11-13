@@ -1,0 +1,26 @@
+schema = 2
+id = "io.github.arnav-hiwarkar.figcraft-placeholder"
+name = "Placeholder copy"
+version = "1.0.0"
+license = "MIT OR Apache-2.0"
+source = "https://github.com/arnav-hiwarkar/craft-extensions-plugin-beta"
+summary = "Fill selected text layers with original placeholder copy"
+apps = ["figcraft"]
+[why]
+"document.edit:document" = "Creates or updates ordinary design layers in one undo step"
+"document.read:document" = "Reads selected layer types before replacing text"
+[[contribution]]
+id = "panel"
+kind = "panel"
+files = ["LICENSE-MIT", "LICENSE-APACHE"]
+contract = "figcraft.session@1.1"
+label = "Placeholder copy"
+module = "figcraft_placeholder.wasm"
+permissions = ["document.edit:document", "document.read:document"]
+[[contribution]]
+id = "apply"
+kind = "command"
+contract = "figcraft.session@1.1"
+label = "Fill selected text layers with original placeholder copy"
+module = "figcraft_placeholder.wasm"
+permissions = ["document.edit:document", "document.read:document"]
