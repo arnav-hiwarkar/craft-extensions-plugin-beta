@@ -11,17 +11,24 @@ root = Path(__file__).resolve().parents[1]
 work = Path(tempfile.mkdtemp(prefix="cross-app-smoke-"))
 print(f"Evidence: {work}", flush=True)
 env = dict(os.environ, CRAFT_EXT_DIR=str(work / "store"), CARGO_BUILD_JOBS="4")
-# craft-ext itself invokes cargo; serialize that nested build too.
+# craft-ext itself invokes cargo; serialize nested builds where flock exists (Linux).
 wrapper = work / "bin"
 wrapper.mkdir()
 cargo = shutil.which("cargo")
 lock = root.parent / ".cargo.lock"
-(wrapper / "cargo").write_text(
-    "#!/bin/sh\nexec env CARGO_BUILD_JOBS=4 flock " + shlex.quote(str(lock)) + " " + shlex.quote(cargo) + ' "$@"\n'
-)
-(wrapper / "cargo").chmod(0o755)
+if cargo and shutil.which("flock"):
+    (wrapper / "cargo").write_text(
+        "#!/bin/sh\nexec env CARGO_BUILD_JOBS=4 flock " + shlex.quote(str(lock)) + " " + shlex.quote(cargo) + ' "$@"\n'
+    )
+    (wrapper / "cargo").chmod(0o755)
 env["PATH"] = str(wrapper) + os.pathsep + env["PATH"]
-x = root / "target/debug/craft-ext"
+x = Path(os.environ.get("CRAFT_EXT_BIN", root / "target/debug/craft-ext"))
+# CI passes prebuilt packages and app CLIs; locally everything is built from source.
+packages = os.environ.get("CRAFT_PACKAGES")
+app_bins = os.environ.get("CRAFT_APP_BIN_DIR")
+system = {"Darwin": "macos", "Linux": "linux", "Windows": "windows"}[__import__("platform").system()]
+machine = {"arm64": "aarch64", "AMD64": "x86_64"}.get(__import__("platform").machine(), __import__("platform").machine())
+host_platform = f"{system}-{machine}"
 count = 0
 
 def run(*args, fail=False, error_contains=None):
@@ -37,26 +44,31 @@ def run(*args, fail=False, error_contains=None):
     return p.stdout
 
 names = ["cross-vignette", "cross-review", "native-system-stamp"]
-for name in names:
-    d = root / "examples" / name
-    if name.startswith("native"):
-        run("cargo", "build", "--release", "--manifest-path", d / "Cargo.toml")
-        (d / "bin").mkdir(exist_ok=True)
-        shutil.copy2(d / "target/release/native_system_stamp", d / "bin/helper")
-    run(x, "build", d, "--release")
-    run(x, "check", d)
-    run(x, "test", d)
-    run(x, "pack", d, "--out", work / (name + ".craftplugin"))
-
-env["CRAFT_E2E_NATIVE_EXE"] = str(root / "examples/native-system-stamp/bin/helper")
-native_test = run("cargo", "test", "--manifest-path", root / "Cargo.toml", "-p", "craft-ext-host", "native_packaged_helper_round_trip", "--", "--nocapture")
-assert "native_packaged_helper_round_trip" in native_test and "1 passed" in native_test, native_test
-run("cargo", "test", "--manifest-path", root / "examples/cross-vignette/Cargo.toml")
+if packages:
+    for name in names:
+        shutil.copy2(Path(packages) / (name + ".craftplugin"), work / (name + ".craftplugin"))
+else:
+    for name in names:
+        d = root / "examples" / name
+        if name.startswith("native"):
+            run("cargo", "build", "--release", "--manifest-path", d / "Cargo.toml")
+            (d / "bin").mkdir(exist_ok=True)
+            # Only this host's helper is built locally; map the other platform to the same binary.
+            for platform in ["linux-x86_64", "macos-aarch64"]:
+                shutil.copy2(d / "target/release/native_system_stamp", d / f"bin/helper-{platform}")
+        run(x, "build", d, "--release")
+        run(x, "check", d)
+        run(x, "test", d)
+        run(x, "pack", d, "--out", work / (name + ".craftplugin"))
+    env["CRAFT_E2E_NATIVE_EXE"] = str(root / f"examples/native-system-stamp/bin/helper-{host_platform}")
+    native_test = run("cargo", "test", "--manifest-path", root / "Cargo.toml", "-p", "craft-ext-host", "native_packaged_helper_round_trip", "--", "--nocapture")
+    assert "native_packaged_helper_round_trip" in native_test and "1 passed" in native_test, native_test
+    run("cargo", "test", "--manifest-path", root / "examples/cross-vignette/Cargo.toml")
 v = "io.github.arnav-hiwarkar.cross-vignette"
 r = "io.github.arnav-hiwarkar.cross-review"
 n = "io.github.arnav-hiwarkar.native-system-stamp"
 for app in ["effectcraft", "photocraft", "figcraft"]:
-    b = root.parent / app / "target/debug" / (app + "-cli")
+    b = (Path(app_bins) if app_bins else root.parent / app / "target/debug") / (app + "-cli")
     for name, ident in [("cross-vignette",v),("cross-review",r),("native-system-stamp",n)]:
         if name.startswith("native") and app == "photocraft":
             continue

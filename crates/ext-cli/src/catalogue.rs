@@ -325,7 +325,7 @@ pub fn build_local(assets: &Path, out: &Path) -> Result<Value> {
         let m = result?;
         craft_ext_core::licence::check_osi(&m.license).map_err(|e| format!("non-OSI licence: {e}"))?;
         tier::check_id(VendorTier::Community.into(), &m.id)?;
-        let platform = if m.is_native() { Some(craft_ext_host::native::platform()) } else { None };
+        let platform = m.native.as_ref().and_then(|n| asset_platform(&n.executables));
         grouped.entry(m.id.clone()).or_default().push(Release {
             version: m.version,
             tag: format!("v{}", m.version),
@@ -397,6 +397,16 @@ pub fn build_local(assets: &Path, out: &Path) -> Result<Value> {
     fs::write(out.join("index.json"), bytes)?;
     let _ = fs::remove_file(out.join("index.json.sig"));
     Ok(json!({"packages":index.packages.len(),"next":"catalogue sign --repo <out> --key <file>"}))
+}
+/// Which platform a local native archive serves. Distinct paths per platform make one universal
+/// archive (every helper is inside); one shared path means one archive per platform, built here.
+fn asset_platform(executables: &BTreeMap<String, String>) -> Option<String> {
+    let distinct = executables.values().collect::<BTreeSet<_>>().len() == executables.len();
+    match (distinct, executables.len()) {
+        (true, 1) => executables.keys().next().cloned(),
+        (true, _) => None,
+        (false, _) => Some(craft_ext_host::native::platform()),
+    }
 }
 fn asset_url(path: &Path, out: &Path) -> Result<String> {
     if let Ok(rel) = path.strip_prefix(out) {
@@ -631,6 +641,13 @@ mod beta_tests {
 #[cfg(test)]
 mod local_tests {
     use super::*;
+    #[test]
+    fn native_asset_platform_follows_the_archive_layout() {
+        let map = |pairs: &[(&str, &str)]| pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect::<BTreeMap<_, _>>();
+        assert_eq!(asset_platform(&map(&[("macos-aarch64", "bin/a")])).as_deref(), Some("macos-aarch64"));
+        assert_eq!(asset_platform(&map(&[("macos-aarch64", "bin/a"), ("linux-x86_64", "bin/b")])), None);
+        assert_eq!(asset_platform(&map(&[("macos-aarch64", "bin/a"), ("linux-x86_64", "bin/a")])), Some(craft_ext_host::native::platform()));
+    }
     #[test]
     fn local_build_uses_archive_identity_and_invalidates_signature() {
         let t = tempfile::tempdir().unwrap();

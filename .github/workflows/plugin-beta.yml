@@ -1,0 +1,315 @@
+# Plugin beta: builds and tests the shared platform, the three app adapters, the launcher and the
+# examples in parallel, then runs the end-to-end and cross-app smokes on Linux and macOS against a
+# signed local TEST catalogue. Debug app builds only. Outputs are workflow artifacts; this workflow
+# never creates releases, tags, PRs or issues.
+name: plugin-beta
+
+on:
+  push:
+    branches: [plugin-beta]
+  workflow_dispatch:
+    inputs:
+      apps_ref:
+        description: Branch of the app and launcher forks
+        default: plugin-beta
+      windows:
+        description: Also compile-check on Windows
+        type: boolean
+        default: false
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  CARGO_BUILD_JOBS: 4
+  CARGO_PROFILE_DEV_DEBUG: line-tables-only
+  RUST_BACKTRACE: 1
+  APPS_REF: ${{ inputs.apps_ref || 'plugin-beta' }}
+  OWNER: ${{ github.repository_owner }}
+  LINUX_DEPS: >-
+    pkg-config cmake nasm clang libclang-dev libasound2-dev libwayland-dev libxkbcommon-dev
+    libx11-dev libxrandr-dev libxi-dev libxcursor-dev libgl1-mesa-dev libfontconfig1-dev
+    libfreetype-dev libpipewire-0.3-dev libspa-0.2-dev libgbm-dev libdrm-dev libudev-dev
+    libgtk-3-dev libayatana-appindicator3-dev libxdo-dev libssl-dev
+
+jobs:
+  shared:
+    name: shared crates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { path: craft-extensions }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with: { workspaces: craft-extensions -> target, key: shared }
+      - name: Build (all features, includes craft-ext tools)
+        working-directory: craft-extensions
+        run: cargo build --workspace --all-features
+      - name: Native helper for the host round-trip test
+        working-directory: craft-extensions/examples/native-system-stamp
+        run: cargo build --release
+      - name: Tests per crate
+        working-directory: craft-extensions
+        env:
+          CRAFT_E2E_NATIVE_EXE: ${{ github.workspace }}/craft-extensions/examples/native-system-stamp/target/release/native_system_stamp
+        run: |
+          for c in craft-ext-core craft-ext-store craft-ext-host craft-ext-ui craft-ext-cli craft-guest; do
+            echo "::group::$c"; cargo test -p "$c" --all-features; echo "::endgroup::"
+          done
+          CRAFT_CATALOGUE_ALLOW_FILE=1 cargo test -p craft-ext-store --features net local_asset_policy_size_and_digest
+      - run: tar -C craft-extensions/target/debug -czf craft-ext-linux.tgz craft-ext
+      - uses: actions/upload-artifact@v4
+        with: { name: craft-ext-linux, path: craft-ext-linux.tgz, retention-days: 7 }
+
+  examples:
+    name: examples (wasm + linux helper)
+    needs: shared
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { path: craft-extensions }
+      - uses: dtolnay/rust-toolchain@stable
+        with: { targets: wasm32-unknown-unknown }
+      - uses: Swatinem/rust-cache@v2
+        with: { workspaces: craft-extensions -> target-examples, key: examples }
+      - uses: actions/download-artifact@v4
+        with: { name: craft-ext-linux }
+      - run: mkdir -p bin && tar -C bin -xzf craft-ext-linux.tgz && echo "$PWD/bin" >> "$GITHUB_PATH"
+      - name: Build, check, test and pack every wasm example
+        working-directory: craft-extensions
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/craft-extensions/target-examples
+        run: |
+          python3 scripts/check-beta-examples.py
+          mkdir -p ../packages
+          for d in examples/*/; do
+            name=$(basename "$d")
+            [ "$name" = native-system-stamp ] && continue
+            echo "::group::$name"
+            craft-ext build "$d" --release
+            craft-ext check "$d"
+            craft-ext test "$d"
+            craft-ext pack "$d" --describe --out "../packages/$name.craftplugin"
+            echo "::endgroup::"
+          done
+          cargo test --manifest-path examples/cross-vignette/Cargo.toml
+      - name: Linux native helper
+        working-directory: craft-extensions/examples/native-system-stamp
+        run: cargo build --release && mkdir -p ../../../helpers && cp target/release/native_system_stamp ../../../helpers/helper-linux-x86_64
+      - run: tar -czf examples-built.tgz --exclude='target*' -C craft-extensions examples
+      - uses: actions/upload-artifact@v4
+        with: { name: examples-built, path: examples-built.tgz, retention-days: 7 }
+      - uses: actions/upload-artifact@v4
+        with: { name: wasm-packages, path: packages/*.craftplugin, retention-days: 14 }
+      - uses: actions/upload-artifact@v4
+        with: { name: helper-linux, path: helpers/helper-linux-x86_64, retention-days: 7 }
+
+  app-linux:
+    name: ${{ matrix.app }} (linux)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - app: effectcraft
+            build: -p effectcraft -p effectcraft-cli
+            test: |
+              cargo test -p effectcraft-plugins
+              cargo test -p effectcraft-host -p effectcraft-engine -p effectcraft-ui-egui --lib -- plugin ext::
+            bins: effectcraft effectcraft-cli
+          - app: photocraft
+            build: -p photocraft -p photocraft-cli
+            test: |
+              cargo test -p photocraft-plugins
+              cargo test -p photocraft-engine -p photocraft-ui-egui --lib -- plugin
+            bins: photocraft photocraft-cli
+          - app: figcraft
+            build: -p figcraft -p figcraft-cli
+            test: |
+              cargo test -p figcraft-plugins
+              cargo test -p figcraft-engine -p figcraft-ui-egui --lib -- plugin ext_tests
+            bins: figcraft figcraft-cli
+          - app: craft-launcher
+            build: -p artcraft-launcher
+            test: cargo test -p artcraft-launcher-ui-egui -p artcraft-launcher-core --lib -- plugin
+            bins: artcraft-launcher
+    steps:
+      - uses: actions/checkout@v4
+        with: { path: craft-extensions }
+      - uses: actions/checkout@v4
+        with: { repository: '${{ env.OWNER }}/${{ matrix.app }}-plugin-beta', ref: '${{ env.APPS_REF }}', path: '${{ matrix.app }}' }
+      - run: sudo apt-get update -q && sudo apt-get install -yq --no-install-recommends $LINUX_DEPS
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with: { workspaces: '${{ matrix.app }} -> target', key: 'linux-${{ matrix.app }}' }
+      - name: Build
+        working-directory: ${{ matrix.app }}
+        run: cargo build ${{ matrix.build }}
+      - name: Plugin adapter and UI host tests
+        working-directory: ${{ matrix.app }}
+        run: ${{ matrix.test }}
+      - run: tar -C ${{ matrix.app }}/target/debug -czf ${{ matrix.app }}-linux.tgz ${{ matrix.bins }}
+      - uses: actions/upload-artifact@v4
+        with: { name: '${{ matrix.app }}-linux', path: '${{ matrix.app }}-linux.tgz', retention-days: 7 }
+
+  app-macos:
+    name: ${{ matrix.app }} (macOS arm64)
+    runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { app: effectcraft, build: -p effectcraft -p effectcraft-cli, bins: effectcraft effectcraft-cli }
+          - { app: photocraft, build: -p photocraft -p photocraft-cli, bins: photocraft photocraft-cli }
+          - { app: figcraft, build: -p figcraft -p figcraft-cli, bins: figcraft figcraft-cli }
+          - { app: craft-launcher, build: -p artcraft-launcher, bins: artcraft-launcher }
+    steps:
+      - uses: actions/checkout@v4
+        with: { path: craft-extensions }
+      - uses: actions/checkout@v4
+        with: { repository: '${{ env.OWNER }}/${{ matrix.app }}-plugin-beta', ref: '${{ env.APPS_REF }}', path: '${{ matrix.app }}' }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with: { workspaces: '${{ matrix.app }} -> target', key: 'macos-${{ matrix.app }}' }
+      - name: Build
+        working-directory: ${{ matrix.app }}
+        run: cargo build ${{ matrix.build }}
+      - run: tar -C ${{ matrix.app }}/target/debug -czf ${{ matrix.app }}-macos-arm64.tgz ${{ matrix.bins }}
+      - uses: actions/upload-artifact@v4
+        with: { name: '${{ matrix.app }}-macos-arm64', path: '${{ matrix.app }}-macos-arm64.tgz', retention-days: 14 }
+
+  tools-macos:
+    name: craft-ext + native helper (macOS arm64)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with: { path: craft-extensions }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with: { workspaces: craft-extensions -> target, key: macos-tools }
+      - name: Build craft-ext
+        working-directory: craft-extensions
+        run: cargo build -p craft-ext-cli --all-features
+      - name: Build the native example helper
+        working-directory: craft-extensions/examples/native-system-stamp
+        run: cargo build --release && cp target/release/native_system_stamp ../../target/debug/helper-macos-aarch64
+      - run: tar -C craft-extensions/target/debug -czf craft-ext-macos-arm64.tgz craft-ext helper-macos-aarch64
+      - uses: actions/upload-artifact@v4
+        with: { name: craft-ext-macos-arm64, path: craft-ext-macos-arm64.tgz, retention-days: 14 }
+
+  catalogue:
+    name: signed test catalogue
+    needs: [shared, examples, tools-macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { path: craft-extensions }
+      - uses: actions/download-artifact@v4
+        with: { path: dl, pattern: '{craft-ext-linux,examples-built,wasm-packages,helper-linux,craft-ext-macos-arm64}' }
+      - name: Unpack
+        run: |
+          mkdir -p bin && tar -C bin -xzf dl/craft-ext-linux/craft-ext-linux.tgz
+          tar -C craft-extensions -xzf dl/examples-built/examples-built.tgz
+          mkdir -p packages && cp dl/wasm-packages/*.craftplugin packages/
+          d=craft-extensions/examples/native-system-stamp; mkdir -p $d/bin
+          cp dl/helper-linux/helper-linux-x86_64 $d/bin/
+          tar -C $d/bin -xzf dl/craft-ext-macos-arm64/craft-ext-macos-arm64.tgz helper-macos-aarch64
+          chmod +x $d/bin/*
+      - name: Pack the native example (Linux x86_64 + macOS arm64 helpers)
+        run: |
+          d=craft-extensions/examples/native-system-stamp
+          bin/craft-ext check $d && bin/craft-ext pack $d --out packages/native-system-stamp.craftplugin
+      - name: Build and sign the catalogue with a throwaway TEST key
+        run: python3 craft-extensions/scripts/build-test-catalogue.py --craft-ext bin/craft-ext --packages packages --out test-catalogue
+      - uses: actions/upload-artifact@v4
+        with: { name: test-catalogue, path: test-catalogue, retention-days: 14 }
+
+  smoke-linux:
+    name: e2e + smokes (linux)
+    needs: [shared, examples, app-linux, catalogue]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { path: craft-extensions }
+      - uses: actions/checkout@v4
+        with: { repository: '${{ env.OWNER }}/effectcraft-plugin-beta', ref: '${{ env.APPS_REF }}', path: effectcraft }
+      - run: sudo apt-get update -q && sudo apt-get install -yq --no-install-recommends libasound2 libwayland-client0 libxkbcommon0 libfontconfig1 libgtk-3-0 libayatana-appindicator3-1 libxdo3 libpipewire-0.3-0
+      - uses: dtolnay/rust-toolchain@stable
+        with: { targets: wasm32-unknown-unknown }
+      - uses: Swatinem/rust-cache@v2
+        with: { workspaces: craft-extensions -> target, key: smoke }
+      - uses: actions/download-artifact@v4
+        with: { path: dl, pattern: '{*-linux,examples-built,test-catalogue}' }
+      - name: Unpack
+        run: |
+          mkdir -p bin
+          for t in dl/*-linux/*.tgz; do tar -C bin -xzf "$t"; done
+          tar -C craft-extensions -xzf dl/examples-built/examples-built.tgz
+          cp -R dl/test-catalogue test-catalogue
+          echo "$PWD/bin" >> "$GITHUB_PATH"
+      - name: Every catalogue example in every declared app
+        run: python3 craft-extensions/scripts/catalogue-smoke.py --catalogue test-catalogue --bin-dir bin
+      - name: Cross-app smoke
+        env: { CRAFT_EXT_BIN: '${{ github.workspace }}/bin/craft-ext', CRAFT_PACKAGES: '${{ github.workspace }}/test-catalogue/assets', CRAFT_APP_BIN_DIR: '${{ github.workspace }}/bin' }
+        run: python3 craft-extensions/scripts/cross-app-smoke.py
+      - name: EffectCraft session smoke
+        env: { CRAFT_EXT_BIN: '${{ github.workspace }}/bin/craft-ext', EFFECTCRAFT_CLI: '${{ github.workspace }}/bin/effectcraft-cli' }
+        run: bash effectcraft/scripts/plugin-session-smoke.sh
+      - name: Shared e2e (author flow, signed catalogue, manager flows)
+        env: { CRAFT_EXT_BIN: '${{ github.workspace }}/bin/craft-ext', CRAFT_E2E_SKIP_CARGO: '1' }
+        run: bash craft-extensions/scripts/e2e.sh
+
+  smoke-macos:
+    name: smokes (macOS arm64)
+    needs: [app-macos, tools-macos, catalogue]
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with: { path: craft-extensions }
+      - uses: actions/checkout@v4
+        with: { repository: '${{ env.OWNER }}/effectcraft-plugin-beta', ref: '${{ env.APPS_REF }}', path: effectcraft }
+      - uses: actions/download-artifact@v4
+        with: { path: dl, pattern: '{*-macos-arm64,examples-built,test-catalogue}' }
+      - name: Unpack
+        run: |
+          mkdir -p bin
+          for t in dl/*-macos-arm64/*.tgz; do tar -C bin -xzf "$t"; done
+          tar -C craft-extensions -xzf dl/examples-built/examples-built.tgz
+          cp -R dl/test-catalogue test-catalogue
+      - name: Every catalogue example in every declared app
+        run: python3 craft-extensions/scripts/catalogue-smoke.py --catalogue test-catalogue --bin-dir bin
+      - name: Cross-app smoke
+        env: { CRAFT_EXT_BIN: '${{ github.workspace }}/bin/craft-ext', CRAFT_PACKAGES: '${{ github.workspace }}/test-catalogue/assets', CRAFT_APP_BIN_DIR: '${{ github.workspace }}/bin' }
+        run: python3 craft-extensions/scripts/cross-app-smoke.py
+      - name: EffectCraft session smoke
+        env: { CRAFT_EXT_BIN: '${{ github.workspace }}/bin/craft-ext', EFFECTCRAFT_CLI: '${{ github.workspace }}/bin/effectcraft-cli' }
+        run: bash effectcraft/scripts/plugin-session-smoke.sh
+
+  windows:
+    name: windows compile check
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.windows }}
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [craft-extensions, effectcraft, photocraft, figcraft]
+    steps:
+      - uses: actions/checkout@v4
+        with: { path: craft-extensions }
+      - uses: actions/checkout@v4
+        if: matrix.app != 'craft-extensions'
+        with: { repository: '${{ env.OWNER }}/${{ matrix.app }}-plugin-beta', ref: '${{ env.APPS_REF }}', path: '${{ matrix.app }}' }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with: { workspaces: '${{ matrix.app }} -> target', key: 'windows-${{ matrix.app }}' }
+      - working-directory: ${{ matrix.app }}
+        shell: bash
+        run: |
+          if [ ${{ matrix.app }} = craft-extensions ]; then cargo check --workspace --all-features
+          else cargo check -p ${{ matrix.app }}-cli -p ${{ matrix.app }}-plugins; fi

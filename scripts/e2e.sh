@@ -4,18 +4,22 @@ cd "$(dirname "$0")/.."
 export CRAFT_CARGO_LOCK="${CRAFT_CARGO_LOCK:-$PWD/../.cargo.lock}"
 export CARGO_BUILD_JOBS=4
 export CARGO_TARGET_DIR="$PWD/target"
-flock "${CRAFT_CARGO_LOCK:-$PWD/../.cargo.lock}" env CARGO_BUILD_JOBS=4 cargo build -p craft-ext-cli
+# flock serialises builds with sibling checkouts on Linux; macOS and CI run without it.
+lock() { if command -v flock >/dev/null; then flock "$CRAFT_CARGO_LOCK" "$@"; else "$@"; fi; }
+if [ -z "${CRAFT_EXT_BIN:-}" ]; then lock env CARGO_BUILD_JOBS=4 cargo build -p craft-ext-cli; fi
 python3 - <<'PY'
-import json, os, pathlib, shlex, shutil, subprocess, tempfile
+import json, os, pathlib, platform, shlex, shutil, subprocess, tempfile
 root = pathlib.Path.cwd()
-cli = root / 'target/debug/craft-ext'
+cli = pathlib.Path(os.environ.get('CRAFT_EXT_BIN', root / 'target/debug/craft-ext'))
 work = pathlib.Path(tempfile.mkdtemp(prefix='craft-beta-e2e-'))
 # Author builds inherit this wrapper too. Debug opt-level 3 keeps Wasm within fuel limits.
 wrapper = work/'bin'; wrapper.mkdir()
 cargo_bin = shutil.which('cargo')
-(wrapper/'cargo').write_text('#!/bin/sh\nexec flock '+shlex.quote(os.environ['CRAFT_CARGO_LOCK'])+' env CARGO_BUILD_JOBS=4 '+shlex.quote(cargo_bin)+' "$@"\n')
-(wrapper/'cargo').chmod(0o755)
-cat = root.parent / 'test-catalogue'
+if shutil.which('flock'):
+    (wrapper/'cargo').write_text('#!/bin/sh\nexec flock '+shlex.quote(os.environ['CRAFT_CARGO_LOCK'])+' env CARGO_BUILD_JOBS=4 '+shlex.quote(cargo_bin)+' "$@"\n')
+    (wrapper/'cargo').chmod(0o755)
+cat = pathlib.Path(os.environ.get('CRAFT_E2E_CATALOGUE', root.parent / 'e2e-catalogue'))
+if cat.exists(): shutil.rmtree(cat)
 assets = cat / 'assets'
 assets.mkdir(parents=True, exist_ok=True)
 env = dict(os.environ, CRAFT_EXT_DIR=str(work/'store'), CRAFT_CATALOGUE_URL=cat.as_uri()+'/', CRAFT_GUEST_PATH=str(root/'crates/guest'), CARGO_TARGET_DIR=str(root/'target/e2e-wasm'))
@@ -23,6 +27,9 @@ env['PATH'] = str(wrapper)+os.pathsep+env['PATH']
 env['CARGO_PROFILE_DEV_OPT_LEVEL'] = '3'
 env.pop('CRAFT_CATALOGUE_ALLOW_FILE', None)
 env.pop('CRAFT_TEMPLATES', None)
+system = {'Darwin':'macos','Linux':'linux','Windows':'windows'}[platform.system()]
+machine = {'arm64':'aarch64','AMD64':'x86_64'}.get(platform.machine(), platform.machine())
+host_platform = f'{system}-{machine}'
 def run(*args, fail=None, code=None):
     print('RUN', *args, flush=True)
     p = subprocess.run([str(cli), *map(str,args), '--json'], env=env, text=True, capture_output=True)
@@ -32,6 +39,13 @@ def run(*args, fail=None, code=None):
         return
     assert p.returncode == 0, (args,p.returncode,p.stderr)
     return json.loads(p.stdout)
+# Sign with a maintainer key only when one is named; otherwise use a fresh TEST key that debug
+# builds trust for this file:// catalogue (CRAFT_CATALOGUE_TEST_KEY + CRAFT_CATALOGUE_ALLOW_FILE=1).
+key_file = os.environ.get('CRAFT_CATALOGUE_KEY_FILE')
+if not key_file:
+    key_file = str(work/'test-catalogue.key')
+    env['CRAFT_CATALOGUE_TEST_KEY'] = run('catalogue','keygen','--repo',work,'--out',key_file)['public_key']
+    env['CRAFT_CATALOGUE_ALLOW_FILE'] = '1'
 def plugin(*args, app='effectcraft', **kw): return run('plugin','--app',app,*args,**kw)
 def author(path):
     for cmd in ['build','check','test']:
@@ -88,7 +102,7 @@ license = "MIT"
 source = "https://github.com/e2e/native"
 apps = ["effectcraft"]
 [native]
-executables = { "linux-x86_64" = "helper" }
+executables = { "'''+host_platform+'''" = "helper" }
 [[contribution]]
 id = "smoke"
 kind = "command"
@@ -105,7 +119,7 @@ def publish():
     for row in index['packages']:
         row['stars']={'halftone':111,'color-notes':80,'film-looks':50,'native':3,'kill-test':5}.get(row['id'].split('.')[-1],0)
     indexpath.write_text(json.dumps(index))
-    run('catalogue','sign','--repo',cat,'--key',pathlib.Path.home()/'.config/craft/catalogue.key')
+    run('catalogue','sign','--repo',cat,'--key',key_file)
 # Start with the kill fixture enabled, then publish its disable record.
 rev=assets/'revocations.toml'
 if rev.exists(): rev.unlink()
@@ -192,10 +206,11 @@ assert notes not in plugin('list')['packages']
 refs.write_text(json.dumps([{'id':notes,'version':'1.0.0','source':'catalogue'}, {'id':half,'version':'1.0.0','source':'catalogue','contributions':['missing-contribution']}]))
 statuses=plugin('project',refs)
 assert 'downloadable' in json.dumps(statuses) and 'needs-other-version' in json.dumps(statuses),statuses
-(root/'target/e2e-native-path').write_text(str(next((work/'store').rglob('helper'))))
+(root/'target').mkdir(exist_ok=True); (root/'target/e2e-native-path').write_text(str(next((work/'store').rglob('helper'))))
 print('PASS author + signed local catalogue + three-app manager flows; fixtures:',cat,'work:',work)
 PY
 export CRAFT_E2E_NATIVE_EXE="$(cat target/e2e-native-path)"
-flock "${CRAFT_CARGO_LOCK:-$PWD/../.cargo.lock}" env CARGO_BUILD_JOBS=4 cargo test -p craft-ext-core -p craft-ext-host -p craft-ext-store -p craft-ext-cli -p craft-guest
-flock "${CRAFT_CARGO_LOCK:-$PWD/../.cargo.lock}" env CARGO_BUILD_JOBS=4 CRAFT_CATALOGUE_ALLOW_FILE=1 cargo test -p craft-ext-store --features net local_asset_policy_size_and_digest
+[ "${CRAFT_E2E_SKIP_CARGO:-}" = 1 ] && exit 0
+lock "${CRAFT_CARGO_LOCK:-$PWD/../.cargo.lock}" env CARGO_BUILD_JOBS=4 cargo test -p craft-ext-core -p craft-ext-host -p craft-ext-store -p craft-ext-cli -p craft-guest
+lock env CARGO_BUILD_JOBS=4 CRAFT_CATALOGUE_ALLOW_FILE=1 cargo test -p craft-ext-store --features net local_asset_policy_size_and_digest
 printf '%s\n' 'E2E PASS'

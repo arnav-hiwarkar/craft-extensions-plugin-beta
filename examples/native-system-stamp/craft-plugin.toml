@@ -7,7 +7,7 @@ source = "https://github.com/arnav-hiwarkar/craft-extensions-plugin-beta"
 summary = "Stamp the local operating system into a document"
 apps = ['effectcraft', 'figcraft']
 [native]
-executables = { "linux-x86_64" = "bin/helper" }
+executables = { "linux-x86_64" = "bin/helper-linux-x86_64", "macos-aarch64" = "bin/helper-macos-aarch64" }
 [[contribution]]
 id = "effectcraft-panel"
 kind = "panel"
