@@ -1,20 +1,26 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
-exec 9>"${CRAFT_CARGO_LOCK:-$PWD/../.cargo.lock}"
-flock 9
+export CRAFT_CARGO_LOCK="${CRAFT_CARGO_LOCK:-$PWD/../.cargo.lock}"
 export CARGO_BUILD_JOBS=4
 export CARGO_TARGET_DIR="$PWD/target"
-cargo build -p craft-ext-cli
+flock "${CRAFT_CARGO_LOCK:-$PWD/../.cargo.lock}" env CARGO_BUILD_JOBS=4 cargo build -p craft-ext-cli
 python3 - <<'PY'
-import json, os, pathlib, shutil, subprocess, tempfile
+import json, os, pathlib, shlex, shutil, subprocess, tempfile
 root = pathlib.Path.cwd()
 cli = root / 'target/debug/craft-ext'
 work = pathlib.Path(tempfile.mkdtemp(prefix='craft-beta-e2e-'))
+# Author builds inherit this wrapper too. Debug opt-level 3 keeps Wasm within fuel limits.
+wrapper = work/'bin'; wrapper.mkdir()
+cargo_bin = shutil.which('cargo')
+(wrapper/'cargo').write_text('#!/bin/sh\nexec flock '+shlex.quote(os.environ['CRAFT_CARGO_LOCK'])+' env CARGO_BUILD_JOBS=4 '+shlex.quote(cargo_bin)+' "$@"\n')
+(wrapper/'cargo').chmod(0o755)
 cat = root.parent / 'test-catalogue'
 assets = cat / 'assets'
 assets.mkdir(parents=True, exist_ok=True)
 env = dict(os.environ, CRAFT_EXT_DIR=str(work/'store'), CRAFT_CATALOGUE_URL=cat.as_uri()+'/', CRAFT_GUEST_PATH=str(root/'crates/guest'), CARGO_TARGET_DIR=str(root/'target/e2e-wasm'))
+env['PATH'] = str(wrapper)+os.pathsep+env['PATH']
+env['CARGO_PROFILE_DEV_OPT_LEVEL'] = '3'
 env.pop('CRAFT_CATALOGUE_ALLOW_FILE', None)
 env.pop('CRAFT_TEMPLATES', None)
 def run(*args, fail=None, code=None):
@@ -29,9 +35,8 @@ def run(*args, fail=None, code=None):
 def plugin(*args, app='effectcraft', **kw): return run('plugin','--app',app,*args,**kw)
 def author(path):
     for cmd in ['build','check','test']:
-        # Catalogue packages ship release modules: debug (even opt-level 1) halftone exceeds the
-        # per-pixel fuel budget at ordinary frame sizes and every render fails as too slow.
-        result = run(cmd,path,*(['--release'] if cmd == 'build' else []))
+        # Optimized debug Wasm keeps the test inside the production fuel budget.
+        result = run(cmd,path)
         if cmd == 'test' and path.name == 'halftone':
             assert result and all(r['deterministic'] for r in result), result
     return run('pack',path,'--describe','--out',work/(path.name+'.craftplugin'))['file']
@@ -113,10 +118,16 @@ for app in ['effectcraft','photocraft','figcraft']:
     plugin('info',half,app=app)
     versions=plugin('versions',half,app=app)
     assert 'incompatible' in json.dumps(versions).lower() and '2.0' in json.dumps(versions),versions
-    plugin('install',half,'--version','=2.0.0',app=app,fail='no listed version works')
+    plugin('install',half,'--version','=2.0.0',app=app,fail='no compatible')
     if app=='figcraft':
-        plugin('install',half,app=app,fail='does not offer raster.filter')
+        plugin('install',half,app=app,fail='no compatible')
         continue
+    result=plugin('install',film,'--version','=1.0.0',app=app)
+    assert [half,'1.0.0'] in result['dependencies'], result
+    assert half in plugin('list',app=app)['packages']
+    assert not plugin('list',app=app)['apps'].get(app,{}).get(half,{}).get('enabled',[])
+    plugin('remove',half,app=app,fail='required by')
+    plugin('install',film,'--no-deps',app=app,fail=half)
     plugin('install',half,app=app)
     plugin('setup',half,'--enable','halftone',app=app)
     assert plugin('list',app=app)['apps'][app][half]['active']=='1.0.0'
@@ -185,6 +196,6 @@ assert 'downloadable' in json.dumps(statuses) and 'needs-other-version' in json.
 print('PASS author + signed local catalogue + three-app manager flows; fixtures:',cat,'work:',work)
 PY
 export CRAFT_E2E_NATIVE_EXE="$(cat target/e2e-native-path)"
-cargo test -p craft-ext-core -p craft-ext-host -p craft-ext-store -p craft-ext-cli -p craft-guest
-CRAFT_CATALOGUE_ALLOW_FILE=1 cargo test -p craft-ext-store --features net local_asset_policy_size_and_digest
+flock "${CRAFT_CARGO_LOCK:-$PWD/../.cargo.lock}" env CARGO_BUILD_JOBS=4 cargo test -p craft-ext-core -p craft-ext-host -p craft-ext-store -p craft-ext-cli -p craft-guest
+flock "${CRAFT_CARGO_LOCK:-$PWD/../.cargo.lock}" env CARGO_BUILD_JOBS=4 CRAFT_CATALOGUE_ALLOW_FILE=1 cargo test -p craft-ext-store --features net local_asset_policy_size_and_digest
 printf '%s\n' 'E2E PASS'

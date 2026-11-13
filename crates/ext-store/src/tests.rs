@@ -92,7 +92,15 @@ fn catalogue_publication_rejects_rollback_without_changing_state() {
     let t = tempfile::tempdir().unwrap();
     let s = Store::at(t.path());
     let (_, id) = ids();
-    let rev = Revocation { id: Some(id), versions: None, sha256: None, vendor: None, severity: Severity::BlockNew, reason: "withdrawn".into(), date: "2026-11-12".into() };
+    let rev = Revocation {
+        id: Some(id),
+        versions: None,
+        sha256: None,
+        vendor: None,
+        severity: Severity::BlockNew,
+        reason: "withdrawn".into(),
+        date: "2026-11-12".into(),
+    };
     s.publish_catalogue(10, 100, vec![rev]).unwrap();
     assert!(s.publish_catalogue(9, 200, vec![]).is_err());
     let state = s.state().unwrap();
@@ -122,7 +130,8 @@ fn local_versions_and_origin_consent() {
 }
 
 fn native_package(version: &str) -> Vec<u8> {
-    let text = format!(r#"schema=2
+    let text = format!(
+        r#"schema=2
 id="org.example.test"
 name="Test"
 version="{version}"
@@ -137,7 +146,8 @@ id="run"
 kind="command"
 contract="app.session@1.0"
 label="Run"
-"#);
+"#
+    );
     zip_of(&[("craft-plugin.toml", text.as_bytes()), ("helper", b"helper")])
 }
 
@@ -163,20 +173,33 @@ fn native_updates_need_fresh_acceptance_and_enable_checks_context() {
 
 #[test]
 fn project_digest_mismatch_requires_other_version() {
-    use craft_ext_core::{contract::Provided, project::{PluginRef, Source, Status}};
+    use craft_ext_core::{
+        contract::Provided,
+        project::{PluginRef, Source, Status},
+    };
     let t = tempfile::tempdir().unwrap();
     let s = Store::at(t.path());
     let (app, id) = ids();
     let i = install(&s, "1.0.0", "");
     let m = crate::manager::Manager::new(s, Some(app), Provided::default(), "linux-x86_64".into());
-    let refs = [PluginRef { id, version: i.version, sha256: Some("0".repeat(64)), source: Source::Local, name: "Test".into(), contributions: vec![], state_versions: None }];
+    let refs = [PluginRef {
+        id,
+        version: i.version,
+        sha256: Some("0".repeat(64)),
+        source: Source::Local,
+        name: "Test".into(),
+        contributions: vec![],
+        state_versions: None,
+    }];
     assert!(matches!(m.check_project(&refs).unwrap()[0].1, Status::NeedsOtherVersion { .. }));
 }
 
 #[test]
 fn committed_catalogue_uses_trusted_beta_key() {
     let dist = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../craft-plugins/dist");
-    if !dist.join("index.json").exists() { return; }
+    if !dist.join("index.json").exists() {
+        return;
+    }
     let bytes = std::fs::read(dist.join("index.json")).unwrap();
     let sig = std::fs::read_to_string(dist.join("index.json.sig")).unwrap();
     assert!(verify_index(&bytes, &sig, craft_ext_core::catalogue::TRUSTED_KEYS));
@@ -184,14 +207,25 @@ fn committed_catalogue_uses_trusted_beta_key() {
 
 #[test]
 fn project_requires_each_contribution_and_saved_state_version() {
-    use craft_ext_core::{contract::Provided, project::{PluginRef, Source, Status}};
+    use craft_ext_core::{
+        contract::Provided,
+        project::{PluginRef, Source, Status},
+    };
     let t = tempfile::tempdir().unwrap();
     let s = Store::at(t.path());
     let (app, id) = ids();
     let i = install(&s, "1.0.0", "");
     s.set_active(&app, &id, i.version).unwrap();
-    let m = crate::Manager::new(s, Some(app.clone()), Provided::new(&[("app.session",1,0)]), "linux-x86_64".into());
-    let mut r = PluginRef { id: id.clone(), version: i.version, sha256: None, source: Source::Local, name: "Test".into(), contributions: vec!["run".into()], state_versions: None };
+    let m = crate::Manager::new(s, Some(app.clone()), Provided::new(&[("app.session", 1, 0)]), "linux-x86_64".into());
+    let mut r = PluginRef {
+        id: id.clone(),
+        version: i.version,
+        sha256: None,
+        source: Source::Local,
+        name: "Test".into(),
+        contributions: vec!["run".into()],
+        state_versions: None,
+    };
     assert!(matches!(m.check_project(&[r.clone()]).unwrap()[0].1, Status::NeedsEnable { .. }));
     m.store.set_enabled(&app, &id, "run", true).unwrap();
     assert!(matches!(m.check_project(&[r.clone()]).unwrap()[0].1, Status::Ready { .. }));
@@ -235,4 +269,66 @@ fn local_digest_change_does_not_inherit_grants() {
     let state = s.state().unwrap();
     assert!(state.apps[&app][&id].grants.is_empty());
     assert!(!state.apps[&app][&id].full_access);
+}
+
+#[test]
+fn resource_reference_follows_active_release_and_dependents_guard_removal() {
+    use craft_ext_core::{contract::Provided, manifest::MANIFEST_NAME};
+    let t = tempfile::tempdir().unwrap();
+    let store = Store::at(t.path());
+    let (app, id) = ids();
+    let reference = format!("plugin://{id}/look/luts/look.cube");
+    for (version, data) in [("1.0.0", b"first".as_slice()), ("1.1.0", b"second".as_slice())] {
+        let manifest = format!(
+            r#"schema = 2
+id = "{id}"
+name = "Look"
+version = "{version}"
+license = "MIT"
+source = "https://github.com/example/test"
+summary = "Look fixture"
+apps = ["photocraft"]
+[[contribution]]
+id = "look"
+kind = "lut"
+contract = "resource.lut@1.0"
+label = "Look"
+files = ["luts/look.cube"]
+"#
+        );
+        let bytes = zip_of(&[(MANIFEST_NAME, manifest.as_bytes()), ("luts/look.cube", data)]);
+        let installed = store.install_bytes(&bytes, Tier::Local, Origin::Local { sha256: digest(&bytes) }).unwrap();
+        store.set_active(&app, &id, installed.version).unwrap();
+        store.set_enabled(&app, &id, "look", true).unwrap();
+    }
+    let manager = crate::Manager::new(store, Some(app.clone()), Provided::new(&[("resource.lut", 1, 0)]), "linux-x86_64".into());
+    assert_eq!(std::fs::read(manager.resolve_resource(&reference).unwrap()).unwrap(), b"second");
+    manager.rollback(&id, Version::new(1, 0, 0)).unwrap();
+    assert_eq!(std::fs::read(manager.resolve_resource(&reference).unwrap()).unwrap(), b"first");
+    assert!(manager.resolve_resource(&format!("plugin://{id}/look/../craft-plugin.toml")).is_err());
+    manager.disable(&id, "look").unwrap();
+    assert!(manager.resolve_resource(&reference).unwrap_err().to_string().contains(&format!("needs plugin {id}")));
+    let manifest = format!(
+        r#"schema = 2
+id = "org.example.dependent"
+name = "Dependent"
+version = "1.0.0"
+license = "MIT"
+source = "https://github.com/example/dependent"
+summary = "Dependent fixture"
+apps = ["photocraft"]
+[requires]
+"{id}" = "^1.0"
+[[contribution]]
+id = "look"
+kind = "lut"
+contract = "resource.lut@1.0"
+label = "Look"
+files = ["look.cube"]
+"#
+    );
+    let bytes = zip_of(&[(MANIFEST_NAME, manifest.as_bytes()), ("look.cube", b"look")]);
+    manager.store.install_bytes(&bytes, Tier::Local, Origin::Local { sha256: digest(&bytes) }).unwrap();
+    assert!(manager.remove(&id).unwrap_err().to_string().contains("org.example.dependent"));
+    manager.remove_force(&id, true).unwrap();
 }

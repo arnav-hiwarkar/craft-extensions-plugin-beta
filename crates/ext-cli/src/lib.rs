@@ -60,7 +60,7 @@ impl Args {
         if self.pos.len() == n { Ok(()) } else { Err(Usage("wrong number of arguments; use --help".into()).into()) }
     }
 }
-const HELP: &str = "plugin search <q> [--kind k]\nplugin info|versions|permissions|report <id>\nplugin list|updates|refresh\nplugin install <id> [--version req]\nplugin install-file <path>\nplugin setup <id> [--enable c1,c2|--all] [--grant permission] [--full-access]\nplugin enable|disable <id> <contribution>\nplugin grant|revoke <id> <permission>\nplugin update <id>|--all\nplugin rollback <id> <version>\nplugin pin <id> <req>\nplugin unpin|remove <id>\nplugin project <references.json> (apps: plugin project <project-file> extracts references)\nAll commands accept --json and --help. Install never enables; setup grants only named permissions.";
+const HELP: &str = "plugin search <q> [--kind k]\nplugin info|versions|permissions|report <id>\nplugin list|updates|refresh\nplugin install <id> [--version req] [--with-deps|--no-deps]\nplugin install-file <path>\nplugin setup <id> [--enable c1,c2|--all] [--grant permission] [--full-access]\nplugin enable|disable <id> <contribution>\nplugin grant|revoke <id> <permission>\nplugin update <id>|--all\nplugin rollback <id> <version>\nplugin pin <id> <req>\nplugin unpin <id>\nplugin remove <id> [--force]\nplugin project <references.json> (apps: plugin project <project-file> extracts references)\nAll commands accept --json and --help. Install never enables; setup grants only named permissions.";
 pub fn emit(out: &mut dyn Write, v: &Value, json: bool) -> std::io::Result<()> {
     if json {
         writeln!(out, "{}", serde_json::to_string(v)?)
@@ -138,18 +138,23 @@ fn enable(m: &Manager, id: &ExtensionId, c: &str) -> Result<()> {
 fn sheet(manifest: &Manifest) -> Value {
     // One row per permission even when several contributions declare it; optional omits required.
     let required: std::collections::BTreeSet<&Permission> = manifest.contributions.iter().flat_map(|c| &c.permissions).collect();
-    let optional: std::collections::BTreeSet<&Permission> = manifest.contributions.iter().flat_map(|c| &c.optional_permissions).filter(|p| !required.contains(p)).collect();
+    let optional: std::collections::BTreeSet<&Permission> =
+        manifest.contributions.iter().flat_map(|c| &c.optional_permissions).filter(|p| !required.contains(p)).collect();
     json!({"required":required.iter().map(|p|json!({"permission":p,"sentence":p.sentence(),"why":manifest.why.get(&p.to_string())})).collect::<Vec<_>>(),"optional":optional.iter().map(|p|json!({"permission":p,"sentence":p.sentence(),"why":manifest.why.get(&p.to_string())})).collect::<Vec<_>>(),"warnings":craft_ext_core::permission::warnings(&manifest.contributions.iter().flat_map(|c|c.permissions.iter().chain(&c.optional_permissions)).cloned().collect::<Vec<_>>()),"native":if manifest.is_native(){Some("Native: full access to your computer")}else{None}})
 }
 fn plugin(m: &Manager, args: &[String]) -> Result<Value> {
-    let a = Args::parse(args, &["kind", "version", "enable", "grant"], &["all", "full-access"])?;
+    let a = Args::parse(args, &["kind", "version", "enable", "grant"], &["all", "full-access", "with-deps", "no-deps", "force"])?;
     if a.pos.is_empty() || a.has("help") || a.pos[0] == "help" {
         return Ok(json!(HELP));
     }
     let cmd = a.at(0)?;
+    if a.has("with-deps") && a.has("no-deps") {
+        return Err(Usage("choose --with-deps or --no-deps".into()).into());
+    }
     let allowed: &[&str] = match cmd {
         "search" => &["kind"],
-        "install" => &["version"],
+        "install" => &["version", "with-deps", "no-deps"],
+        "remove" => &["force"],
         "setup" => &["enable", "all", "grant", "full-access"],
         "update" => &["all"],
         _ => &[],
@@ -195,8 +200,8 @@ fn plugin(m: &Manager, args: &[String]) -> Result<Value> {
         }
         "install-file" => {
             a.arity(2)?;
-            let (i, c, _) = m.install_file(Path::new(a.at(1)?))?;
-            return Ok(json!({"id":i.id,"compatibility":c,"permissions":sheet(&i.manifest)}));
+            let (i, c, _, dependencies) = m.install_file(Path::new(a.at(1)?))?;
+            return Ok(json!({"id":i.id,"dependencies":dependencies,"compatibility":c,"permissions":sheet(&i.manifest)}));
         }
         "project" => {
             a.arity(2)?;
@@ -211,7 +216,7 @@ fn plugin(m: &Manager, args: &[String]) -> Result<Value> {
             let (updates, problems) = m.update_check()?;
             rows.extend(problems.into_iter().map(|(id, reason)| json!({"id":id,"error":reason})));
             for (id, _, _, _) in updates {
-                let (i, _, _) = m.update(&id)?;
+                let (i, _, _, _) = m.update(&id)?;
                 rows.push(json!({"id":id,"permissions":sheet(&i.manifest),"pending":m.store.state()?.apps.get(m.app.as_ref().ok_or("choose an app")?).and_then(|s|s.get(&id)).and_then(|s|s.pending)}));
             }
             return Ok(json!(rows));
@@ -254,13 +259,13 @@ fn plugin(m: &Manager, args: &[String]) -> Result<Value> {
         }
         "install" | "update" => {
             a.arity(2)?;
-            let (i, c, _) = if cmd == "update" {
+            let (i, c, _, dependencies) = if cmd == "update" {
                 m.update(&id)?
             } else {
-                m.install(&id, a.opt("version").map(VersionReq::parse).transpose().map_err(|e| Usage(e.to_string()))?)?
+                m.install_with_deps(&id, a.opt("version").map(VersionReq::parse).transpose().map_err(|e| Usage(e.to_string()))?, !a.has("no-deps"))?
             };
             Ok(
-                json!({"id":id,"compatibility":c,"permissions":sheet(&i.manifest),"message":"New permissions remain pending until explicitly granted and setup accepted"}),
+                json!({"id":id,"dependencies":dependencies,"compatibility":c,"permissions":sheet(&i.manifest),"message":"New permissions remain pending until explicitly granted and setup accepted"}),
             )
         }
         "permissions" => {
@@ -347,7 +352,7 @@ fn plugin(m: &Manager, args: &[String]) -> Result<Value> {
         }
         "remove" => {
             a.arity(2)?;
-            m.remove(&id)?;
+            m.remove_force(&id, a.has("force"))?;
             Ok(json!("Plugin removed"))
         }
         "report" => {

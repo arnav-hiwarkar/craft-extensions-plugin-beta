@@ -25,6 +25,7 @@ enum Done {
     Versions(ExtensionId, Vec<(Version, craft_ext_core::manifest::Compat)>),
     Updates((Vec<Update>, Vec<(ExtensionId, String)>)),
     Refreshed,
+    Planned(Arc<Manager>, ExtensionId, Option<Version>, Vec<String>),
 }
 /// One outstanding job. Cancelling discards its result; an in-flight download may finish staging,
 /// but it can never activate or grant access.
@@ -192,6 +193,7 @@ pub struct ManagerView {
     jobs: Jobs,
     error: Option<String>,
     setup: Option<Setup>,
+    planned: Option<(Arc<Manager>, ExtensionId, Option<Version>, Vec<String>)>,
     versions: BTreeMap<ExtensionId, Vec<(Version, craft_ext_core::manifest::Compat)>>,
     selected: BTreeMap<ExtensionId, Version>,
     apps: BTreeMap<ExtensionId, AppId>,
@@ -218,7 +220,12 @@ impl ManagerView {
     fn install(&mut self, mgr: Arc<Manager>, id: ExtensionId, v: Option<Version>) {
         self.jobs.start(move || {
             let req = v.map(|v| VersionReq::parse(&format!("={v}"))).transpose().map_err(|e| e.to_string())?;
-            mgr.install(&id, req).map(|r| Done::Installed(mgr, Box::new(r))).map_err(|e| e.to_string())
+            mgr.install_plan(&id, req)
+                .map(|plan| {
+                    let deps = plan.iter().filter(|r| r.manifest.id != id).map(|r| format!("{} {}", r.manifest.id, r.version)).collect();
+                    Done::Planned(mgr, id, v, deps)
+                })
+                .map_err(|e| e.to_string())
         });
     }
     fn app_manager(&mut self, ui: &mut egui::Ui, mgr: &Arc<Manager>, m: &Manifest) -> Option<Arc<Manager>> {
@@ -241,9 +248,27 @@ impl ManagerView {
                 Ok(Done::Versions(id, v)) => {
                     self.versions.insert(id, v);
                 }
-                Ok(Done::Updates((v, problems))) => { self.updates = v; self.problems = problems; },
+                Ok(Done::Updates((v, problems))) => {
+                    self.updates = v;
+                    self.problems = problems;
+                }
                 Ok(Done::Refreshed) => {}
+                Ok(Done::Planned(m, id, v, deps)) => self.planned = Some((m, id, v, deps)),
                 Err(e) => self.error = Some(e),
+            }
+        }
+        if let Some((m, id, v, deps)) = self.planned.clone() {
+            ui.label(format!("Install {id}?"));
+            ui.label(format!("Also installs: {}", if deps.is_empty() { "none".into() } else { deps.join(", ") }));
+            if ui.button("Confirm install").clicked() {
+                self.planned = None;
+                self.jobs.start(move || {
+                    let req = v.map(|v| VersionReq::parse(&format!("={v}"))).transpose().map_err(|e| e.to_string())?;
+                    m.install(&id, req).map(|r| Done::Installed(m, Box::new(r))).map_err(|e| e.to_string())
+                });
+            }
+            if ui.button("Cancel install").clicked() {
+                self.planned = None;
             }
         }
         ui.horizontal(|ui| {

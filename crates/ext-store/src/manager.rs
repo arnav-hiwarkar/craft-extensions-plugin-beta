@@ -30,7 +30,7 @@ pub struct PermissionSheet {
     pub why: std::collections::BTreeMap<String, String>,
     pub native: bool,
 }
-pub type InstallResult = (Installed, Compat, PermissionSheet);
+pub type InstallResult = (Installed, Compat, PermissionSheet, Vec<(ExtensionId, Version)>);
 pub type Update = (ExtensionId, Version, Version, bool);
 impl Manager {
     pub fn new(store: Store, app: Option<AppId>, provided: Provided, platform: String) -> Self {
@@ -50,6 +50,37 @@ impl Manager {
     }
     fn app(&self) -> Result<&AppId> {
         self.app.as_ref().ok_or_else(|| error("choose an app for this operation"))
+    }
+    /// Resolve only declared resources in the app's enabled, active release.
+    pub fn resolve_resource(&self, reference: &str) -> Result<std::path::PathBuf> {
+        let rest = reference.strip_prefix("plugin://").ok_or_else(|| error("invalid plugin reference"))?;
+        let mut parts = rest.splitn(3, '/');
+        let id = ExtensionId::new(parts.next().unwrap_or_default()).map_err(error)?;
+        let contribution = parts.next().ok_or_else(|| error("missing contribution"))?;
+        let file = parts.next().ok_or_else(|| error("missing resource file"))?;
+        let missing = || error(format!("needs plugin {id}: install and enable {contribution}"));
+        let state = self.store.state()?;
+        let setup = state.apps.get(self.app()?).and_then(|a| a.get(&id)).ok_or_else(missing)?;
+        let version = setup.active.ok_or_else(missing)?;
+        let record = state.packages.get(&id).and_then(|p| p.releases.get(&version)).ok_or_else(missing)?;
+        if !setup.enabled.contains(contribution) || state.blocked(&id, version, &record.sha256, catalogue::Severity::Disable) {
+            return Err(missing());
+        }
+        let manifest = self.store.manifest(&state, &id, version)?;
+        let c = manifest.contribution(contribution).ok_or_else(missing)?;
+        if !self.compat(&manifest).usable()
+            || c.contract.check(&self.provided).is_some()
+            || !manifest.contributions_for(self.app()?).any(|entry| entry.id == c.id)
+            || !c.files.iter().any(|f| f == file)
+        {
+            return Err(missing());
+        }
+        let root = self.store.release_dir(&id, version, &record.sha256).canonicalize().map_err(error)?;
+        let path = root.join(file).canonicalize().map_err(|_| missing())?;
+        if !path.starts_with(root) || !path.is_file() {
+            return Err(error("resource is outside its package"));
+        }
+        Ok(path)
     }
     pub fn search(&self, query: &str) -> Result<Vec<PackageSummary>> {
         let i = self.index()?;
@@ -125,53 +156,127 @@ impl Manager {
         }
         Ok(versions.into_iter().rev().collect())
     }
+    /// Resolve the complete graph before downloading or changing the store.
     #[cfg(feature = "net")]
-    pub fn install(&self, id: &ExtensionId, req: Option<VersionReq>) -> Result<InstallResult> {
-        let s = self.store.state()?;
-        let b = serde_json::to_vec(&self.index()?).map_err(error)?;
-        let index = Index::parse(&b, crate::store::now(), s.catalogue_serial).map_err(error)?;
+    pub fn install_plan(&self, id: &ExtensionId, req: Option<VersionReq>) -> Result<Vec<craft_ext_core::catalogue::Release>> {
+        let state = self.store.state()?;
+        let index = self.index()?;
+        let bytes = serde_json::to_vec(&index).map_err(error)?;
+        Index::parse(&bytes, crate::store::now(), state.catalogue_serial).map_err(error)?;
         if crate::store::now() < index.issued {
             return Err(error("the clock is earlier than the catalogue"));
         }
-        let row = index.package(id).ok_or_else(|| error("this plugin is not listed"))?;
-        let p = Catalogue::package_file(&self.catalogue_base, row)?;
-        let pin = self.app.as_ref().and_then(|a| s.apps.get(a)).and_then(|a| a.get(id)).and_then(|a| a.pin);
-        let candidates = p.releases.into_iter().filter(|r| r.asset_for(&self.platform).is_some()).collect::<Vec<_>>();
-        let release = if let Some(app) = &self.app {
-            match catalogue::resolve(&candidates, app, &self.provided, req.or(pin).unwrap_or(VersionReq::Any), |r| {
-                r.asset_for(&self.platform).and_then(|a| index.revocation(id, r.version, &a.sha256)).map(|r| r.severity)
-            }) {
-                catalogue::Resolution::Use(r, _) => r,
-                catalogue::Resolution::None(why) => {
-                    let detail: Vec<String> = why.iter().take(5).map(|(v, r)| format!("{v}: {}", r.join("; "))).collect();
-                    return Err(error(if detail.is_empty() {
-                        "no release matches this app, platform and pin".to_string()
-                    } else {
-                        format!("no listed version works in this app — {}", detail.join(" | "))
-                    }));
+        let mut selected = std::collections::BTreeMap::new();
+        let mut visiting = std::collections::BTreeSet::new();
+        let mut ordered = Vec::new();
+        self.resolve_dependency(id, req.unwrap_or(VersionReq::Any), &index, &mut selected, &mut visiting, &mut ordered)?;
+        // Retained packages must continue to have satisfiable requirements too.
+        for (other, package) in &state.packages {
+            if selected.contains_key(other) {
+                continue;
+            }
+            for version in package.releases.keys() {
+                let manifest = self.store.manifest(&state, other, *version)?;
+                for (dep, requirement) in manifest.requires {
+                    if selected.get(&dep).is_some_and(|v| !requirement.matches(*v)) {
+                        return Err(error(format!("conflicting requirements: {other} needs {dep} {requirement}")));
+                    }
                 }
             }
-        } else {
-            candidates
-                .iter()
-                .filter(|r| req.unwrap_or(VersionReq::Any).matches(r.version))
-                .max_by_key(|r| r.version)
-                .ok_or_else(|| error("no matching release"))?
-        };
-        let asset = release.asset_for(&self.platform).ok_or_else(|| error("no release for this platform"))?;
-        let bytes = Catalogue::download_release_from(asset, 300 * 1024 * 1024, &self.catalogue_base)?;
-        let stage = temp_validation(&bytes)?;
-        if stage != release.manifest {
-            return Err(error("the archive manifest differs from the catalogue"));
         }
-        let installed =
-            self.store.install_bytes(&bytes, index.tier_of(id), Origin::Catalogue { vendor: row.vendor.clone(), repo: row.repo.clone() })?;
-        if installed.manifest != release.manifest {
-            return Err(error("the archive manifest differs from the catalogue"));
+        Ok(ordered)
+    }
+    #[cfg(not(feature = "net"))]
+    pub fn install_plan(&self, _id: &ExtensionId, _req: Option<VersionReq>) -> Result<Vec<craft_ext_core::catalogue::Release>> {
+        Err(error("network support is disabled; enable the net feature"))
+    }
+    #[cfg(feature = "net")]
+    fn resolve_dependency(
+        &self,
+        id: &ExtensionId,
+        req: VersionReq,
+        index: &Index,
+        selected: &mut std::collections::BTreeMap<ExtensionId, Version>,
+        visiting: &mut std::collections::BTreeSet<ExtensionId>,
+        ordered: &mut Vec<craft_ext_core::catalogue::Release>,
+    ) -> Result<()> {
+        if visiting.contains(id) {
+            return Err(error(format!("dependency cycle involving {id}")));
         }
-        let compat = self.compat(&installed.manifest);
-        let sheet = self.sheet(&installed.manifest);
-        Ok((installed, compat, sheet))
+        if let Some(version) = selected.get(id) {
+            if !req.matches(*version) {
+                return Err(error(format!("conflicting requirements for {id}: selected {version}, needs {req}")));
+            }
+            return Ok(());
+        }
+        if visiting.len() >= 128 || selected.len() >= 1024 {
+            return Err(error("dependency graph is too large"));
+        }
+        let state = self.store.state()?;
+        let pin = self.app.as_ref().and_then(|a| state.apps.get(a)).and_then(|a| a.get(id)).and_then(|a| a.pin);
+        let package =
+            Catalogue::package_file(&self.catalogue_base, index.package(id).ok_or_else(|| error(format!("required plugin {id} is not listed")))?)?;
+        let release = package
+            .releases
+            .into_iter()
+            .filter(|r| {
+                req.matches(r.version)
+                    && pin.is_none_or(|p| p.matches(r.version))
+                    && self.compat(&r.manifest).usable()
+                    && r.asset_for(&self.platform).is_some_and(|a| index.revocation(id, r.version, &a.sha256).is_none())
+            })
+            .max_by_key(|r| r.version)
+            .ok_or_else(|| error(format!("no compatible, non-revoked release for {id} {req}; conflicting requirements or pin")))?;
+        visiting.insert(id.clone());
+        selected.insert(id.clone(), release.version);
+        for (dep, requirement) in &release.manifest.requires {
+            self.resolve_dependency(dep, *requirement, index, selected, visiting, ordered)?;
+        }
+        visiting.remove(id);
+        ordered.push(release);
+        Ok(())
+    }
+    #[cfg(feature = "net")]
+    pub fn install(&self, id: &ExtensionId, req: Option<VersionReq>) -> Result<InstallResult> {
+        self.install_with_deps(id, req, true)
+    }
+    #[cfg(feature = "net")]
+    pub fn install_with_deps(&self, id: &ExtensionId, req: Option<VersionReq>, with_deps: bool) -> Result<InstallResult> {
+        let plan = self.install_plan(id, req)?;
+        let dependencies = plan.iter().filter(|r| &r.manifest.id != id).map(|r| (r.manifest.id.clone(), r.version)).collect::<Vec<_>>();
+        if !with_deps && !dependencies.is_empty() {
+            return Err(error(format!(
+                "required packages: {}",
+                dependencies.iter().map(|(id, v)| format!("{id} {v}")).collect::<Vec<_>>().join(", ")
+            )));
+        }
+        let index = self.index()?;
+        let mut archives = Vec::new();
+        for release in plan {
+            let asset = release.asset_for(&self.platform).ok_or_else(|| error("no release for this platform"))?;
+            let bytes = Catalogue::download_release_from(asset, 300 * 1024 * 1024, &self.catalogue_base)?;
+            if temp_validation(&bytes)? != release.manifest {
+                return Err(error("the archive manifest differs from the catalogue"));
+            }
+            archives.push((release, bytes));
+        }
+        let mut result = None;
+        for (release, bytes) in archives {
+            let dep = &release.manifest.id;
+            let row = index.package(dep).ok_or_else(|| error("this plugin is not listed"))?;
+            let installed =
+                self.store.install_bytes(&bytes, index.tier_of(dep), Origin::Catalogue { vendor: row.vendor.clone(), repo: row.repo.clone() })?;
+            if dep == id {
+                let compat = self.compat(&installed.manifest);
+                let sheet = self.sheet(&installed.manifest);
+                result = Some((installed, compat, sheet, dependencies.clone()));
+            }
+        }
+        result.ok_or_else(|| error("empty installation plan"))
+    }
+    #[cfg(not(feature = "net"))]
+    pub fn install_with_deps(&self, id: &ExtensionId, req: Option<VersionReq>, _with_deps: bool) -> Result<InstallResult> {
+        self.install(id, req)
     }
     #[cfg(not(feature = "net"))]
     pub fn install(&self, _id: &ExtensionId, _req: Option<VersionReq>) -> Result<InstallResult> {
@@ -182,7 +287,7 @@ impl Manager {
         let installed = self.store.install_bytes(&bytes, Tier::Local, Origin::Local { sha256: crate::store::digest(&bytes) })?;
         let c = self.compat(&installed.manifest);
         let sheet = self.sheet(&installed.manifest);
-        Ok((installed, c, sheet))
+        Ok((installed, c, sheet, vec![]))
     }
     pub fn update_check(&self) -> Result<(Vec<Update>, Vec<(ExtensionId, String)>)> {
         let s = self.store.state()?;
@@ -193,8 +298,16 @@ impl Manager {
         if let Some(setups) = s.apps.get(app) {
             for (id, a) in setups {
                 if let Some(v) = a.active {
-                    if index.package(id).is_none() || s.packages.get(id).is_some_and(|p| matches!(p.origin, Origin::Local { .. })) { continue; }
-                    let p = match self.package(id) { Ok(p) => p, Err(e) => { problems.push((id.clone(), e.to_string())); continue; } };
+                    if index.package(id).is_none() || s.packages.get(id).is_some_and(|p| matches!(p.origin, Origin::Local { .. })) {
+                        continue;
+                    }
+                    let p = match self.package(id) {
+                        Ok(p) => p,
+                        Err(e) => {
+                            problems.push((id.clone(), e.to_string()));
+                            continue;
+                        }
+                    };
                     let candidates = p.releases.into_iter().filter(|r| r.asset_for(&self.platform).is_some()).collect::<Vec<_>>();
                     if let catalogue::Resolution::Use(r, _) =
                         catalogue::resolve(&candidates, app, &self.provided, a.pin.unwrap_or(VersionReq::Any), |r| {
@@ -256,6 +369,32 @@ impl Manager {
         self.store.revoke(self.app()?, id, p)
     }
     pub fn remove(&self, id: &ExtensionId) -> Result<()> {
+        self.remove_force(id, false)
+    }
+    pub fn dependents(&self, id: &ExtensionId) -> Result<Vec<ExtensionId>> {
+        let state = self.store.state()?;
+        let mut result = Vec::new();
+        for (other, package) in &state.packages {
+            if other == id {
+                continue;
+            }
+            for version in package.releases.keys() {
+                if self.store.manifest(&state, other, *version)?.requires.contains_key(id) {
+                    result.push(other.clone());
+                    break;
+                }
+            }
+        }
+        Ok(result)
+    }
+    pub fn remove_force(&self, id: &ExtensionId, force: bool) -> Result<()> {
+        let dependents = self.dependents(id)?;
+        if !force && !dependents.is_empty() {
+            return Err(error(format!(
+                "{id} is required by {}; use --force to remove",
+                dependents.iter().map(ToString::to_string).collect::<Vec<_>>().join(", ")
+            )));
+        }
         self.store.uninstall(id)
     }
     #[cfg(feature = "net")]
@@ -281,13 +420,22 @@ impl Manager {
                         } else if s.blocked(&r.id, r.version, &rec.sha256, catalogue::Severity::Disable) {
                             project::Status::Unavailable { reason: "release withdrawn or digest differs".into() }
                         } else if let Some(reason) = self.store.manifest(&s, &r.id, r.version).ok().and_then(|m| {
-                            if !self.compat(&m).usable() { return Some("release is incompatible with this app".to_string()); }
+                            if !self.compat(&m).usable() {
+                                return Some("release is incompatible with this app".to_string());
+                            }
                             for id in r.contributions.iter().chain(r.state_versions.iter().flat_map(|v| v.keys())) {
-                                let Some(c) = m.contributions.iter().find(|c| &c.id == id) else { return Some(format!("contribution {id} is missing")); };
-                                if !self.app.as_ref().is_some_and(|app| m.contributions_for(app).any(|x| x.id == c.id)) || c.contract.check(&self.provided).is_some() || self.provided.unsupported.iter().any(|(kind, _)| *kind == c.kind) {
+                                let Some(c) = m.contributions.iter().find(|c| &c.id == id) else {
+                                    return Some(format!("contribution {id} is missing"));
+                                };
+                                if !self.app.as_ref().is_some_and(|app| m.contributions_for(app).any(|x| x.id == c.id))
+                                    || c.contract.check(&self.provided).is_some()
+                                    || self.provided.unsupported.iter().any(|(kind, _)| *kind == c.kind)
+                                {
                                     return Some(format!("contribution {id} is incompatible with this app"));
                                 }
-                                if r.state_versions.as_ref().and_then(|v| v.get(id)).is_some_and(|v| c.state_version < *v) { return Some(format!("contribution {id} cannot load the saved state version")); }
+                                if r.state_versions.as_ref().and_then(|v| v.get(id)).is_some_and(|v| c.state_version < *v) {
+                                    return Some(format!("contribution {id} cannot load the saved state version"));
+                                }
                             }
                             None
                         }) {
@@ -306,7 +454,10 @@ impl Manager {
                         {
                             project::Status::Ready { version: r.version }
                         } else {
-                            project::Status::NeedsEnable { version: r.version, reason: "required contributions are off or permissions are missing".into() }
+                            project::Status::NeedsEnable {
+                                version: r.version,
+                                reason: "required contributions are off or permissions are missing".into(),
+                            }
                         }
                     } else if let Some(v) = p.releases.keys().next_back() {
                         project::Status::NeedsOtherVersion { installed: *v, wanted: r.version, reason: "requested version is not installed".into() }
@@ -319,10 +470,19 @@ impl Manager {
                             None => project::Status::Unavailable { reason: "version not listed".into() },
                             Some(release) => match release.asset_for(&self.platform) {
                                 None => project::Status::Unavailable { reason: "wrong platform".into() },
-                                Some(a) if r.sha256.as_ref().is_some_and(|sha| sha != &a.sha256) => project::Status::Unavailable { reason: "digest not listed".into() },
-                                Some(a) if index.as_ref().and_then(|i| i.revocation(&r.id, r.version, &a.sha256)).is_some_and(|x| x.severity >= catalogue::Severity::BlockNew) => project::Status::Unavailable { reason: "release withdrawn".into() },
+                                Some(a) if r.sha256.as_ref().is_some_and(|sha| sha != &a.sha256) => {
+                                    project::Status::Unavailable { reason: "digest not listed".into() }
+                                }
+                                Some(a)
+                                    if index
+                                        .as_ref()
+                                        .and_then(|i| i.revocation(&r.id, r.version, &a.sha256))
+                                        .is_some_and(|x| x.severity >= catalogue::Severity::BlockNew) =>
+                                {
+                                    project::Status::Unavailable { reason: "release withdrawn".into() }
+                                }
                                 Some(_) => project::Status::Downloadable,
-                            }
+                            },
                         },
                         Err(e) => project::Status::Unavailable { reason: e.to_string() },
                     }
@@ -349,4 +509,98 @@ fn temp_validation(bytes: &[u8]) -> Result<Manifest> {
         .read_to_end(&mut b)
         .map_err(error)?;
     Manifest::parse(&b).map_err(error)
+}
+
+#[cfg(all(test, feature = "net"))]
+mod dependency_tests {
+    use super::*;
+    #[test]
+    fn plans_dependencies_and_refuses_conflicts_cycles_and_revocations() {
+        let temp = tempfile::tempdir().unwrap();
+        let film = ExtensionId::new("io.github.arnav-hiwarkar.film-looks").unwrap();
+        let half = ExtensionId::new("io.github.arnav-hiwarkar.halftone").unwrap();
+        std::fs::create_dir(temp.path().join("packages")).unwrap();
+        let mut packages = Vec::new();
+        let mut index = Index { schema: 1, serial: 1, issued: 0, expires: u64::MAX, vendors: vec![], packages: vec![], revocations: vec![] };
+        for text in [include_str!("../../../examples/film-looks/craft-plugin.toml"), include_str!("../../../examples/halftone/craft-plugin.toml")] {
+            let manifest = Manifest::parse(text.as_bytes()).unwrap();
+            let id = manifest.id.clone();
+            let release = craft_ext_core::catalogue::Release {
+                version: manifest.version,
+                tag: format!("v{}", manifest.version),
+                commit: "a".repeat(40),
+                published: "2026-11-13".into(),
+                assets: vec![craft_ext_core::catalogue::Asset {
+                    platform: None,
+                    url: format!(
+                        "https://github.com/arnav-hiwarkar/{}/releases/download/v{}/test.craftplugin",
+                        if id == film { "film-looks" } else { "halftone" },
+                        manifest.version
+                    ),
+                    sha256: "a".repeat(64),
+                    size: 1,
+                }],
+                manifest: manifest.clone(),
+            };
+            let repo = if id == film { "film-looks" } else { "halftone" };
+            packages.push(
+                serde_json::from_value::<PackageFile>(
+                    serde_json::json!({"schema":1,"id":id,"vendor":"arnav-hiwarkar","repo":repo,"releases":[release]}),
+                )
+                .unwrap(),
+            );
+            index.packages.push(serde_json::from_value(serde_json::json!({"id":id,"name":manifest.name,"summary":manifest.summary,"vendor":"arnav-hiwarkar","repo":repo,"kinds":[],"apps":manifest.apps,"native":false,"license":manifest.license,"latest":manifest.version,"updated":"2026-11-13","file_sha256":"","file_size":0})).unwrap());
+        }
+        let mut manager = Manager::new(
+            Store::at(temp.path().join("store")),
+            Some(AppId::new("effectcraft").unwrap()),
+            Provided::new(&[("raster.filter", 1, 0), ("resource.lut", 1, 0), ("resource.preset", 1, 0)]),
+            "linux-x86_64".into(),
+        );
+        manager.catalogue_base = format!("file://{}", temp.path().display());
+        let publish = |index: &mut Index, packages: &[PackageFile]| {
+            for p in packages {
+                let bytes = serde_json::to_vec(p).unwrap();
+                let row = index.packages.iter_mut().find(|r| r.id == p.id).unwrap();
+                row.file_size = bytes.len() as u64;
+                row.file_sha256 = crate::store::digest(&bytes);
+                std::fs::write(temp.path().join(format!("packages/{}.json", p.id)), bytes).unwrap();
+            }
+        };
+        let resolve = |index: &Index| {
+            let mut selected = std::collections::BTreeMap::new();
+            let mut visiting = std::collections::BTreeSet::new();
+            let mut ordered = Vec::new();
+            manager.resolve_dependency(&film, VersionReq::Any, index, &mut selected, &mut visiting, &mut ordered).map(|_| ordered)
+        };
+        publish(&mut index, &packages);
+        let plan = resolve(&index).unwrap();
+        assert_eq!(plan.len(), 2);
+        assert_eq!(plan[0].manifest.id, half);
+        assert_eq!(plan[0].version, Version::new(1, 0, 0));
+        index.revocations.push(craft_ext_core::catalogue::Revocation {
+            id: Some(half.clone()),
+            versions: None,
+            sha256: None,
+            vendor: None,
+            severity: catalogue::Severity::BlockNew,
+            reason: "test".into(),
+            date: "2026-11-13".into(),
+        });
+        assert!(resolve(&index).is_err());
+        index.revocations.clear();
+        for release in &mut packages[1].releases {
+            release.manifest.requires.insert(film.clone(), VersionReq::Any);
+        }
+        publish(&mut index, &packages);
+        assert!(resolve(&index).unwrap_err().to_string().contains("cycle"));
+        for release in &mut packages[1].releases {
+            release.manifest.requires.clear();
+        }
+        for release in &mut packages[0].releases {
+            release.manifest.requires.insert(half.clone(), VersionReq::Exact(Version::new(2, 0, 0)));
+        }
+        publish(&mut index, &packages);
+        assert!(resolve(&index).unwrap_err().to_string().contains("conflicting"));
+    }
 }
