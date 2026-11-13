@@ -20,7 +20,7 @@ fn handle(event: Event) -> Result<(), String> {
     // No composition at init is normal: keep a useful empty table.
     let markers = call("marker.list", json!({})).unwrap_or(json!([]));
     let rows: Vec<_> =
-        markers.as_array().into_iter().flatten().enumerate().map(|(i, m)| json!({"key":i.to_string(),"cells":[m.to_string()]})).collect();
+        markers.as_array().into_iter().flatten().enumerate().map(|(i, m)| json!({"key":i.to_string(),"cells":[format!("{:.2} s  {}", m["time"].as_f64().unwrap_or(0.0), m["comment"].as_str().unwrap_or(""))]})).collect();
     call(
         "ui.panel.set",
         json!({"panel":"main","tree":{"type":"tabs","id":"views","tabs":[

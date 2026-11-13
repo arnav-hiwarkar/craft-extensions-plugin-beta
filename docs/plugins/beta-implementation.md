@@ -1,5 +1,7 @@
 # Beta implementation map
 
+> **Takeover audit, 2026-11-13:** The checklist and verification counts below predate UI 1.1 and the expanded app contracts. They are historical evidence, not current release readiness. EffectCraft and FigCraft now use the shared plugin renderer and support tools/Resume; PhotoCraft migration is under validation. Read each app's `docs/plugin-migration.md` and `docs/plugin-takeover-validation.md` for current implementation and executed checks. Cross-app raster effects target EffectCraft/PhotoCraft only; FigCraft has no raster-filter dispatch. Desktop interaction, final builds, refreshed catalogue and release CI remain pending.
+
 What exists in code for the beta described in [beta-design.md](beta-design.md), where it lives, and
 which promises are only partly wired. Normative design: `beta-design.md`; decisions: B-01…B-17 in
 [draft/decisions.md](draft/decisions.md#beta-decisions-2026-11-12). This page is a map, not a

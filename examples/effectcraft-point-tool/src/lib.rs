@@ -2,9 +2,7 @@ use craft_guest::{Event, json, session};
 fn handle(event: Event) -> Result<(), String> {
     if let Event::Tool { phase, at } = event {
         if phase == "commit" {
-            let selected = craft_guest::call("layer.list", json!({})).map_err(|e| e.to_string())?;
-            // Apply to the selected layers only, obtained from selection.get.
-            let _ = selected;
+            // Keyframe only the layers selected when the gesture began.
             let selection = craft_guest::call("selection.get", json!({})).map_err(|e| e.to_string())?;
             for layer in selection["layers"].as_array().into_iter().flatten() {
                 craft_guest::call("prop.addKey", json!({"layer":layer["id"],"path":"transform/position","value":at,"timeBase":"comp"}))
