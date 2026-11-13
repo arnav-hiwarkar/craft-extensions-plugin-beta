@@ -106,28 +106,25 @@ for app in ["effectcraft", "photocraft", "figcraft"]:
         refused=run(b,"--project",base,"run","plugin."+r+".effectcraft-apply","{}",fail=True)
         assert "unknown command" in refused.lower() or "permission" in refused.lower(), refused
     elif app == "figcraft":
-        script=work/"fig-review.json"
-        reviewed=work/"fig-reviewed.figcraft"
-        script.write_text(json.dumps([{"command":"node.create","params":{"type":"rectangle","name":"Original","width":32,"height":32}},{"command":"plugin."+r+".figcraft-apply","params":{}}]))
-        run(b,"run",script,"--plugins","--out",reviewed)
-        info=run(b,"info",reviewed)
-        assert "Reviewed" in info and "Original" in info, info
-        undo=work/"fig-undo.json"
-        undo.write_text(json.dumps([{"command":"edit.undo","params":{}}]))
-        undone=work/"fig-undone.figcraft"
-        run(b,"run",undo,"--in",reviewed,"--out",undone)
-        info=run(b,"info",undone)
+        # Each script runs in one session, so Undo is checked against the same history.
+        def fig(name, steps, plugins=True):
+            script=work/(name+".json"); out=work/(name+".figcraft")
+            script.write_text(json.dumps([{"command":c,"params":p} for c,p in steps]))
+            run(b,"run",script,*(["--plugins"] if plugins else []),"--out",out)
+            return run(b,"info",out)
+        create=("node.create",{"type":"rectangle","name":"Original","width":32,"height":32})
+        info=fig("fig-reviewed",[create,("plugin."+r+".figcraft-apply",{})])
+        assert "Reviewed" in info, info
+        info=fig("fig-review-undone",[create,("plugin."+r+".figcraft-apply",{}),("edit.undo",{})])
         assert "Original" in info and "Reviewed" not in info, info
-        native_script=work/"fig-native.json"
-        native_script.write_text(json.dumps([{"command":"plugin."+n+".figcraft-apply","params":{}}]))
-        stamped=work/"fig-stamped.figcraft"
-        run(b,"run",native_script,"--in",undone,"--plugins","--out",stamped)
-        info=run(b,"info",stamped)
+        info=fig("fig-stamped",[create,("plugin."+n+".figcraft-apply",{})])
         assert "System stamp" in info, info
-        run(b,"run",undo,"--in",stamped,"--out",work/"fig-native-undone.figcraft")
-        info=run(b,"info",work/"fig-native-undone.figcraft")
+        info=fig("fig-stamp-undone",[create,("plugin."+n+".figcraft-apply",{}),("edit.undo",{})])
         assert "System stamp" not in info and "Original" in info, info
     else:
         run(b,"run","--new",'{"width":16,"height":16,"background":"#808080"}',"--cmd","plugin."+v+"/vignette","--out",work/"photo.pcraft")
         run(b,"run",work/"photo.pcraft","--cmd","plugin.session."+r+"/photocraft-apply","--out",work/"reviewed.pcraft")
+        assert "Reviewed" in run(b,"info",work/"reviewed.pcraft","--compact")
+        run(b,"run",work/"photo.pcraft","--cmd","plugin.session."+r+"/photocraft-apply","--cmd","edit.undo","--out",work/"review-undone.pcraft")
+        assert "Reviewed" not in run(b,"info",work/"review-undone.pcraft","--compact")
 print("CROSS-APP SMOKE completed; FigCraft raster integration remains BLOCKED.")
