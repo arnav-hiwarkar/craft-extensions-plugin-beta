@@ -31,7 +31,7 @@ env:
   CARGO_PROFILE_DEV_DEBUG: line-tables-only
   RUST_BACKTRACE: 1
   APPS_REF: ${{ inputs.apps_ref || 'plugin-beta' }}
-  OWNER: ${{ github.repository_owner }}
+  OWNER: arnav-hiwarkar  # never storytold: all checkouts come from the user's own forks
   LINUX_DEPS: >-
     pkg-config cmake nasm clang libclang-dev libasound2-dev libwayland-dev libxkbcommon-dev
     libx11-dev libxrandr-dev libxi-dev libxcursor-dev libgl1-mesa-dev libfontconfig1-dev
@@ -134,7 +134,7 @@ jobs:
             bins: figcraft figcraft-cli
           - app: craft-launcher
             build: -p artcraft-launcher
-            test: cargo test -p artcraft-launcher-ui-egui -p artcraft-launcher-core --lib -- plugin
+            test: cargo test -p artcraft-launcher-ui-egui -p artcraft-launcher-core --lib  # plugin dialog is ext-ui; tested in shared
             bins: artcraft-launcher
     steps:
       - uses: actions/checkout@v4
