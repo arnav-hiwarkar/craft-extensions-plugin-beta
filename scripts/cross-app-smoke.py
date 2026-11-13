@@ -72,7 +72,11 @@ for app in ["effectcraft", "photocraft", "figcraft"]:
         if name.startswith("native") and app == "photocraft":
             continue
         if name == "cross-vignette" and app == "figcraft":
-            run(b,"plugin","install-file",work/(name+".craftplugin"),fail=True)
+            # The shared store accepts the file (other apps can use it); FigCraft marks it
+            # incompatible and refuses to set it up.
+            out=run(b,"plugin","install-file",work/(name+".craftplugin"),"--json")
+            assert json.loads(out)["compatibility"]["state"]=="incompatible", out
+            run(b,"plugin","setup",ident,"--all",fail=True)
             print("BLOCKED: FigCraft has no raster.filter dispatch", flush=True)
             continue
         run(b,"plugin","install-file",work/(name+".craftplugin"))
