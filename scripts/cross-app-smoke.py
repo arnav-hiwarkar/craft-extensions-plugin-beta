@@ -41,7 +41,7 @@ def run(*args, fail=False, error_contains=None):
     combined = p.stdout + p.stderr
     if error_contains:
         assert error_contains.lower() in combined.lower(), combined
-    return p.stdout
+    return combined if fail else p.stdout
 
 names = ["cross-vignette", "cross-review", "native-system-stamp"]
 if packages:
@@ -102,7 +102,9 @@ for app in ["effectcraft", "photocraft", "figcraft"]:
         assert (work/"fx1.png").read_bytes()==(work/"fx2.png").read_bytes()
         assert (work/"fx1.png").read_bytes()!=(work/"base.png").read_bytes()
         run(b,"plugin","revoke",r,"document.edit:document")
-        run(b,"--project",base,"run","plugin."+r+".effectcraft-apply","{}",fail=True,error_contains="permission")
+        # A revoked contribution is unloaded, so its command no longer exists (or reports the grant).
+        refused=run(b,"--project",base,"run","plugin."+r+".effectcraft-apply","{}",fail=True)
+        assert "unknown command" in refused.lower() or "permission" in refused.lower(), refused
     elif app == "figcraft":
         script=work/"fig-review.json"
         reviewed=work/"fig-reviewed.figcraft"
