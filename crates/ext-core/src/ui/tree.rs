@@ -196,8 +196,23 @@ pub enum Node {
 }
 
 /// Node types of level 1.0.
-pub const KINDS_1_0: &[&str] =
-    &["form", "component", "column", "row", "group", "label", "separator", "button", "checkbox", "slider", "text-input", "select", "color", "image", "canvas"];
+pub const KINDS_1_0: &[&str] = &[
+    "form",
+    "component",
+    "column",
+    "row",
+    "group",
+    "label",
+    "separator",
+    "button",
+    "checkbox",
+    "slider",
+    "text-input",
+    "select",
+    "color",
+    "image",
+    "canvas",
+];
 /// Node types added in level 1.1.
 pub const KINDS_1_1: &[&str] =
     &["tabs", "collapsible", "scroll", "grid", "table", "list", "number", "text-area", "progress", "toggle", "radio", "icon", "spacer"];
@@ -496,11 +511,11 @@ pub enum VAlign {
     Top,
     Center,
     Bottom,
-    Baseline,
 }
 
 /// A table of text cells. Selection changes send the selected row keys (`["a","c"]`); a double
-/// click or Enter on a row sends `{"activate": key}`.
+/// click on a row sends `{"activate": key}`. Ctrl/Cmd-click toggles and Shift-click extends a
+/// multi selection.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Table {
@@ -924,7 +939,9 @@ pub struct PointerEvent {
     /// Wheel delta in points (`wheel`), or the pointer movement since the last event (`drag`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub delta: Option<[f32; 2]>,
-    /// Key name (`key-down` / `key-up`), as egui names keys: `A`, `Enter`, `ArrowLeft`, `Escape`…
+    /// Key name (`key-down` / `key-up`): `A`…`Z`, `0`…`9`, `ArrowLeft`/`ArrowRight`/`ArrowUp`/
+    /// `ArrowDown`, `Enter`, `Tab`, `Space`, `Backspace`, `Delete`, `Home`, `End`, `PageUp`,
+    /// `PageDown`, `F1`…; Escape is never sent (it releases the canvas's focus).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub key: Option<String>,
 }
@@ -1359,7 +1376,13 @@ impl DrawOp {
                 }
             }
             DrawOp::Circle(c) => {
-                if !(pt(c.center) && c.radius.is_finite() && c.radius >= 0.0 && paint_ok(&c.fill) && c.stroke.is_none_or(rgba_ok) && width_ok(c.stroke_width)) {
+                if !(pt(c.center)
+                    && c.radius.is_finite()
+                    && c.radius >= 0.0
+                    && paint_ok(&c.fill)
+                    && c.stroke.is_none_or(rgba_ok)
+                    && width_ok(c.stroke_width))
+                {
                     return bad("circle");
                 }
             }
@@ -1383,7 +1406,12 @@ impl DrawOp {
             }
             DrawOp::Polygon(p) => {
                 cx.points(p.points.len())?;
-                if p.points.len() < 3 || !p.points.iter().all(|a| pt(*a)) || !p.fill.as_ref().is_none_or(paint_ok) || !p.stroke.is_none_or(rgba_ok) || !width_ok(p.stroke_width) {
+                if p.points.len() < 3
+                    || !p.points.iter().all(|a| pt(*a))
+                    || !p.fill.as_ref().is_none_or(paint_ok)
+                    || !p.stroke.is_none_or(rgba_ok)
+                    || !width_ok(p.stroke_width)
+                {
                     return bad("polygon");
                 }
             }

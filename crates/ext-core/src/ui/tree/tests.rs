@@ -36,7 +36,8 @@ fn trees_1_0() -> Vec<Value> {
 fn rich() -> Value {
     let table = json!({"type":"table","id":"t","label":"Layers","columns":[{"label":"Name"},{"label":"Size","width":60,"align":"right"}],
         "rows":[{"key":"r1","cells":["One","10"]},{"key":"r2","cells":["Two"]}],"selection":"multi","selected":["r2"],"max_height":200});
-    let list = json!({"type":"list","id":"l","label":"Presets","items":[{"key":"p1","label":"Warm","icon":"sun","detail":"Warmer"}],"selection":"single"});
+    let list =
+        json!({"type":"list","id":"l","label":"Presets","items":[{"key":"p1","label":"Warm","icon":"sun","detail":"Warmer"}],"selection":"single"});
     let gradient = json!({"gradient":"linear","from":[0,0],"to":[50,0],"stops":[{"at":0,"rgba":[1,0,0,1]},{"at":1,"rgba":[0,0,1,1]}]});
     let radial = json!({"gradient":"radial","center":[20,20],"radius":5,"stops":[{"at":0,"rgba":[1,1,1,1]},{"at":1,"rgba":[1,1,1,0]}]});
     let path = json!([{"move":[0,0]},{"line":[10,0]},{"quad":[[15,5],[10,10]]},{"cubic":[[5,15],[0,15],[0,10]]},"close"]);
@@ -125,7 +126,9 @@ fn unknown_nodes_degrade_and_broken_known_nodes_explain_themselves() {
     let n = Node::parse(&json).unwrap();
     let Node::Column(s) = &n else { panic!() };
     assert!(matches!(&s.children[0], Node::Unknown(u) if u.kind == "webview" && u.fallback.is_none()));
-    assert!(matches!(&s.children[1], Node::Unknown(u) if u.fallback.as_deref() == Some(&Node::Label(Label { text: "No chart".into(), style: TextStyle::Body, icon: None }))));
+    assert!(
+        matches!(&s.children[1], Node::Unknown(u) if u.fallback.as_deref() == Some(&Node::Label(Label { text: "No chart".into(), style: TextStyle::Body, icon: None })))
+    );
     // The unknown node's own fields are not echoed back to the frontend.
     assert_eq!(serde_json::to_value(&s.children[0]).unwrap(), json!({"type":"webview"}));
     assert_eq!(n.level(), UI_LEVEL_1_0);
@@ -180,8 +183,7 @@ fn limits_are_enforced() {
     refused(json!({"type":"table","id":"t","label":"T","columns":cols,"rows":rows}));
     // Twenty tables of 10 000 rows × 1 column pass one by one but not together.
     let rows: Vec<Value> = (0..MAX_ROWS).map(|i| json!({"key": format!("r{i}"), "cells": []})).collect();
-    let tables: Vec<Value> =
-        (0..11).map(|i| json!({"type":"table","id":format!("t{i}"),"label":"T","columns":cols,"rows":rows})).collect();
+    let tables: Vec<Value> = (0..11).map(|i| json!({"type":"table","id":format!("t{i}"),"label":"T","columns":cols,"rows":rows})).collect();
     assert!(refused(json!({"type":"column","children":tables})).contains("too large"));
 }
 
@@ -193,7 +195,9 @@ fn canvas(ops: Value) -> Value {
 fn draw_limits_are_enforced() {
     let stop = |at: f32| json!({"at":at,"rgba":[1,1,1,1]});
     refused(canvas(json!([{"op":"rect","min":[0,0],"max":[1,1],"fill":{"gradient":"linear","from":[0,0],"to":[1,0],"stops":[stop(0.0)]}}])));
-    refused(canvas(json!([{"op":"rect","min":[0,0],"max":[1,1],"fill":{"gradient":"linear","from":[0,0],"to":[1,0],"stops":[stop(0.8), stop(0.2)]}}])));
+    refused(canvas(
+        json!([{"op":"rect","min":[0,0],"max":[1,1],"fill":{"gradient":"linear","from":[0,0],"to":[1,0],"stops":[stop(0.8), stop(0.2)]}}]),
+    ));
     let many: Vec<Value> = (0..17).map(|i| stop(i as f32 / 17.0)).collect();
     refused(canvas(json!([{"op":"rect","min":[0,0],"max":[1,1],"fill":{"gradient":"radial","center":[0,0],"radius":1,"stops":many}}])));
     refused(canvas(json!([{"op":"line","from":[0,0],"to":[1,1],"width":1000,"rgba":[1,1,1,1]}])));

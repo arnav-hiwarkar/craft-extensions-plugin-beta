@@ -10,3 +10,13 @@ workspace = true
 craft-ext-core.workspace = true
 craft-ext-store = { path = "../ext-store", features = ["net"] }
 egui = { version = "0.37", default-features = false }
+serde_json.workspace = true
+
+[features]
+# Marks where the craft-framework engine plugs in. Until that engine exists, choosing
+# `EngineChoice::Framework` draws with egui whether or not this feature is on.
+framework = []
+
+[dev-dependencies]
+# Headless renderer tests lay out text, which needs egui's bundled fonts.
+egui = { version = "0.37", default-features = false, features = ["default_fonts"] }
