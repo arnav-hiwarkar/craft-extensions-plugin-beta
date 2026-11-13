@@ -159,7 +159,13 @@ Permission: none
 
 ## Notes
 
-RGB(A) 8/16/32-bit only, premultiplied RGBA f32 in the named document working space. Other modes: This filter works on RGB images. Destructive filters need no project record. TODO(PhotoCraft-plugin-projects): persist non-destructive plugin references and refuse export if missing. TODO(PhotoCraft-plugin-integration): bind session operations, menus, parameter dialogs and panels to the document thread before enabling execution.
+RGB(A) 8/16/32-bit only; premultiplied RGBA f32 in sRGB for integer depths or linear sRGB for float, with CMS conversion. Other modes are disabled with a reason. Filters apply destructively as one history step; plugin smart filters are unsupported.
+
+Effect dialogs use Form schema 1 (`contribution.form`, optional worker `craft_describe`). Filter context `params` and CLI/automation parameters are Values keyed by param key: choice/radio option ids, straight RGBA including HDR RGB, and `[x,y]` points in their declared space. Defaults are filled; unknown keys and invalid values are refused. `layer`, `target`, `coalesce` and the `__` prefix are host-reserved command keys.
+
+The host draws all form kinds, units, help and sections, evaluates visible/enabled conditions, and calls optional `craft_update` on workers after edits. Event fuel, grant checks and a 100 ms deadline bound form calls. Patches apply atomically at the current revision; stale edit results are discarded. Plugin preset records are `{id,label,effect,values}` inside a `presets` array; the dialog offers matching, validated presets.
+
+Session panels/windows render `Node::Form` with local edit state and param-key events. No framework component library is registered: every `Node::Component` renders its validated fallback. Sessions execute on workers; document operations are authorized and committed on the document thread.
 
 ## Error codes
 
