@@ -5,28 +5,51 @@ code on the UI thread, never sees pixels of the interface, and cannot tell how i
 is the complete reference for that description: the UI tree, forms, the canvas draw list, the events
 that come back, the limits, and how the vocabulary is versioned.
 
-Code: `craft_ext_core::ui::tree` (types and validation), `craft_ext_ui::plugin_ui` (the renderer
-every app shares), `craft_guest::ui` (builders for plugin authors).
+Code: `craft_ext_core::ui::tree` (types and validation, `crates/ext-core/src/ui/tree.rs`),
+`craft_ext_ui::plugin_ui` (the renderer every app shares, `crates/ext-ui/src/plugin_ui/`),
+`craft_guest::ui` (builders for plugin authors, `crates/guest/src/ui.rs`).
 
-## The host owns the engine
+## The host owns the rendering engine
 
-An app draws plugin UI with an engine **it** chooses (`craft_ext_ui::plugin_ui::EngineChoice`):
-`Egui` today, `Framework` (the craft-framework renderer and component library) when it lands.
-Plugins cannot choose, request or detect the engine. The same tree produces the same events
-whichever engine draws it, and the theme, fonts, spacing and accessibility come from the app. Write
-trees for meaning ("a table with selectable rows"), not for looks.
+The rule: **plugins describe UI as data; the host renders it.** A plugin cannot select, request or
+detect the backend that draws its tree.
 
-## Sending a tree
+- An app draws plugin UI with an engine **it** chooses (`craft_ext_ui::plugin_ui::EngineChoice`).
+  Today that is egui (`EngineChoice::Egui`, the default). `EngineChoice::Framework` is reserved for
+  the craft-framework renderer; it falls back to egui until the host installs a renderer with
+  `PluginUi::set_framework_engine` ([framework integration](framework-integration.md)).
+- The same tree produces the same events and the same revision handling whichever engine draws it.
+  The theme, fonts, spacing and accessibility come from the app. Write trees for meaning ("a table
+  with selectable rows"), not for looks.
+- The guest SDK has no renderer dependency, the ABI carries no renderer identity, and there are no
+  backend-specific nodes. The future framework renderer must keep drawing UI 1.0 (and 1.1) trees
+  unchanged, with the same widget ids and event values.
 
-| Operation | Arguments | Notes |
+## Panels and windows
+
+| Operation | Arguments | Permission | Notes |
+|---|---|---|---|
+| `ui.panel.set` | `{panel, tree}` | free | Replaces the content of a panel your manifest declares (`kind = "panel"`, matching contribution id). Undeclared panels are refused. |
+| `ui.window.open` | `{id, title, tree}` | `ui.window` | Opens (or replaces) a floating window with your id (1–64 bytes) and title (≤ 200 bytes). |
+
+Where panels appear and how many windows a plugin may open is up to the app:
+
+| App | Panels | Window limit |
 |---|---|---|
-| `ui.panel.set` | `{panel, tree}` | Replaces a panel your manifest declares. Free (no permission). |
-| `ui.window.open` | `{id, title, tree}` | Opens a floating window. Needs `ui.window`. |
+| EffectCraft | Floating panel opened from the Plugins menu | 4 windows per plugin; a fifth `ui.window.open` returns `-6` ("At most four windows per plugin") |
+| PhotoCraft | Floating panel, starts closed, opened from the Plugins menu; tree updates never reopen a panel the user closed | No per-plugin window limit; at most 32 surfaces (panels and windows) per app and 4 MiB of trees in total |
+| FigCraft | Docked panel toggled from the Plugins menu | 4 windows per plugin; a fifth is silently dropped while the call still succeeds |
+
+UI changes made during an event are published only when that event commits; a rolled-back event
+leaves the panels as they were.
+
+## Revisions and stale events
 
 Each accepted tree gets a new **revision** (`rev`). Every widget event carries the revision that was
-on screen; the app drops events whose revision is no longer current, so you never act on a control
-that has since changed. A tree is validated as a whole before anything is drawn: one invalid node
-refuses the whole call with a reason.
+on screen. The app drops events whose revision is no longer current
+(`UiEvent::is_stale(current_rev)`), so a plugin never acts on a control that has since changed. A tree
+is validated as a whole before anything is drawn: one invalid node refuses the whole call with a
+reason.
 
 Every **interactive control** needs a stable `id` (1–64 bytes) and a visible `label` (1–200
 characters, no control or invisible formatting characters). Ids are yours: keep them stable across
@@ -34,21 +57,27 @@ revisions so in-progress edits survive a redraw.
 
 ## Versioning
 
-The vocabulary has a level. **ui 1.0** is the original set (marked 1.0 below). **ui 1.1** adds
-everything else on this page. A level-1.0 tree is valid, unchanged, at 1.1.
+The vocabulary has a level (`UI_LEVEL` = 1.1 in `tree.rs`). **ui 1.0** is the original set (marked
+1.0 below; `KINDS_1_0`). **ui 1.1** adds everything else on this page (`KINDS_1_1` plus new fields and
+draw ops). A level-1.0 tree is valid, unchanged, at 1.1.
 
-- **Declare it.** If your tree uses anything from 1.1, declare your session contract at `@1.1`
-  or later: `contract = "effectcraft.session@1.1"` (likewise `photocraft.session`,
-  `figcraft.session`). An app that only draws 1.0 then reports *"needs effectcraft.session 1.1, this
-  app has 1.0 — update the app"* in the manager **before** your plugin runs, instead of failing to
-  parse your tree.
+- **Declare it.** The session contract minor carries the UI level: `<app>.session@1.0` carries
+  ui 1.0, and `@1.1` or later carries ui 1.1 (`ui_level_for_session`). If your tree uses anything from
+  1.1, declare `contract = "effectcraft.session@1.1"` (likewise `photocraft.session`,
+  `figcraft.session`). All three apps provide session 1.1. An app that provided only 1.0 would report
+  *"needs effectcraft.session 1.1, this app has 1.0 — update the app"* in the manager before your
+  plugin runs.
 - **Check it.** `craft_guest::ui::level(&tree)` returns the level a tree needs;
-  `craft_guest::ui::check(&tree)` runs the host's validation. Hosts may refuse a 1.1 tree from a
-  plugin that declared `@1.0` (`Node::validate_at`), so declare what you use.
+  `craft_guest::ui::check(&tree)` runs the host's validation.
+- **Enforcement differs by app.** PhotoCraft validates every tree with
+  `Node::validate_at(ui_level_for_session(declared))`, so a contribution declaring
+  `photocraft.session@1.0` may send only 1.0 trees. EffectCraft and FigCraft currently call
+  `Node::validate` only, so they also accept 1.1 trees from a contribution that declared `@1.0`. Do not
+  rely on that: declare what you use.
 - **Forward compatible.** A node whose `type` the app does not know is not an error: it draws its
   `fallback` node if it has one, otherwise a visible notice ("This part of the panel needs a newer
   version of the app"). Any node may carry `"fallback": {…}` for this purpose. A *known* type with
-  wrong fields is still refused, with the reason.
+  wrong fields is still refused, with the reason. Unknown nodes do not raise the level a tree needs.
 - New fields on existing nodes only arrive with a new level; unknown fields are refused.
 
 ## Nodes
@@ -111,9 +140,13 @@ your latest tree gives. To reflect an edit, answer with a new tree.
 ### Components
 
 `{"type":"component","key","name","version","props","fallback"}` (1.0) asks for a named,
-versioned framework component (`version` ≥ 1, `props` ≤ 64 KiB of JSON). An app that has it draws
-it; every other app draws `fallback`, which is validated like any node. Until the framework
-component library lands, every app draws the fallback.
+versioned framework component (`key` 1–64 bytes, `name` ≤ 128 bytes, `version` ≥ 1, `props` ≤ 64 KiB
+of JSON). **`fallback` is required**, and it is validated like any other node even when the app draws
+the component natively. An app that has the component draws it through `Host::component`; every
+other app draws `fallback`. No app registers a component library today, so every app draws the
+fallback. Give the fallback the same widget ids and event values the component would send, so the
+plugin works the same either way (Cross Review's named action row with plain buttons as its fallback
+is the example).
 
 ## Forms
 
@@ -320,13 +353,20 @@ ui::set_panel("layers", tree)?;
 - `Host` carries what stays yours: `widget` (automation ids, accessibility), `component` (native
   framework components), `tr` (your translations of host words) and `form_titles`.
 - Validate trees in your `ui.panel.set` / `ui.window.open` handler with
-  `craft_ext_core::ui::tree::Node::parse` (or `validate_at(ui_level_for_session(declared))`).
-  Provide `<app>.session@1.1` once the shared renderer draws your panels.
+  `craft_ext_core::ui::tree::Node::parse` and
+  `validate_at(ui_level_for_session(declared))`. PhotoCraft does this; EffectCraft and FigCraft
+  currently call `validate` only. Provide `<app>.session@1.1` once the shared renderer draws your
+  panels.
 - `FormView` holds a form with its own state for dialogs (live edits, `apply_patch`,
   `replace_form`). `paint_ops(painter, Xf::new(offset, zoom), clip, ops, images)` paints draw
-  lists such as canvas overlays.
-- The `framework` cargo feature marks where the craft-framework engine plugs in; until it exists,
-  `EngineChoice::Framework` resolves to egui.
+  lists such as canvas overlays (`canvas.overlay.set`, checked with `validate_draw_list`).
+- `PluginUi::set_framework_engine(Some(engine))` installs a host renderer for
+  `EngineChoice::Framework`; without one, that choice draws with egui. The `framework` cargo feature
+  is only a compatibility marker. See [framework integration](framework-integration.md).
+
+Known limit: concave polygons and paths are triangulated by the renderer on every frame they are
+drawn (`plugin_ui/paint.rs`), so a panel can ask for expensive polygon drawing each frame. Keep
+large polygon counts out of panels that redraw often.
 
 ## Relation to craft-framework
 

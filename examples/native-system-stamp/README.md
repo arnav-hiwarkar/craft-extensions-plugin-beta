@@ -6,29 +6,27 @@ helper calls a fixed local executable directly, without a shell. Sandboxed wasm
 cannot spawn a process. stdout is reserved for the host protocol; errors use stderr.
 
 The host must show **Full access to your computer** and obtain separate consent
-before spawning this helper. There are no wasm permissions: native full access is
-broader than any document grant. Revocation/disable kills the process; undo removes
-the document stamp but cannot undo external native side effects in general.
+before spawning this helper, and asks again for every new version. Its app operations
+are still checked like wasm calls: every contribution that inserts the stamp declares
+`document.edit:document`, which must also be granted. Revocation or disable stops the
+helper; Undo removes the document stamp but cannot undo external native side effects.
+Native is not an OS sandbox.
 
-The checked-in manifest targets **Linux x86_64 only**. Build and package there:
+One archive serves Linux x86_64 and macOS arm64: the manifest maps each platform to its
+own file (`bin/helper-linux-x86_64`, `bin/helper-macos-aarch64`), and the package must
+contain both. CI builds each helper on its platform and packs them together. To pack
+locally for testing on one machine, build the helper and copy it to both paths:
 
 ```sh
-CARGO_BUILD_JOBS=4 flock ../../../.cargo.lock cargo build --release
+cargo build --release
 mkdir -p bin
-cp target/release/native_system_stamp bin/helper
-craft-ext build --release  # native-only: no wasm modules
+cp target/release/native_system_stamp bin/helper-linux-x86_64
+cp target/release/native_system_stamp bin/helper-macos-aarch64   # only valid for this machine
 craft-ext check
-craft-ext test             # no automated session tests; use smoke below
 craft-ext pack --out native-system-stamp.craftplugin
 ```
 
-On Apple Silicon macOS, build the helper with Rust and `flock`, change the manifest's
-`linux-x86_64` key to `macos-aarch64` before building and packing, and use a writable
-local lock path. Do not publish one package as both platforms: each archive contains
-only the executable built for its declared platform. Plain `cargo build` also compiles
-the source; copy `target/debug/native_system_stamp` for a debug package.
-
 Run `../../scripts/cross-app-smoke.sh` from this checkout for the Linux build,
 package and real app CLI tests. Built binaries and archives are intentionally
-ignored. Use `<app>-cli plugin setup <id> --enable <app>-apply --full-access`;
+ignored. Use `<app>-cli plugin setup <id> --enable <app>-apply --grant document.edit:document --full-access`;
 contributions for the other app remain unavailable by contract.

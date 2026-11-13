@@ -84,7 +84,7 @@ enablement and grants are per app. `craft-ext plugin --app <app> …` is the sam
    the manager: the next press is refused at once.
 6. **Point tool**, **Cue board**, **Channel tint**: install with the requested grants. Drag with the
    point tool (one keyframe, one Undo; Escape cancels), add a cue (one marker), apply Channel tint.
-7. **Native System Stamp**: setup requires the separate full-computer consent (“Native: full access to
+7. **Native System Stamp**: setup requires the edit permission plus the separate full-computer consent (“Native: full access to
    your computer”). After consent, **Plugins ▸ System stamp** adds a text layer naming your OS; Undo
    removes it. Withdraw consent in the manager: the helper stops and the command is gone.
 8. **Updates / pins / rollback**: the catalogue has Film looks 1.0.0 and 1.1.0.
@@ -96,7 +96,7 @@ enablement and grants are per app. `craft-ext plugin --app <app> …` is the sam
 
 ## 5. PhotoCraft checklist
 
-1. **Plugins ▸ Manage Plugins…**, install **Halftone** and **Film looks**, enable both.
+1. **Plugins ▸ Plugins…** opens the manager; install **Halftone** and **Film looks**, enable both.
 2. Open or create an RGB image. **Filter ▸ Plugins ▸ Stylize ▸ Halftone**: change Dot size / angle /
    Black and white, try the presets. Apply: one “Halftone” History entry; Undo/Redo.
 3. CMYK or Lab document: the filter is disabled with “This filter works on RGB images”.
@@ -104,7 +104,9 @@ enablement and grants are per app. `craft-ext plugin --app <app> …` is the sam
 5. **Gradient tool**, **Levels scope** (histogram panel, Auto levels layer), **Layer export**
    (exports to a folder you pick; the plugin never sees a path). Revoke `files.write:picked` and retry:
    refused. Exported files are not removed by Undo (by design).
-6. Save `.pcraft`, reopen; remove a used plugin and reopen: the missing-plugin prompt appears.
+6. Save `.pcraft`, reopen: filters are applied destructively (baked pixels), so a PhotoCraft
+   document never needs a plugin to reopen and there is no missing-plugin prompt. A plugin LUT
+   layer keeps its `plugin://` reference and an embedded table.
 
 ## 6. FigCraft checklist
 
@@ -137,6 +139,10 @@ Each green run builds and tests, on Linux and macOS arm64:
 
 Not checked by CI: anything needing a display (GUI clicks above), GPU rendering, Windows (optional
 compile check only), notarised or release builds.
+
+## Known limits
+
+See [STATUS.md](STATUS.md#open-items-and-known-limits). The docs are in [docs/plugins](docs/plugins/README.md).
 
 ## Rules for these repositories
 

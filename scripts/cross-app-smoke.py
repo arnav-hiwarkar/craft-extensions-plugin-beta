@@ -111,20 +111,24 @@ for app in ["effectcraft", "photocraft", "figcraft"]:
         assert "unknown command" in refused.lower() or "permission" in refused.lower(), refused
     elif app == "figcraft":
         # Each script runs in one session, so Undo is checked against the same history.
-        def fig(name, steps, plugins=True):
+        # `info --json` names frame-like nodes and counts all nodes.
+        def fig(name, steps):
             script=work/(name+".json"); out=work/(name+".figcraft")
             script.write_text(json.dumps([{"command":c,"params":p} for c,p in steps]))
-            run(b,"run",script,*(["--plugins"] if plugins else []),"--out",out)
-            return run(b,"info",out)
-        create=("node.create",{"type":"rectangle","name":"Original","width":32,"height":32})
-        info=fig("fig-reviewed",[create,("plugin."+r+".figcraft-apply",{})])
-        assert "Reviewed" in info, info
-        info=fig("fig-review-undone",[create,("plugin."+r+".figcraft-apply",{}),("edit.undo",{})])
-        assert "Original" in info and "Reviewed" not in info, info
-        info=fig("fig-stamped",[create,("plugin."+n+".figcraft-apply",{})])
-        assert "System stamp" in info, info
-        info=fig("fig-stamp-undone",[create,("plugin."+n+".figcraft-apply",{}),("edit.undo",{})])
-        assert "System stamp" not in info and "Original" in info, info
+            run(b,"run",script,"--plugins","--out",out)
+            v=json.loads(run(b,"info",out,"--json"))
+            return [f["name"] for page in v["pages"] for f in page["frames"]], v["nodes"]
+        create=("node.create",{"type":"frame","name":"Original","width":32,"height":32})
+        names,base=fig("fig-base",[create])
+        assert names==["Original"], names
+        names,_=fig("fig-reviewed",[create,("plugin."+r+".figcraft-apply",{})])
+        assert names==["Reviewed"], names
+        names,_=fig("fig-review-undone",[create,("plugin."+r+".figcraft-apply",{}),("edit.undo",{})])
+        assert names==["Original"], names
+        _,stamped=fig("fig-stamped",[create,("plugin."+n+".figcraft-apply",{})])
+        assert stamped==base+1, (stamped,base)
+        _,undone=fig("fig-stamp-undone",[create,("plugin."+n+".figcraft-apply",{}),("edit.undo",{})])
+        assert undone==base, (undone,base)
     else:
         run(b,"run","--new",'{"width":16,"height":16,"background":"#808080"}',"--cmd","plugin."+v+"/vignette","--out",work/"photo.pcraft")
         run(b,"run",work/"photo.pcraft","--cmd","plugin.session."+r+"/photocraft-apply","--out",work/"reviewed.pcraft")

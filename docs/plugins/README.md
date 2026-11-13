@@ -1,81 +1,87 @@
-# Craft plugin and add-on design record
+# Craft plugins
 
-> **Beta implementation (2026-11-12):** the code follows [beta-design.md](beta-design.md), which simplifies this design where they differ (one-maintainer store admission, signed index instead of TUF, per-contribution contracts and permissions, no bot). The superseded points are listed in [draft/decisions.md](draft/decisions.md#beta-decisions-2026-11-12).
+Plugins for EffectCraft, PhotoCraft and FigCraft share one platform: the crates in this repository,
+one adapter in each app, and the signed catalogue in `craft-plugins`.
 
-Updated 2026-11-11. Start here when working on Craft plugins and add-ons.
+## Current guides
 
-## Read this first
-
-[Beta design](beta-design.md) specifies the current implementation and supersedes
-older architecture/system-guide proposals. Read [the user guide](user-guide.md),
-[author guide](author-guide.md), [adapter guide](adapter-guide.md) and
-[maintainer guide](maintainer-guide.md) for current workflows. The
-[UI reference](ui.md) and [framework integration](framework-integration.md) define
-the backend-independent contract and future host transition.
-
-Source implementation is authorized and underway. Builds, broad runtime testing,
-CI and release publication remain a separate phase under the latest user limits.
-The [Mac evidence ledger](session-handoff/MAC-EVIDENCE.md) records changes and checks;
-older execution records do not prove current runtime correctness.
-
-## Where things live
-
-| You want | Go to |
+| Guide | For |
 |---|---|
-| How the system works | [Architecture](architecture.md) |
-| A plain-language walkthrough of every part and workflow, with 2026-11-12 review findings | [System guide](system-guide.md) |
-| What a plugin's panels and windows can contain, and how apps draw them | [Plugin UI reference](ui.md) |
-| Detailed workflow/component/stage traces and all forty scenarios | [Walkthrough](design-sessions/system-walkthrough.md), [scenario coverage](design-sessions/workflow-coverage-2026-11-12.md) |
-| Six-agent architecture corrections, open contracts, and PR evidence | [Correction register](design-sessions/architecture-review-2026-11-12.md) |
-| Latest meeting reconciliation, confirmed choices, and deferrals | [Post-call current understanding](design-sessions/post-call-reconciliation.md#current-understanding-after-the-first-pass) |
-| Top-level and per-unit implementation detail | [Main plan](implementation-plan.md), [unit plans P0–P12](implementation/README.md) |
-| What was decided, when and in whose words | [Decision record](draft/decisions.md#design-session-decisions) |
-| The question-and-answer trail of the design sessions | [Session record](design-sessions/session-record.md) |
-| Each topic's proposal with evidence and rejected alternatives | [Family map and session proposals](design-sessions/app-families-and-sdk.md) |
-| Which plugin-related merges are held and when they lift | [Merge-hold list](merge-hold-list.md) |
-| Source evidence from the sixteen apps at recorded revisions | [Readiness audits](readiness/README.md), [evidence index](readiness/evidence-index.md) |
-| Earlier drafts, research and discussion | [Draft](draft/README.md), [research](research/README.md), [discussion archive](discussion/README.md), and the `docs/plugin-*.md` files |
-| Jeremy's original handoff | [Repository archive](sources/jeremy-handoff/README.md), [supplied text](sources/jeremy-extensions-todo.txt), [crosswalk](readiness/jeremy-crosswalk.md) |
+| [Author guide](author-guide.md) | Writing, building, testing and packing a plugin |
+| [How it works](how-it-works.md) | Components, lifecycle, sandbox, native helpers, permission checks, undo, safe mode |
+| [Adapter guide](adapter-guide.md) | Connecting an app to the platform |
+| [Capabilities](capabilities.md) | What each app offers: contribution kinds, operations and permissions, what is not available |
+| [UI reference](ui.md) | Panels, windows, forms, canvas, events and UI levels |
+| [CLI reference](cli-reference.md) | `<app>-cli plugin …` and `craft-ext` |
+| [Store and distribution](store-and-distribution.md) | Catalogue format, signing, vendors, tiers, reports, kill list, local test catalogues |
+| [User guide](user-guide.md) | Finding, installing, setting up and removing plugins |
+| [Testing the beta](../../TESTING.md) | Downloading CI builds and testing them against the test catalogue |
 
-Every document other than the architecture, the decision record, the session record, the family map and the merge-hold list carries a status note: it is history and evidence; current beta-design and contract references take precedence where they disagree.
+Reference pages generated from the adapters: [EffectCraft contract](contracts/effectcraft.md),
+[PhotoCraft contract](contracts/photocraft.md), [FigCraft contract](contracts/figcraft.md).
+The beta design is specified in [beta-design.md](beta-design.md); the future renderer seam is in
+[framework integration](framework-integration.md).
 
-## Detailed evidence and investigations
+## History and design record
 
-| Document | Purpose and status |
+Everything below is history and evidence. Where it disagrees with the current guides or
+[beta-design.md](beta-design.md), those win.
+
+### Design and plans
+
+| Document | Purpose |
 |---|---|
-| [Resource register](../plugin-resources.md) | Supplied links, retrieval limits, source references, and research history |
-| [Jeremy's handoff summary](../jeremy-extensions-handoff-summary.md) | Structured summary of the supplied Claude text, with historical status caveats |
-| [Complete supplied handoff](sources/jeremy-extensions-todo.txt) | Verbatim artifact text pasted by the user, including every task, dependency, completion condition, and standing gate |
-| [Jeremy's complete repository handoff archive](sources/jeremy-handoff/README.md) | Original design reasoning, decision and task data, detailed checkpoint, generated page, threat model, and sample themes, preserved with source revision and licence |
-| [Source and verification record](source-and-verification-record.md) | Inspected revisions, live issue context, and limits of evidence |
+| [Beta design](beta-design.md) | The specification the beta source follows; supersedes older proposals |
+| [Beta implementation map](beta-implementation.md) | Where each beta part lives in code (dated checklist) |
+| [Maintainer guide](maintainer-guide.md) | Short pointer to `craft-plugins/MAINTAINERS.md` |
+| [Shared beta tests](testing.md) | The `scripts/e2e.sh` flow |
+| [Architecture](architecture.md) | The long-term architecture proposal |
+| [System guide](system-guide.md) | Plain-language walkthrough of every part, with 2026-11-12 review findings |
+| [Walkthrough](design-sessions/system-walkthrough.md), [scenario coverage](design-sessions/workflow-coverage-2026-11-12.md) | Workflow, component and stage traces and the forty scenarios |
+| [Correction register](design-sessions/architecture-review-2026-11-12.md) | Architecture corrections and open contracts |
+| [Post-call reconciliation](design-sessions/post-call-reconciliation.md#current-understanding-after-the-first-pass) | Confirmed choices and deferrals |
+| [Main plan](implementation-plan.md), [unit plans P0–P12](implementation/README.md) | Implementation planning |
+| [Decision record](draft/decisions.md#design-session-decisions) | What was decided, when and in whose words |
+| [Session record](design-sessions/session-record.md) | The question-and-answer trail of the design sessions |
+| [Family map and session proposals](design-sessions/app-families-and-sdk.md) | Each topic's proposal with evidence and rejected alternatives |
+| [Merge-hold list](merge-hold-list.md) | Which plugin-related merges were held and when they lift |
+| [Aspect register](aspect-register.md), [research brief](research-brief.md) | Early research checklists |
+| [Draft](draft/README.md), [research](research/README.md) | Earlier drafts and research |
+
+### Evidence and investigations
+
+| Document | Purpose |
+|---|---|
+| [Source and verification record](source-and-verification-record.md) | Inspected revisions and limits of evidence |
+| [Resource register](../plugin-resources.md) | Supplied links, retrieval limits and research history |
+| [Jeremy's handoff summary](../jeremy-extensions-handoff-summary.md) | Structured summary of the supplied handoff text |
+| [Complete supplied handoff](sources/jeremy-extensions-todo.txt) | Verbatim handoff text |
+| [Jeremy's repository handoff archive](sources/jeremy-handoff/README.md) | Original design reasoning, threat model and sample themes, with source revision and licence |
 | [Primary functional investigation](../plugin-functional-primary.md) | Runtime paths and app requirements from source inspection |
-| [Independent Opus functional investigation](../plugin-functional-opus.md) | Separate functional analysis, qualified during reconciliation |
-| [App source inventory](../plugin-functional-inventory.json) | Machine-readable 16-repository inventory with recorded source revisions and hashes |
-| [Runtime and theme investigation](../plugin-security-runtime-themes.md) | App-specific runtime constraints, the two theme layers, and security boundaries |
-| [Opus review of the existing code](../plugin-security-handoff-opus.md) | Review against actual craft-extensions, launcher, and PhotoCraft branches |
-| [Initial architecture ideas](../plugin-architecture-ideas.md) | Earlier alternatives, before later choices and existing-source discovery |
-| [Early Opus distribution pass](../plugin-security-distribution-opus.md) | Historical research. Organization-management material is out of scope and later ownership findings supersede it |
+| [Independent Opus functional investigation](../plugin-functional-opus.md) | Separate functional analysis |
+| [App source inventory](../plugin-functional-inventory.json) | Machine-readable repository inventory |
+| [Runtime and theme investigation](../plugin-security-runtime-themes.md) | Runtime constraints, theme layers and security boundaries |
+| [Opus review of the existing code](../plugin-security-handoff-opus.md) | Review of earlier branches |
+| [Initial architecture ideas](../plugin-architecture-ideas.md) | Earlier alternatives |
+| [Early Opus distribution pass](../plugin-security-distribution-opus.md) | Historical research; later ownership findings supersede it |
 
-## History and precedence
+### Precedence
 
-The [discussion archive](discussion/README.md) preserves the technical requests and substantive answers from before the design sessions. Historical responses can contain proposals or facts later corrected. Their presence is not approval.
+When records differ, use this order: the user's latest explicit choice (decision and session
+records), then the current guides, [beta design](beta-design.md) and the generated contract pages,
+then source evidence at a named revision, then earlier drafts and research. Source inspection shows
+what code says at a revision; it does not show runtime behaviour. CI results are recorded in
+[TESTING.md](../../TESTING.md) and the `plugin-beta` workflow runs.
 
-When records differ, use this order: the user's latest explicit choice (decision and session records), then [beta design](beta-design.md) and current app contracts, then source evidence at a named revision, then earlier drafts and research. Source inspection establishes what code says at that revision; it does not establish runtime behaviour or current branch state.
+### Keeping the record current
 
-The ChatGPT share link remains unreadable and its conversation contents are not archived. The Claude chart's visual layout and original artifact source remain unavailable. Its complete user-supplied text is archived. Do not claim these missing materials were reviewed.
+1. Record an explicit user choice in the [decision record](draft/decisions.md), with what it
+   replaces, and its trail in the [session record](design-sessions/session-record.md).
+2. Update the current guides and [beta design](beta-design.md) in the same change as the code.
+3. Keep original material in `sources/` unchanged.
 
-## Keeping the record current
+### Working boundaries
 
-1. Record an explicit user choice in the [decision record](draft/decisions.md), with what it replaces, and its trail in the [session record](design-sessions/session-record.md).
-2. Update [beta design](beta-design.md) and current contract/workflow references in the same change; mark older architecture proposals as historical.
-3. Put proposals, evidence and alternatives in the relevant design-session section or investigation, marked with their status.
-4. Keep original material in `sources/` unchanged. Preserve corrections without presenting old conclusions as current.
-
-## Working boundaries
-
-- Reuse craft-extensions as the home of every shared plugin-platform crate. Do not create a competing installer, schema or store anywhere else.
+- craft-extensions is the home of every shared plugin-platform crate. Do not create a competing
+  installer, schema or store elsewhere.
 - Shared code stays independent of application crates. Each app's adapter lives in that app.
-- Each app's current plugin system is replaced, not extended, in the same change set that lands its adapter.
-- Source fixes and documentation are authorized. CI and release publication require separate approval.
-
-Current source work is committed in logical slices to the private beta branches. No Rust builds, app runtime tests, release packages or security certification were produced by this documentation work.

@@ -5,7 +5,7 @@ version = "0.1.0"
 license = "MIT OR Apache-2.0"
 source = "https://github.com/YOUR-NAME/PLUGIN"
 summary = "One-line description of the effect"
-apps = ["effectcraft", "photocraft", "figcraft"]
+apps = ["effectcraft", "photocraft"]  # FigCraft has no raster.filter
 
 [[contribution]]
 id = "effect"
