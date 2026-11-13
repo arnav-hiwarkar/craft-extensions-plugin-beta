@@ -1,0 +1,16 @@
+schema = 2
+id = "io.github.arnav-hiwarkar.effectcraft-cue-board"
+name = "Cue board"
+version = "1.0.0"
+license = "MIT"
+source = "https://github.com/arnav-hiwarkar/effectcraft-plugin-beta"
+summary = "Composition marker table and layer notes"
+apps = ["effectcraft"]
+
+[[contribution]]
+id = "main"
+kind = "panel"
+contract = "effectcraft.session@1.1"
+label = "Cue board"
+module = "effectcraft_cue_board.wasm"
+permissions = ["document.read:document", "document.edit:document"]

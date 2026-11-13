@@ -1,0 +1,61 @@
+schema = 2
+id = "io.github.arnav-hiwarkar.effectcraft-channel-tint"
+name = "Channel tint"
+version = "1.0.0"
+license = "MIT"
+source = "https://github.com/arnav-hiwarkar/effectcraft-plugin-beta"
+summary = "Channel tint with conditional controls"
+apps = ["effectcraft"]
+
+[[contribution]]
+id = "main"
+kind = "effect"
+contract = "raster.filter@1.0"
+label = "Channel tint"
+module = "effectcraft_channel_tint.wasm"
+permissions = []
+
+[contribution.form]
+schema = 1
+key = "tint"
+title = "Channel tint"
+[[contribution.form.params]]
+key = "warm"
+label = "Reduce red (otherwise blue)"
+[contribution.form.params.kind]
+type = "bool"
+default = true
+[[contribution.form.params]]
+key = "amount"
+label = "Reduction"
+[contribution.form.params.kind]
+type = "range"
+min = 0
+max = 1
+default = 0.3
+step = 0.01
+
+
+[[contribution.form.params]]
+key = "protect"
+label = "Protect bright pixels"
+visible_when = { eq = { key = "warm", value = true } }
+[contribution.form.params.kind]
+type = "bool"
+default = true
+
+[[contribution.form.params]]
+key = "mix"
+label = "Mix a tint"
+[contribution.form.params.kind]
+type = "bool"
+default = false
+
+[[contribution.form.params]]
+key = "tint"
+label = "Tint color"
+visible_when = { eq = { key = "mix", value = true } }
+[contribution.form.params.kind]
+type = "color"
+alpha = true
+default = [1.0, 0.8, 0.6, 1.0]

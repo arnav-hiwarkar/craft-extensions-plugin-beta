@@ -7,7 +7,7 @@ Generated from the `effectcraft` adapter by `<app>-cli plugin contract`. Do not 
 | Contract | Version |
 |---|---|
 | `raster.filter` | 1.0 |
-| `effectcraft.session` | 1.0 |
+| `effectcraft.session` | 1.1 |
 | `resource.preset` | 1.0 |
 | `resource.lut` | 1.0 |
 | `craft-theme` | 1.0 |
@@ -18,6 +18,7 @@ A contribution declaring `contract = "name@major.minor"` works here when the maj
 
 | Kind | Placement |
 |---|---|
+| `tool` | Select from Plugins; primary pointer draws in the composition viewer. Middle-button and Space pan, wheel zoom remain available. |
 | `effect` | Effects & Presets and Effect ▸ under the contribution's category (default **Plugins**); instances are ordinary effect property groups (animatable, expressions, Effect Controls). |
 | `command` | **Plugins ▸ <plugin name> ▸ <label>**, and the command id `plugin.<plugin id>.<contribution>` for agents and the CLI. |
 | `panel` | A host-drawn panel opened from **Plugins ▸ <plugin name> ▸ <label>** (beta: a floating panel). |
@@ -27,6 +28,292 @@ A contribution declaring `contract = "name@major.minor"` works here when the maj
 | `theme` | Stored and listed; applied once craft-theme lands (deferred). |
 
 ## Operations (session plugins: `craft::call(op, args)`)
+
+### `comp.new` (Edit)
+
+Create a composition, including when no composition is open. Subsequent events capture the new active composition.
+
+Permission: `document.edit:document`
+
+```json
+// args
+{name?,width?,height?,frameRate?,duration?}
+// result
+{comp:id}
+```
+
+### `layer.addItem` (Edit)
+
+Add an existing project composition/asset as a layer; never imports a path.
+
+Permission: `document.edit:document`
+
+```json
+// args
+{item,time?,index?,position?,duration?}
+// result
+object
+```
+
+### `layer.newText` (Edit)
+
+Create a text layer with engine-validated typography.
+
+Permission: `document.edit:document`
+
+```json
+// args
+{text,name?,position?,size?,font?,fill?}
+// result
+object
+```
+
+### `layer.newShape` (Edit)
+
+Create a procedural rectangle, ellipse, star or polygon.
+
+Permission: `document.edit:document`
+
+```json
+// args
+{kind?,name?,size?,fill?,stroke?,position?}
+// result
+object
+```
+
+### `layer.setSwitch` (Edit)
+
+Change layer video/audio/solo/lock/3D and other engine switches.
+
+Permission: `document.edit:document`
+
+```json
+// args
+{layers,switch,value?}
+// result
+object
+```
+
+### `project.summary` (Query)
+
+Project items, compositions and asset metadata; no file contents.
+
+Permission: `document.read:document`
+
+```json
+// args
+{}
+// result
+object
+```
+
+### `layer.tree` (Query)
+
+Layer property tree, effects and keyframe metadata; bounded depth.
+
+Permission: `document.read:document`
+
+```json
+// args
+{layer,depth?,time?}
+// result
+object
+```
+
+### `time.set` (Edit)
+
+Move the playhead through the canonical timeline command.
+
+Permission: `document.edit:document`
+
+```json
+// args
+{time}
+// result
+object
+```
+
+### `markers.set` (Edit)
+
+Edit a composition marker by index (time in composition seconds).
+
+Permission: `document.edit:document`
+
+```json
+// args
+{index,time?,comment?,duration?}
+// result
+object
+```
+
+### `markers.delete` (Edit)
+
+Delete a composition marker by index.
+
+Permission: `document.edit:document`
+
+```json
+// args
+{index}
+// result
+object
+```
+
+### `effect.reorder` (Edit)
+
+Move an effect in its layer stack (one-based index).
+
+Permission: `document.edit:document`
+
+```json
+// args
+{layer,effect,index}
+// result
+object
+```
+
+### `comp.settings` (Edit)
+
+Change active composition dimensions, duration, frame rate or work area using engine validation.
+
+Permission: `document.edit:document`
+
+```json
+// args
+{width?,height?,duration?,frameRate?}
+// result
+object
+```
+
+### `canvas.overlay.set` (Ui)
+
+Replace this plugin's bounded viewer guides, in composition pixels; cleared after a gesture.
+
+Permission: free (own overlay only)
+
+```json
+// args
+{ops:[draw op]}
+// result
+null
+```
+
+### `marker.list` (Query)
+
+Composition markers, including times and comments.
+
+Permission: `document.read:document`
+
+```json
+// args
+{}
+// result
+[marker]
+```
+
+### `prop.get` (Query)
+
+Read a property and its keyframes in the captured composition.
+
+Permission: `document.read:document`
+
+```json
+// args
+{layer,path,time?}
+// result
+{value,evaluated,keys}
+```
+
+### `prop.set` (Edit)
+
+Set a property through the engine's validated property command.
+
+Permission: `document.edit:document`
+
+```json
+// args
+{layer,path,value,time?}
+// result
+object
+```
+
+### `prop.addKey` (Edit)
+
+Add a keyframe; time defaults to layer seconds, timeBase may be comp.
+
+Permission: `document.edit:document`
+
+```json
+// args
+{layer,path,value,time?,timeBase?}
+// result
+object
+```
+
+### `prop.reset` (Edit)
+
+Reset a property.
+
+Permission: `document.edit:document`
+
+```json
+// args
+{layer,path}
+// result
+object
+```
+
+### `effect.remove` (Edit)
+
+Remove an effect instance by uid.
+
+Permission: `document.edit:document`
+
+```json
+// args
+{layer,effect}
+// result
+object
+```
+
+### `layer.newSolid` (Edit)
+
+Create a solid layer in the captured composition.
+
+Permission: `document.edit:document`
+
+```json
+// args
+{name?,color?,width?,height?}
+// result
+object
+```
+
+### `layer.newNull` (Edit)
+
+Create a null for motion paths and controls.
+
+Permission: `document.edit:document`
+
+```json
+// args
+{name?}
+// result
+object
+```
+
+### `layer.select` (Edit)
+
+Select layer ids in the captured composition.
+
+Permission: `document.edit:document`
+
+```json
+// args
+{layers:[id]}
+// result
+object
+```
 
 ### `selection.get` (Query)
 
@@ -101,7 +388,7 @@ Permission: `document.edit:selection`
 
 ```json
 // args
-{"effect": "ec.blur.gaussian", "values": {"blurriness": 12}}
+{"effect": "ec.blur.gaussian", "params": {"blurriness": 12}}
 // result
 {"effects": [41], "paths": ["effects/#2"]}
 ```
@@ -162,15 +449,16 @@ null
 
 | Event | Payload | Needs `app.events` | Meaning |
 |---|---|---|---|
+| `tool` | `{"event":"tool","phase":"begin|update|commit|cancel","at":[0,0],"time":0,"modifiers":{}}` | no | Pointer gesture in composition pixels at the current time; Escape cancels; one undo step per gesture. |
 | `init` | `{"event":"init"}` | no | Once after the plugin loads: draw your panels. |
 | `command` | `{"event":"command","id":"<contribution>"}` | no | A command contribution ran (one undo step). |
 | `ui` | `{"event":"ui","surface":"<panel>","rev":4,"widget":"<id>","value":null}` | no | A widget in your panel or window changed; stale revisions are dropped. |
-| `app` | `{"event":"app","name":"selection.changed","payload":{"layers":[12]}}` | yes | `selection.changed`, `time.changed` (at most 4 per second), `document.opened`, `render.finished`. |
+| `app` | `{"event":"app","name":"selection.changed","payload":{"layers":[12]}}` | yes | `selection.changed`, `time.changed` (at most 4 per second), `document.changed` (coalesced per pump; layers, keys, markers, effects, assets/settings), `document.opened`, `render.finished`. |
 | `dispose` | `{"event":"dispose"}` | no | The plugin is being turned off or reloaded. |
 
 ## Notes
 
-Tools are not supported in EffectCraft yet; tool contributions are unavailable in compatibility and setup. Pixels: premultiplied RGBA f32 in the project's working space (`color` is `linear-srgb` when Linearize Working Space is on, else `srgb`); values may exceed 1 in 32 bpc projects. `time` is layer time in seconds. `scale` is buffer pixels per layer pixel (previews at reduced resolution have scale < 1 and `quality: "draft"`). `origin` is the buffer's top-left inside the layer's full frame and `full` the layer's size, both in buffer pixels. Plugin effects are treated as time-dependent by the frame caches. Ops act on the composition and selection captured when the event started. Effect ids are `<plugin id>/<contribution>`.
+Pixels: premultiplied RGBA f32 in the project's working space (`color` is `linear-srgb` when Linearize Working Space is on, else `srgb`); values may exceed 1 in 32 bpc projects. `time` is layer time in seconds. `scale` is buffer pixels per layer pixel (previews at reduced resolution have scale < 1 and `quality: "draft"`). `origin` is the buffer's top-left inside the layer's full frame and `full` the layer's size, both in buffer pixels. Plugin effects are treated as time-dependent by the frame caches. Ops act on the composition and selection captured when the event started. Effect ids are `<plugin id>/<contribution>`.
 
 ## Effect forms (schema 1)
 

@@ -1,0 +1,16 @@
+schema = 2
+id = "io.github.arnav-hiwarkar.effectcraft-point-tool"
+name = "Point keyframes"
+version = "1.0.0"
+license = "MIT"
+source = "https://github.com/arnav-hiwarkar/effectcraft-plugin-beta"
+summary = "Place position keyframes on selected layers"
+apps = ["effectcraft"]
+
+[[contribution]]
+id = "main"
+kind = "tool"
+contract = "effectcraft.session@1.1"
+label = "Point keyframes"
+module = "effectcraft_point_tool.wasm"
+permissions = ["document.read:document", "document.read:selection", "document.edit:document"]
