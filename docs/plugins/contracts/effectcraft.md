@@ -177,3 +177,17 @@ Pixels: premultiplied RGBA f32 in the project's working space (`color` is `linea
 `-1` invalid input, `-2` permission denied, `-3` not found, `-4` stale or busy, `-5` cancelled, `-6` over budget, `-7` internal.
 
 Tools are not supported in EffectCraft yet. Tool contributions are unavailable in compatibility and setup.
+
+## Effect forms (schema 1)
+
+`contribution.form` supplies the effect controls; optional `craft_describe` supplies
+a validated runtime form. Form parameter keys identify render `params` values.
+Choice/radio values are option IDs, colors straight RGBA, angles degrees, and
+points use their declared image-percent or layer-pixels space (not buffer pixels).
+Effect Controls shows units and section headings and evaluates visible/enabled
+conditions. Optional `craft_update` runs with the shared event budget; patches are
+validated atomically and resulting value edits share one undo step. Visibility and
+enablement overrides are transient per-instance UI state.
+
+Panel Form nodes render host widgets with parameter-key events. Component nodes
+currently always render their fallback. Preset effect entries use `{effect, values}`.
