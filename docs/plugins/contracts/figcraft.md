@@ -1,8 +1,8 @@
-# FigCraft plugin contract (integration pending)
+# FigCraft plugin contract
 
 The FigCraft adapter foundation lives in `figcraft/crates/plugins`. It declares
 `figcraft.session@1.0`, `resource.font@1.0`, and `craft-theme@1.0`.
-These declarations are not yet activated in the application.
+The session adapter is active; resource activation remains deferred.
 No `raster.filter` contract is advertised pending image-fill dispatch integration.
 
 ## Contracts provided
@@ -13,7 +13,7 @@ No `raster.filter` contract is advertised pending image-fill dispatch integratio
 | `resource.font` | 1.0 |
 | `craft-theme` | 1.0 |
 
-## Session protocol (integration pending)
+## Session protocol
 
 Session events: init, command `{id}`, ui `{surface,rev,widget,value}`, tool
 `{phase:begin|update|commit|cancel,at:[x,y],modifiers}`, app
@@ -30,6 +30,17 @@ App events need `app.events`.
 
 Selected-target scope support is deferred: node operations conservatively require
 whole-document access. Never trust a guest-supplied selection flag.
-Document dispatch, history transactions, command registration, panel rendering,
-tools, native helpers, project prompts, font registration and management integration
-remain pending. See FigCraft `docs/plugin-migration.md` for named TODOs.
+Document dispatch, history transactions, commands, panels/windows, tools, native helpers,
+project prompts and management are integrated. Font/theme activation remains deferred. See FigCraft `docs/plugin-migration.md` for named TODOs.
+
+## Form schema v1 renderer
+
+Panels and windows render all Node::Form kinds, defaults and host-evaluated conditions.
+Choice/radio events use option IDs; widget IDs are parameter keys with surface tree revisions.
+Unknown components render fallback. Working-space HDR color channels use numeric controls.
+
+ui.panel.set {panel, patch} and ui.window.open {id, patch} patch an existing root Form.
+Patch schema is 1; base_rev is the surface revision and rev must increase. Validation and
+publication are atomic with event commit. Full replacements clear hide/disable flags;
+show/enable restore original conditions. Optional WASM describe/update exports are unused
+until a raster.filter consumer is integrated; session forms arrive through UI operations.
