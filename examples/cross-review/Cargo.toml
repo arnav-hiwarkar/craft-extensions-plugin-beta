@@ -9,3 +9,18 @@ crate-type = ["cdylib"]
 [dependencies]
 craft-guest = { path = "../../crates/guest" }
 [workspace]
+
+[[example]]
+name = "effectcraft_review_panel"
+path = "src/effectcraft_panel.rs"
+crate-type = ["cdylib"]
+
+[[example]]
+name = "photocraft_review_panel"
+path = "src/photocraft_panel.rs"
+crate-type = ["cdylib"]
+
+[[example]]
+name = "figcraft_review_panel"
+path = "src/figcraft_panel.rs"
+crate-type = ["cdylib"]

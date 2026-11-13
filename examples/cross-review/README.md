@@ -1,25 +1,50 @@
-# Cross-app review (MIT)
+# Cross Review
 
-One sandboxed wasm module, three command contributions, each declaring its app's
-session contract. Marks the first layer of the active composition (EffectCraft),
-layer stack (PhotoCraft), or first page (FigCraft) **Reviewed**. This deliberately
-uses the same document-level operation everywhere, independent of selection.
-Empty documents return a useful error and make no edit.
+One command module and three small panel entry modules share `src/review.rs`.
+The commands `effectcraft-apply`, `photocraft-apply`, and `figcraft-apply` still
+rename the first layer to `Reviewed`. EffectCraft uses the active composition,
+PhotoCraft uses the document stack, and FigCraft uses the first page's first
+direct child. Selection does not change the target.
 
-Only `document.edit:document` is requested: it includes the reads required to find
-the layer. No files, network, clipboard, window or app-event permissions. Each
-command is one transaction and one undo step. App-specific code is limited to
-listing layers and mapping the rename operation.
+The corresponding `<app>-panel` contributions show the target, refresh it, and
+rename it with a button. They use identical host-drawn column, group, label,
+row, and button nodes with stable `review-first` and `refresh` IDs. Errors such
+as missing layers or denied permissions appear in the panel. A failed panel
+render still propagates an error to the host. Commands continue to propagate
+operation errors, preserving their transactional smoke behavior.
+
+Routing uses exact command IDs and explicit panel entry modules. `Event::Init`
+has no contribution identity, so each panel entry fixes its app at compilation;
+there is no host or renderer probing. The UI vocabulary works with future host
+framework adapters without plugin-specific renderer code.
+
+Commands retain `document.edit:document`, which covers document reads. Panels
+explicitly declare both `document.read:document` and `document.edit:document`.
+Renames use canonical `layer.rename` or FigCraft `node.update` operations. No
+file, network, window, or event subscription permission is requested.
+
+For a package produced in a later authorized build phase:
 
 ```sh
-craft-ext build --release
-craft-ext check
-craft-ext test  # session execution is verified by the real app smoke, not this command
-craft-ext pack --out cross-review.craftplugin
+effectcraft-cli plugin install-file cross-review.craftplugin
+effectcraft-cli plugin setup io.github.arnav-hiwarkar.cross-review --enable effectcraft-apply,effectcraft-panel --grant document.edit:document
+photocraft-cli plugin install-file cross-review.craftplugin
+photocraft-cli plugin setup io.github.arnav-hiwarkar.cross-review --enable photocraft-apply,photocraft-panel --grant document.edit:document
+figcraft-cli plugin install-file cross-review.craftplugin
+figcraft-cli plugin setup io.github.arnav-hiwarkar.cross-review --enable figcraft-apply,figcraft-panel --grant document.edit:document
 ```
 
-Install with `<app>-cli plugin install-file cross-review.craftplugin`, then
-`plugin setup io.github.arnav-hiwarkar.cross-review --enable <app>-apply --grant document.edit:document`.
-EffectCraft/FigCraft command: `plugin.io.github.arnav-hiwarkar.cross-review.<app>-apply`.
-PhotoCraft command: `plugin.session.io.github.arnav-hiwarkar.cross-review/photocraft-apply`.
-Run `../../scripts/cross-app-smoke.sh` for disposable-store CLI verification.
+These are consumer CLI parser forms, not commands executed during source work.
+Installation alone never enables contributions or grants permissions.
+EffectCraft/FigCraft command IDs are
+`plugin.io.github.arnav-hiwarkar.cross-review.<app>-apply`; PhotoCraft uses
+`plugin.session.io.github.arnav-hiwarkar.cross-review/photocraft-apply`.
+
+Source status: helper regression tests are present and unrun. No Cargo, guest
+build, app run, smoke script, or packaging was executed for this change. The
+Cargo example targets must later be compiled for Wasm and their three named
+`.wasm` outputs included alongside `cross_review.wasm` before packaging. The
+author CLI's default library build alone does not produce these panel modules.
+No binaries or packages are included. Later validation must exercise initial
+panel rendering, refresh, rename, Undo, empty documents, grant revocation, and
+all three existing command smoke paths.
