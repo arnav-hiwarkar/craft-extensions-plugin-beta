@@ -287,7 +287,8 @@ fn plugin(m: &Manager, args: &[String]) -> Result<Value> {
                 m.store.set_full_access(app, &id, true)?;
             }
             let selected: Vec<String> = if a.has("all") {
-                mf.contributions_for(app).map(|c| c.id.clone()).collect()
+                // Only what this app can run: a multi-app package also lists other apps' contracts.
+                mf.contributions_for(app).filter(|c| c.contract.check(&m.provided).is_none()).map(|c| c.id.clone()).collect()
             } else {
                 a.opt("enable").map(|s| s.split(',').map(String::from).collect()).unwrap_or_default()
             };
@@ -467,5 +468,53 @@ permissions=["clipboard.read"]
         assert!(state.apps[&app][&id].enabled.is_empty());
         assert_eq!(run_plugin(&m, &args("setup io.github.alice.test --all --grant clipboard.read"), &mut out, &mut vec![]), 0);
         assert!(m.store.state().unwrap().apps[&app][&id].enabled.contains("data"));
+    }
+    #[test]
+    fn setup_all_enables_only_contracts_this_app_provides() {
+        let d = tempfile::tempdir().unwrap();
+        let source = d.path().join("source");
+        std::fs::create_dir(&source).unwrap();
+        std::fs::write(
+            source.join("craft-plugin.toml"),
+            r#"schema=2
+id="io.github.alice.multi"
+name="Multi"
+version="1.0.0"
+license="MIT"
+source="https://github.com/alice/multi"
+summary="Multi"
+apps=["effectcraft","photocraft"]
+[[contribution]]
+id="data"
+kind="preset"
+contract="resource.preset@1.0"
+label="Data"
+files=["data.json"]
+[[contribution]]
+id="photo"
+kind="command"
+contract="photocraft.session@1.0"
+label="Photo"
+module="m.wasm"
+"#,
+        )
+        .unwrap();
+        std::fs::write(source.join("data.json"), "{}").unwrap();
+        std::fs::write(source.join("m.wasm"), b"\0asm\x01\0\0\0").unwrap();
+        let (_, archive, _) = author::pack(&source, None).unwrap();
+        let app = craft_ext_core::id::AppId::new("effectcraft").unwrap();
+        let m = Manager::new(
+            craft_ext_store::Store::at(d.path().join("store")),
+            Some(app.clone()),
+            known_apps::provided("effectcraft").unwrap(),
+            "linux-x86_64".into(),
+        );
+        m.install_file(&archive).unwrap();
+        let args = |s: &str| s.split_whitespace().map(String::from).collect::<Vec<_>>();
+        let mut err = vec![];
+        assert_eq!(run_plugin(&m, &args("setup io.github.alice.multi --all"), &mut vec![], &mut err), 0, "{}", String::from_utf8_lossy(&err));
+        let id = ExtensionId::new("io.github.alice.multi").unwrap();
+        let enabled = m.store.state().unwrap().apps[&app][&id].enabled.clone();
+        assert!(enabled.contains("data") && !enabled.contains("photo"), "{enabled:?}");
     }
 }

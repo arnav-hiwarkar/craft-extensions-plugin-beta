@@ -330,7 +330,7 @@ pub fn run(args: &[String]) -> Result<Value> {
                 manager.store.install_bytes(&bytes, craft_ext_core::tier::Tier::Dev, craft_ext_store::state::Origin::Dev)?;
                 let app = manager.app.as_ref().ok_or("choose an app")?;
                 manager.store.set_active(app, &m.id, m.version)?;
-                for c in m.contributions_for(app) {
+                for c in m.contributions_for(app).filter(|c| c.contract.check(&manager.provided).is_none()) {
                     if c.permissions.is_empty() && !m.is_native() {
                         manager.enable(&m.id, &c.id)?
                     } else {
