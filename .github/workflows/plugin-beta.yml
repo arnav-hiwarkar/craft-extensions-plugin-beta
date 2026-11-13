@@ -51,13 +51,10 @@ jobs:
       - name: Build (all features, includes craft-ext tools)
         working-directory: craft-extensions
         run: cargo build --workspace --all-features
-      - name: Native helper for the host round-trip test
-        working-directory: craft-extensions/examples/native-system-stamp
-        run: cargo build --release
       - name: Tests per crate
         working-directory: craft-extensions
         env:
-          CRAFT_E2E_NATIVE_EXE: ${{ github.workspace }}/craft-extensions/examples/native-system-stamp/target/release/native_system_stamp
+          CRAFT_E2E_NATIVE_EXE: ${{ github.workspace }}/craft-extensions/scripts/fixtures/native-helper.sh
         run: |
           for c in craft-ext-core craft-ext-store craft-ext-host craft-ext-ui craft-ext-cli craft-guest; do
             echo "::group::$c"; cargo test -p "$c" --all-features; echo "::endgroup::"

@@ -60,9 +60,8 @@ else:
         run(x, "check", d)
         run(x, "test", d)
         run(x, "pack", d, "--out", work / (name + ".craftplugin"))
-    env["CRAFT_E2E_NATIVE_EXE"] = str(root / f"examples/native-system-stamp/bin/helper-{host_platform}")
-    native_test = run("cargo", "test", "--manifest-path", root / "Cargo.toml", "-p", "craft-ext-host", "native_packaged_helper_round_trip", "--", "--nocapture")
-    assert "native_packaged_helper_round_trip" in native_test and "1 passed" in native_test, native_test
+    # The host's packaged-helper test uses a protocol-only fixture (scripts/e2e.sh); this helper
+    # accepts only EffectCraft and FigCraft, so it is exercised through the app CLIs below.
     run("cargo", "test", "--manifest-path", root / "examples/cross-vignette/Cargo.toml")
 v = "io.github.arnav-hiwarkar.cross-vignette"
 r = "io.github.arnav-hiwarkar.cross-review"
