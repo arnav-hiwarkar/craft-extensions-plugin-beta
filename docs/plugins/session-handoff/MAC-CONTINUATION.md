@@ -2,6 +2,11 @@
 
 Updated 2026-11-13. This is a source-completion handoff, **not release readiness**. All recovered source is committed for transfer, including explicitly unverified work. Read this first, then inspect the actual code before trusting older claims.
 
+Current Mac source handoff: [SOURCE-COMPLETION.md](SOURCE-COMPLETION.md). The transfer
+state and completion slices below preserve the original entry conditions; consult
+that handoff and MAC-EVIDENCE.md for work completed since transfer.
+
+
 ## User direction and limits (highest priority)
 
 Finish the open-source plugin management and usage system across EffectCraft, PhotoCraft, FigCraft and the launcher, with one shared platform, useful plugins, and matching technical specifications and workflows. Make routine architecture/product decisions autonomously, record the rationale, and implement the smallest coherent solution. The user authorizes source fixes, documentation, focused commits and private-branch pushes.
