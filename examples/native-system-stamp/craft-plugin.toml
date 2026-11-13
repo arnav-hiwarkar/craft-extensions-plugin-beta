@@ -6,6 +6,8 @@ license = "MIT"
 source = "https://github.com/arnav-hiwarkar/craft-extensions-plugin-beta"
 summary = "Stamp the local operating system into a document"
 apps = ['effectcraft', 'figcraft']
+[why]
+"document.edit:document" = "Inserts a text layer with your system name"
 [native]
 executables = { "linux-x86_64" = "bin/helper-linux-x86_64", "macos-aarch64" = "bin/helper-macos-aarch64" }
 [[contribution]]
@@ -14,25 +16,25 @@ kind = "panel"
 contract = "effectcraft.session@1.0"
 label = "System stamp"
 files = ["LICENSE-MIT"]
-permissions = []
+permissions = ["document.edit:document"]
 [[contribution]]
 id = "effectcraft-apply"
 kind = "command"
 contract = "effectcraft.session@1.0"
 label = "System stamp"
 files = ["LICENSE-MIT"]
-permissions = []
+permissions = ["document.edit:document"]
 [[contribution]]
 id = "figcraft-panel"
 kind = "panel"
 contract = "figcraft.session@1.0"
 label = "System stamp"
 files = ["LICENSE-MIT"]
-permissions = []
+permissions = ["document.edit:document"]
 [[contribution]]
 id = "figcraft-apply"
 kind = "command"
 contract = "figcraft.session@1.0"
 label = "System stamp"
 files = ["LICENSE-MIT"]
-permissions = []
+permissions = ["document.edit:document"]

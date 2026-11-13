@@ -82,8 +82,8 @@ for app in ["effectcraft", "photocraft", "figcraft"]:
         elif name.startswith("native"):
             label=run(b,"plugin","permissions",ident)
             assert "full access" in label.lower(), label
-            run(b,"plugin","setup",ident,"--enable",app+"-apply",fail=True,error_contains="Native consent needed")
-            run(b,"plugin","setup",ident,"--enable",app+"-apply,"+app+"-panel","--full-access")
+            run(b,"plugin","setup",ident,"--enable",app+"-apply","--grant","document.edit:document",fail=True,error_contains="Native consent needed")
+            run(b,"plugin","setup",ident,"--enable",app+"-apply,"+app+"-panel","--full-access","--grant","document.edit:document")
         else:
             run(b,"plugin","setup",ident,"--all")
     if app == "effectcraft":
