@@ -43,3 +43,9 @@ FigCraft currently advertises no `raster.filter` contract (see
 halftone versions with that explanation; only EffectCraft and PhotoCraft can install
 halftone 1.0.0 today. FigCraft image-fill dispatch requires adapter work outside this
 shared-repository test.
+
+FigCraft's session example is `examples/figcraft-shapes` (panel form, command, drag tool with a guide
+overlay). Its archive was added to `../test-catalogue/assets/` and the catalogue rebuilt with the same
+`publish()` steps as `e2e.sh`, so `plugin install io.github.arnav-hiwarkar.figcraft-shapes` works for
+FigCraft; `e2e.sh` keeps the extra archive when it republishes. FigCraft's `docs/plugin-testing.md`
+walks it end to end.

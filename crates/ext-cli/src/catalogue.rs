@@ -576,8 +576,8 @@ mod beta_tests {
                 }
             }
         }
-        // Film looks has both 1.0.0 and 1.1.0; halftone and color notes have one each.
-        assert_eq!(count, 4);
+        // Film looks has both 1.0.0 and 1.1.0; halftone, color notes and figcraft-shapes have one each.
+        assert_eq!(count, 5);
         // Test the current source records, independently of previously generated/signed dist files.
         let fresh = tempfile::tempdir().unwrap();
         fn copy_source(from: &Path, to: &Path) {

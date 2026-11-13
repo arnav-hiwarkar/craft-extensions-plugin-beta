@@ -2,3 +2,5 @@ target
 *.orig
 __pycache__/
 *.pyc
+*.wasm
+*.craftplugin

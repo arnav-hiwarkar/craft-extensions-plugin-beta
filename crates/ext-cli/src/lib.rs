@@ -136,7 +136,10 @@ fn enable(m: &Manager, id: &ExtensionId, c: &str) -> Result<()> {
     Ok(())
 }
 fn sheet(manifest: &Manifest) -> Value {
-    json!({"required":manifest.contributions.iter().flat_map(|c|&c.permissions).map(|p|json!({"permission":p,"sentence":p.sentence(),"why":manifest.why.get(&p.to_string())})).collect::<Vec<_>>(),"optional":manifest.contributions.iter().flat_map(|c|&c.optional_permissions).map(|p|json!({"permission":p,"sentence":p.sentence(),"why":manifest.why.get(&p.to_string())})).collect::<Vec<_>>(),"warnings":craft_ext_core::permission::warnings(&manifest.contributions.iter().flat_map(|c|c.permissions.iter().chain(&c.optional_permissions)).cloned().collect::<Vec<_>>()),"native":if manifest.is_native(){Some("Native: full access to your computer")}else{None}})
+    // One row per permission even when several contributions declare it; optional omits required.
+    let required: std::collections::BTreeSet<&Permission> = manifest.contributions.iter().flat_map(|c| &c.permissions).collect();
+    let optional: std::collections::BTreeSet<&Permission> = manifest.contributions.iter().flat_map(|c| &c.optional_permissions).filter(|p| !required.contains(p)).collect();
+    json!({"required":required.iter().map(|p|json!({"permission":p,"sentence":p.sentence(),"why":manifest.why.get(&p.to_string())})).collect::<Vec<_>>(),"optional":optional.iter().map(|p|json!({"permission":p,"sentence":p.sentence(),"why":manifest.why.get(&p.to_string())})).collect::<Vec<_>>(),"warnings":craft_ext_core::permission::warnings(&manifest.contributions.iter().flat_map(|c|c.permissions.iter().chain(&c.optional_permissions)).cloned().collect::<Vec<_>>()),"native":if manifest.is_native(){Some("Native: full access to your computer")}else{None}})
 }
 fn plugin(m: &Manager, args: &[String]) -> Result<Value> {
     let a = Args::parse(args, &["kind", "version", "enable", "grant"], &["all", "full-access"])?;
@@ -364,6 +367,41 @@ mod tests {
         let a = Args::parse(&["setup".into(), "--grant".into(), "clipboard.read".into(), "--json".into()], &["grant"], &[]).unwrap();
         assert!(a.has("json"));
         assert_eq!(a.at(0).unwrap(), "setup");
+    }
+    #[test]
+    fn permission_sheet_lists_each_permission_once() {
+        let m = Manifest::parse(
+            br#"schema=2
+id="io.github.alice.shapes"
+name="Shapes"
+version="1.0.0"
+license="MIT"
+source="https://github.com/alice/shapes"
+summary="Shapes"
+apps=["figcraft"]
+[[contribution]]
+id="a"
+kind="command"
+contract="figcraft.session@1.0"
+label="A"
+module="m.wasm"
+permissions=["document.edit:document"]
+optional_permissions=["app.events"]
+[[contribution]]
+id="b"
+kind="tool"
+contract="figcraft.session@1.0"
+label="B"
+module="m.wasm"
+permissions=["document.edit:document"]
+optional_permissions=["app.events", "document.edit:document"]
+"#,
+        )
+        .unwrap();
+        let s = sheet(&m);
+        assert_eq!(s["required"].as_array().unwrap().len(), 1, "{s}");
+        assert_eq!(s["optional"].as_array().unwrap().len(), 1, "{s}");
+        assert_eq!(s["optional"][0]["permission"], "app.events");
     }
 }
 pub fn manager(app: &str) -> Result<Manager> {
