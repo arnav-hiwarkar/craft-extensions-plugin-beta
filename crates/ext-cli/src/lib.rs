@@ -178,6 +178,16 @@ fn plugin(m: &Manager, args: &[String]) -> Result<Value> {
                 let kind = serde_json::from_value(json!(k)).map_err(|_| Usage("unknown kind".into()))?;
                 rows.retain(|r| r.kinds.contains(&kind));
             }
+            let index = craft_ext_store::catalogue::Catalogue::cached(&m.store.root().join("catalogue"))?;
+            let rows = rows
+                .into_iter()
+                .map(|row| {
+                    let tier = index.tier_of(&row.id);
+                    let mut value = serde_json::to_value(row)?;
+                    value["tier"] = json!(tier);
+                    Ok(value)
+                })
+                .collect::<Result<Vec<_>>>()?;
             return Ok(json!(rows));
         }
         "install-file" => {
@@ -230,7 +240,10 @@ fn plugin(m: &Manager, args: &[String]) -> Result<Value> {
     match cmd {
         "info" => {
             a.arity(2)?;
-            Ok(json!(m.info(&id)?))
+            let index = craft_ext_store::catalogue::Catalogue::cached(&m.store.root().join("catalogue"))?;
+            let mut value = json!(m.info(&id)?);
+            value["tier"] = json!(index.tier_of(&id));
+            Ok(value)
         }
         "versions" => {
             a.arity(2)?;

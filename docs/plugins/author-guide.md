@@ -29,7 +29,7 @@ arguments, results and permission rules, events and where contributions appear.
 ```sh
 craft-ext new effect my-effect --id io.github.<your-github-login>.my-effect   # or: panel, data
 cd my-effect
-craft-ext build      # cargo build --target wasm32-unknown-unknown --release, copies the .wasm
+craft-ext build      # debug profile, optimization level 1, copies the .wasm; --release opts in
 craft-ext check      # manifest, ABI signatures, licence, permission hints
 craft-ext test       # runs each effect twice on a test image: deterministic and valid output
 craft-ext dev . --app effectcraft   # installs into your local store as "Development"

@@ -126,10 +126,10 @@ fn embedded_template(kind: &str, dst: &Path, id: &str) -> Result<()> {
     Ok(())
 }
 pub fn run(args: &[String]) -> Result<Value> {
-    let a = Args::parse(args, &["id", "out", "tag", "commit", "url", "app", "size"], &["store", "release-record", "describe"])?;
+    let a = Args::parse(args, &["id", "out", "tag", "commit", "url", "app", "size"], &["store", "release-record", "describe", "release"])?;
     if a.pos.is_empty() || a.has("help") {
         return Ok(json!(
-            "new <effect|panel|data> <dir> --id <id> | build [dir] | check [dir] [--store] | test [dir] [--size WxH] | pack [dir] [--describe] [--out file] [--release-record --tag vX --commit SHA --url URL] | dev <dir> --app <app>. All accept --json."
+            "new <effect|panel|data> <dir> --id <id> | build [dir] [--release] | check [dir] [--store] | test [dir] [--size WxH] | pack [dir] [--describe] [--out file] [--release-record --tag vX --commit SHA --url URL] | dev <dir> --app <app>. All accept --json."
         ));
     }
     let cmd = a.at(0)?;
@@ -175,13 +175,33 @@ pub fn run(args: &[String]) -> Result<Value> {
     let m = manifest(dir)?;
     match cmd {
         "build" => {
-            let output =
-                std::process::Command::new("cargo").args(["build", "--release", "--target", "wasm32-unknown-unknown"]).current_dir(dir).output()?;
-            if !output.status.success() {
-                return Err(format!("Author build failed: {}", String::from_utf8_lossy(&output.stderr)).into());
+            if !m.contributions.iter().any(|c| c.module.is_some()) {
+                return Ok(json!("No wasm modules to build"));
             }
-            let wasm = fs::read_dir(dir.join("target/wasm32-unknown-unknown/release"))?
-                .filter_map(|e| e.ok().map(|e| e.path()))
+            let mut command = std::process::Command::new("cargo");
+            command.args(["build", "--target", "wasm32-unknown-unknown", "--message-format=json"]);
+            if a.has("release") {
+                command.arg("--release");
+            } else if std::env::var_os("CARGO_PROFILE_DEV_OPT_LEVEL").is_none() {
+                // Unoptimized Rust SDK code can exhaust the production sandbox fuel budget.
+                // Keep debug info and the dev profile while making wasm usable in the host.
+                command.env("CARGO_PROFILE_DEV_OPT_LEVEL", "1");
+            }
+            let output = command.current_dir(dir).output()?;
+            if !output.status.success() {
+                let diagnostics = String::from_utf8_lossy(&output.stdout)
+                    .lines()
+                    .filter_map(|line| serde_json::from_str::<Value>(line).ok())
+                    .filter_map(|v| v["message"]["rendered"].as_str().map(String::from))
+                    .collect::<String>();
+                return Err(format!("Author build failed: {diagnostics}{}", String::from_utf8_lossy(&output.stderr)).into());
+            }
+            let wasm = String::from_utf8_lossy(&output.stdout)
+                .lines()
+                .filter_map(|line| serde_json::from_str::<Value>(line).ok())
+                .filter(|v| v["reason"] == "compiler-artifact")
+                .flat_map(|v| v["filenames"].as_array().cloned().unwrap_or_default())
+                .filter_map(|v| v.as_str().map(PathBuf::from))
                 .filter(|p| p.extension().is_some_and(|e| e == "wasm"))
                 .collect::<Vec<_>>();
             for c in &m.contributions {

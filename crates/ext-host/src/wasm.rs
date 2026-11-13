@@ -69,7 +69,9 @@ fn engine() -> Engine {
     c.consume_fuel(true)
         .set_max_recursion_depth(4096)
         .wasm_multi_memory(false)
-        .wasm_reference_types(false)
+        // Rust/LLVM emits reference-types call_indirect encodings, including padded
+        // table indices. Match the author checker and accept modern SDK output.
+        .wasm_reference_types(true)
         .wasm_tail_call(false)
         .wasm_custom_page_sizes(false)
         .ignore_custom_sections(true);

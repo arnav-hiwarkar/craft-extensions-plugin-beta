@@ -1,16 +1,16 @@
 # EffectCraft plugin contract
 
-Generated from the `effectcraft` adapter by `craft-ext contract-docs`. Do not edit by hand.
+Generated from the `effectcraft` adapter by `<app>-cli plugin contract`. Do not edit by hand.
 
 ## Contracts provided
 
 | Contract | Version |
 |---|---|
-| `craft-theme` | 1.0 |
-| `effectcraft.session` | 1.0 |
 | `raster.filter` | 1.0 |
-| `resource.lut` | 1.0 |
+| `effectcraft.session` | 1.0 |
 | `resource.preset` | 1.0 |
+| `resource.lut` | 1.0 |
+| `craft-theme` | 1.0 |
 
 A contribution declaring `contract = "name@major.minor"` works here when the major matches and this minor is equal or higher.
 
@@ -101,7 +101,7 @@ Permission: `document.edit:selection`
 
 ```json
 // args
-{"effect": "ec.blur.gaussian", "params": {"blurriness": 12}}
+{"effect": "ec.blur.gaussian", "values": {"blurriness": 12}}
 // result
 {"effects": [41], "paths": ["effects/#2"]}
 ```
@@ -170,24 +170,14 @@ null
 
 ## Notes
 
-Pixels: premultiplied RGBA f32 in the project's working space (`color` is `linear-srgb` when Linearize Working Space is on, else `srgb`); values may exceed 1 in 32 bpc projects. `time` is layer time in seconds. `scale` is buffer pixels per layer pixel (previews at reduced resolution have scale < 1 and `quality: "draft"`). `origin` is the buffer's top-left inside the layer's full frame and `full` the layer's size, both in buffer pixels. Point parameters: defaults are fractions of the layer size ([0.5, 0.5] = centre); values reach the filter in buffer pixels. Angle parameters are degrees. Select parameters are 0-based indices. Plugin effects are treated as time-dependent by the frame caches. Ops act on the composition and selection captured when the event started. Effect ids are `<plugin id>/<contribution>`.
+Tools are not supported in EffectCraft yet; tool contributions are unavailable in compatibility and setup. Pixels: premultiplied RGBA f32 in the project's working space (`color` is `linear-srgb` when Linearize Working Space is on, else `srgb`); values may exceed 1 in 32 bpc projects. `time` is layer time in seconds. `scale` is buffer pixels per layer pixel (previews at reduced resolution have scale < 1 and `quality: "draft"`). `origin` is the buffer's top-left inside the layer's full frame and `full` the layer's size, both in buffer pixels. Plugin effects are treated as time-dependent by the frame caches. Ops act on the composition and selection captured when the event started. Effect ids are `<plugin id>/<contribution>`.
+
+## Effect forms (schema 1)
+
+`contribution.form` supplies the effect controls; optional `craft_describe` supplies a validated runtime form. Form parameter keys identify render `params` values. Choice/radio values are option IDs, colors straight RGBA, angles degrees, and points use their declared image-percent or layer-pixels space (not buffer pixels). Effect Controls shows units and section headings and evaluates visible/enabled conditions. Optional `craft_update` runs with the shared event budget; patches are validated atomically and resulting value edits share one undo step. Visibility and enablement overrides are transient per-instance UI state.
+
+Panel Form nodes render host widgets with parameter-key events. Component nodes currently always render their fallback. Preset effect entries use `{effect, values}`.
 
 ## Error codes
 
 `-1` invalid input, `-2` permission denied, `-3` not found, `-4` stale or busy, `-5` cancelled, `-6` over budget, `-7` internal.
-
-Tools are not supported in EffectCraft yet. Tool contributions are unavailable in compatibility and setup.
-
-## Effect forms (schema 1)
-
-`contribution.form` supplies the effect controls; optional `craft_describe` supplies
-a validated runtime form. Form parameter keys identify render `params` values.
-Choice/radio values are option IDs, colors straight RGBA, angles degrees, and
-points use their declared image-percent or layer-pixels space (not buffer pixels).
-Effect Controls shows units and section headings and evaluates visible/enabled
-conditions. Optional `craft_update` runs with the shared event budget; patches are
-validated atomically and resulting value edits share one undo step. Visibility and
-enablement overrides are transient per-instance UI state.
-
-Panel Form nodes render host widgets with parameter-key events. Component nodes
-currently always render their fallback. Preset effect entries use `{effect, values}`.

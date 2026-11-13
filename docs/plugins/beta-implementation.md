@@ -30,7 +30,7 @@ most; no runtime, hostile-module, GUI or download evidence was produced (B12).
    `templates/`.
 2. Declare contributions, parameters and permissions in `craft-plugin.toml`; write the module
    (`filter!` or `session!`).
-3. `craft-ext build` — `cargo build --release --target wasm32-unknown-unknown`, copies the `.wasm`.
+3. `craft-ext build` — `cargo build --target wasm32-unknown-unknown` (debug by default; `--release` opts in), copies the `.wasm`.
 4. `craft-ext check` — manifest, files, ABI exports, licence; warns that permission use needs review.
 5. `craft-ext test` — runs each effect twice on a test image: deterministic, finite, valid alpha.
 6. `craft-ext dev . --app effectcraft` — installs into the development store, labelled "Development".

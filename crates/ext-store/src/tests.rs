@@ -201,3 +201,38 @@ fn project_requires_each_contribution_and_saved_state_version() {
     r.contributions.push("missing".into());
     assert!(matches!(m.check_project(&[r]).unwrap()[0].1, Status::NeedsOtherVersion { .. }));
 }
+
+#[test]
+fn reinstall_catalogue_bytes_as_local_relabels_and_revokes_consent() {
+    let t = tempfile::tempdir().unwrap();
+    let s = Store::at(t.path());
+    let (app, id) = ids();
+    let installed = install(&s, "1.0.0", "\"clipboard.read\"");
+    s.set_active(&app, &id, installed.version).unwrap();
+    s.grant(&app, &id, Permission::parse("clipboard.read").unwrap()).unwrap();
+    s.set_enabled(&app, &id, "run", true).unwrap();
+    let before = s.state().unwrap().apps[&app][&id].grant_generation;
+    let bytes = package("1.0.0", "\"clipboard.read\"", b"wasm");
+    s.install_bytes(&bytes, Tier::Local, Origin::Local { sha256: digest(&bytes) }).unwrap();
+    let state = s.state().unwrap();
+    assert_eq!(state.packages[&id].releases[&installed.version].tier, Tier::Local);
+    let setup = &state.apps[&app][&id];
+    assert!(setup.grants.is_empty() && setup.enabled.is_empty() && !setup.full_access);
+    assert!(setup.grant_generation > before);
+}
+
+#[test]
+fn local_digest_change_does_not_inherit_grants() {
+    let t = tempfile::tempdir().unwrap();
+    let s = Store::at(t.path());
+    let (app, id) = ids();
+    let first = package("1.0.0", "\"clipboard.read\"", b"wasm");
+    s.install_bytes(&first, Tier::Local, Origin::Local { sha256: digest(&first) }).unwrap();
+    s.grant(&app, &id, Permission::parse("clipboard.read").unwrap()).unwrap();
+    s.set_full_access(&app, &id, true).unwrap();
+    let next = package("1.1.0", "\"clipboard.read\"", b"wasm");
+    s.install_bytes(&next, Tier::Local, Origin::Local { sha256: digest(&next) }).unwrap();
+    let state = s.state().unwrap();
+    assert!(state.apps[&app][&id].grants.is_empty());
+    assert!(!state.apps[&app][&id].full_access);
+}

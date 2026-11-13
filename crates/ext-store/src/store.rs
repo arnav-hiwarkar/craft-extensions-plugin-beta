@@ -139,7 +139,7 @@ impl Store {
                     return Err(error("this release has been withdrawn"));
                 }
                 if let Some(p) = s.packages.get(&m.id) {
-                    let same_origin = p.origin == origin || matches!((&p.origin, &origin), (Origin::Local { .. }, Origin::Local { .. }));
+                    let same_origin = p.origin == origin;
                     if !same_origin {
                         for apps in s.apps.values_mut() {
                             if let Some(a) = apps.get_mut(&m.id) {
@@ -153,7 +153,9 @@ impl Store {
                             return Err(error("this version already has different bytes"));
                         }
                         let p = s.packages.get_mut(&m.id).unwrap();
-                        p.releases.get_mut(&m.version).unwrap().origin = Some(origin.clone());
+                        let release = p.releases.get_mut(&m.version).unwrap();
+                        release.origin = Some(origin.clone());
+                        release.tier = tier;
                         p.origin = origin.clone();
                         return Ok(());
                     }

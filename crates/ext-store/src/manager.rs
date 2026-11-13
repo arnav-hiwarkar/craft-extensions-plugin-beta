@@ -159,7 +159,7 @@ impl Manager {
                 .ok_or_else(|| error("no matching release"))?
         };
         let asset = release.asset_for(&self.platform).ok_or_else(|| error("no release for this platform"))?;
-        let bytes = Catalogue::download_release(asset, 300 * 1024 * 1024)?;
+        let bytes = Catalogue::download_release_from(asset, 300 * 1024 * 1024, &self.catalogue_base)?;
         let stage = temp_validation(&bytes)?;
         if stage != release.manifest {
             return Err(error("the archive manifest differs from the catalogue"));

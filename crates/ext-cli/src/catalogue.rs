@@ -94,16 +94,21 @@ fn check_online(l: &Listing, v: &VendorRecord, r: &Release, _warnings: &mut Vec<
         return Err("repository numeric id differs".into());
     }
     let mut request = ureq::get(&format!("https://api.github.com/users/{}", v.login)).header("User-Agent", "craft-ext-cli");
-    if let Ok(token) = std::env::var("GITHUB_TOKEN") { request = request.header("Authorization", &format!("Bearer {token}")); }
+    if let Ok(token) = std::env::var("GITHUB_TOKEN") {
+        request = request.header("Authorization", &format!("Bearer {token}"));
+    }
     let user: Value = serde_json::from_str(&request.call()?.body_mut().read_to_string()?)?;
     if user["id"].as_u64() != Some(v.github_id)
         || repo["owner"]["id"].as_u64() != Some(v.github_id)
-        || !repo["owner"]["login"].as_str().is_some_and(|login| login.eq_ignore_ascii_case(&v.login)) {
+        || !repo["owner"]["login"].as_str().is_some_and(|login| login.eq_ignore_ascii_case(&v.login))
+    {
         return Err("repository owner or vendor numeric id differs".into());
     }
     let license = repo["license"]["spdx_id"].as_str().unwrap_or("NOASSERTION");
     if license == "NOASSERTION" {
-        if !l.licence_reviewed.as_ref().is_some_and(|note| !note.trim().is_empty()) { return Err("GitHub did not detect a licence; licence_reviewed requires a maintainer note".into()); }
+        if !l.licence_reviewed.as_ref().is_some_and(|note| !note.trim().is_empty()) {
+            return Err("GitHub did not detect a licence; licence_reviewed requires a maintainer note".into());
+        }
     } else if license != r.manifest.license {
         return Err(format!("{}: GitHub licence {license} differs from manifest {}", l.id, r.manifest.license).into());
     }
@@ -234,10 +239,12 @@ pub fn assemble(repo: &Path, offline: bool, only: Option<&str>) -> Result<(Index
                 for old in previous.releases {
                     let new = releases.iter().find(|r| r.version == old.version).ok_or("published version was removed")?;
                     let digests = |r: &Release| r.assets.iter().map(|a| (a.platform.clone(), a.sha256.clone())).collect::<BTreeMap<_, _>>();
-                    if digests(&old) != digests(new) { return Err("published asset digests changed or were removed".into()); }
+                    if digests(&old) != digests(new) {
+                        return Err("published asset digests changed or were removed".into());
+                    }
                 }
             }
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {},
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
             Err(e) => return Err(e.into()),
         }
         releases.sort_by_key(|r| r.version);
@@ -301,14 +308,104 @@ pub fn build(repo: &Path, offline: bool) -> Result<Value> {
     let _ = fs::remove_file(repo.join("dist/index.json.sig"));
     Ok(json!({"serial":i.serial,"packages":i.packages.len(),"warnings":warnings,"next":"catalogue sign --repo <repo> --key <file>"}))
 }
+/// Build development metadata from real archives; signing remains a separate explicit step.
+pub fn build_local(assets: &Path, out: &Path) -> Result<Value> {
+    let mut grouped: BTreeMap<ExtensionId, Vec<Release>> = BTreeMap::new();
+    for path in entries(assets)? {
+        if path.extension().is_none_or(|e| e != "craftplugin") {
+            continue;
+        }
+        let bytes = fs::read(&path)?;
+        let dir = temp_dir()?;
+        let result = craft_ext_store::unpack::unpack_into(&bytes, &dir, craft_ext_store::unpack::Caps::default());
+        let _ = fs::remove_dir_all(&dir);
+        let m = result?;
+        craft_ext_core::licence::check_osi(&m.license).map_err(|e| format!("non-OSI licence: {e}"))?;
+        tier::check_id(VendorTier::Community.into(), &m.id)?;
+        let platform = if m.is_native() { Some(craft_ext_host::native::platform()) } else { None };
+        grouped.entry(m.id.clone()).or_default().push(Release {
+            version: m.version,
+            tag: format!("v{}", m.version),
+            commit: "0".repeat(40),
+            published: crate::author::date(craft_ext_store::store::now()),
+            assets: vec![Asset {
+                platform,
+                url: format!("file://{}", path.canonicalize()?.display()),
+                sha256: craft_ext_store::store::digest(&bytes),
+                size: bytes.len() as u64,
+            }],
+            manifest: m,
+        });
+    }
+    fs::create_dir_all(out.join("packages"))?;
+    let mut vendors = BTreeMap::new();
+    let mut rows = vec![];
+    for (id, mut releases) in grouped {
+        releases.sort_by_key(|r| r.version);
+        if releases.windows(2).any(|w| w[0].version == w[1].version) {
+            return Err("duplicate local version".into());
+        }
+        let newest = releases.last().ok_or("no release")?;
+        let m = &newest.manifest;
+        let login = id.as_str().strip_prefix("io.github.").and_then(|s| s.split('.').next()).unwrap_or("local").to_string();
+        vendors.insert(login.clone(), Vendor { login: login.clone(), github_id: 1, name: login.clone(), tier: VendorTier::Community, url: None });
+        let package = PackageFile { schema: SCHEMA, id: id.clone(), vendor: login.clone(), releases: releases.clone() };
+        let bytes = serde_json::to_vec_pretty(&package)?;
+        PackageFile::parse(&bytes, &id)?;
+        fs::write(out.join(format!("packages/{id}.json")), &bytes)?;
+        rows.push(PackageSummary {
+            id,
+            vendor: login,
+            name: m.name.clone(),
+            summary: m.summary.clone(),
+            repo: m.source.clone(),
+            stars: 0,
+            stars_date: crate::author::date(craft_ext_store::store::now()),
+            tags: vec![],
+            kinds: m.contributions.iter().map(|c| c.kind).collect::<BTreeSet<_>>().into_iter().collect(),
+            apps: m.apps.clone(),
+            native: m.is_native(),
+            license: m.license.clone(),
+            latest: m.version,
+            updated: newest.published.clone(),
+            file_sha256: craft_ext_store::store::digest(&bytes),
+            file_size: bytes.len() as u64,
+        });
+    }
+    let now = craft_ext_store::store::now();
+    let serial = match fs::read(out.join("index.json")) {
+        Ok(bytes) => Index::parse_cached(&bytes)?.serial.checked_add(1).ok_or("serial overflow")?,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => 1,
+        Err(e) => return Err(e.into()),
+    };
+    let revocations: Revocations =
+        if assets.join("revocations.toml").exists() { read(&assets.join("revocations.toml"))? } else { Revocations::default() };
+    let index = Index {
+        schema: SCHEMA,
+        serial,
+        issued: now,
+        expires: now + 30 * 86400,
+        vendors: vendors.into_values().collect(),
+        packages: rows,
+        revocations: revocations.revocation,
+    };
+    let bytes = serde_json::to_vec_pretty(&index)?;
+    Index::parse(&bytes, now, 0)?;
+    fs::write(out.join("index.json"), bytes)?;
+    let _ = fs::remove_file(out.join("index.json.sig"));
+    Ok(json!({"packages":index.packages.len(),"next":"catalogue sign --repo <out> --key <file>"}))
+}
 pub fn run(args: &[String]) -> Result<Value> {
-    let a = Args::parse(args, &["repo", "only", "key", "out"], &["offline"])?;
+    let a = Args::parse(args, &["repo", "only", "key", "out", "local-assets"], &["offline"])?;
     if a.pos.is_empty() || a.has("help") {
         return Ok(json!(
-            "catalogue check --repo <dir> [--offline] [--only id] | build --repo <dir> [--offline] | sign --repo <dir> --key <32-byte-hex-seed-file> | keygen --repo <dir> --out <file>. All accept --json. Review source/build provenance, free behaviour and permissions manually."
+            "catalogue check --repo <dir> [--offline] [--only id] | build --repo <dir> [--offline] | build --local-assets <dir> --out <dir> | sign --repo <dir> --key <32-byte-hex-seed-file> | keygen --repo <dir> --out <file>. All accept --json. Review source/build provenance, free behaviour and permissions manually."
         ));
     }
     a.arity(1)?;
+    if a.at(0)? == "build" && a.opt("local-assets").is_some() {
+        return build_local(Path::new(a.opt("local-assets").unwrap()), Path::new(a.opt("out").ok_or_else(|| Usage("--out is required".into()))?));
+    }
     let repo = Path::new(a.opt("repo").ok_or_else(|| Usage("--repo is required".into()))?);
     match a.at(0)? {
         "check" => {
@@ -340,10 +437,11 @@ pub fn run(args: &[String]) -> Result<Value> {
             let key = a.opt("key").ok_or_else(|| Usage("--key is required".into()))?;
             let bytes = hex::decode(fs::read_to_string(key)?.trim()).map_err(|_| "key file must contain a hex seed")?;
             let seed: [u8; 32] = bytes.try_into().map_err(|_| "key seed must be 32 bytes")?;
-            let index = fs::read(repo.join("dist/index.json"))?;
+            let dist = if repo.join("index.json").is_file() { repo.to_path_buf() } else { repo.join("dist") };
+            let index = fs::read(dist.join("index.json"))?;
             Index::parse(&index, craft_ext_store::store::now(), 0)?;
             let sig = SigningKey::from_bytes(&seed).sign(&index);
-            fs::write(repo.join("dist/index.json.sig"), hex::encode(sig.to_bytes()))?;
+            fs::write(dist.join("index.json.sig"), hex::encode(sig.to_bytes()))?;
             Ok(json!("Catalogue signed"))
         }
         cmd => Err(Usage(format!("unknown catalogue command {cmd}")).into()),
@@ -434,7 +532,6 @@ files=["data.json"]
         assert!(assemble(p, true, None).is_err());
         fs::write(&listing, format!("{original}monetisation_reviewed='Maintainer confirmed this is free'\n")).unwrap();
         assert!(assemble(p, true, None).is_ok());
-
     }
 }
 
@@ -451,13 +548,14 @@ mod beta_tests {
             fs::create_dir_all(keypath.parent().unwrap()).unwrap();
             run(&["keygen".into(), "--repo".into(), repo.clone(), "--out".into(), key.clone()]).unwrap();
         }
-        #[cfg(unix)] {
+        #[cfg(unix)]
+        {
             use std::os::unix::fs::PermissionsExt;
             fs::set_permissions(keypath, fs::Permissions::from_mode(0o600)).unwrap();
         }
         build(Path::new(&repo), true).unwrap();
         run(&["sign".into(), "--repo".into(), repo.clone(), "--key".into(), key.clone()]).unwrap();
-        let seed: [u8;32] = hex::decode(fs::read_to_string(keypath).unwrap().trim()).unwrap().try_into().unwrap();
+        let seed: [u8; 32] = hex::decode(fs::read_to_string(keypath).unwrap().trim()).unwrap().try_into().unwrap();
         let public = hex::encode(SigningKey::from_bytes(&seed).verifying_key().as_bytes());
         // Only the public key is printed, never the secret seed.
         println!("public_key={public}");
@@ -465,7 +563,9 @@ mod beta_tests {
     #[test]
     fn repository_release_records_parse() {
         let repo = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../craft-plugins");
-        if !repo.exists() { return; }
+        if !repo.exists() {
+            return;
+        }
         let mut count = 0;
         for root in [repo.join("plugins"), repo.join("examples/pending")] {
             for dir in entries(&root).unwrap().into_iter().filter(|p| p.is_dir()) {
@@ -476,18 +576,24 @@ mod beta_tests {
                 }
             }
         }
-        assert_eq!(count, 3);
+        // Film looks has both 1.0.0 and 1.1.0; halftone and color notes have one each.
+        assert_eq!(count, 4);
         // Test the current source records, independently of previously generated/signed dist files.
         let fresh = tempfile::tempdir().unwrap();
         fn copy_source(from: &Path, to: &Path) {
             fs::create_dir_all(to).unwrap();
             for path in entries(from).unwrap() {
                 let target = to.join(path.file_name().unwrap());
-                if path.is_dir() { copy_source(&path, &target); }
-                else { fs::copy(path, target).unwrap(); }
+                if path.is_dir() {
+                    copy_source(&path, &target);
+                } else {
+                    fs::copy(path, target).unwrap();
+                }
             }
         }
-        for dir in ["plugins", "vendors"] { copy_source(&repo.join(dir), &fresh.path().join(dir)); }
+        for dir in ["plugins", "vendors"] {
+            copy_source(&repo.join(dir), &fresh.path().join(dir));
+        }
         let (_, packages, _) = assemble(fresh.path(), true, None).unwrap();
         assert_eq!(packages.len(), 1);
         assert_eq!(packages[0].id.as_str(), "io.github.arnav-hiwarkar.film-looks");
@@ -496,8 +602,39 @@ mod beta_tests {
     fn asset_repository_tag_and_file_are_bound() {
         let repo = "https://github.com/alice/test";
         assert!(validate_asset_url(repo, "v1", "https://github.com/alice/test/releases/download/v1/a.zip").is_ok());
-        for url in ["https://github.com/bob/test/releases/download/v1/a.zip", "https://github.com/alice/test/releases/download/v2/a.zip", "https://github.com/alice/test/releases/download/v1/a.zip?x=1", "https://github.com/alice/test/releases/download/v1/../a.zip"] {
+        for url in [
+            "https://github.com/bob/test/releases/download/v1/a.zip",
+            "https://github.com/alice/test/releases/download/v2/a.zip",
+            "https://github.com/alice/test/releases/download/v1/a.zip?x=1",
+            "https://github.com/alice/test/releases/download/v1/../a.zip",
+        ] {
             assert!(validate_asset_url(repo, "v1", url).is_err());
         }
+    }
+}
+
+#[cfg(test)]
+mod local_tests {
+    use super::*;
+    #[test]
+    fn local_build_uses_archive_identity_and_invalidates_signature() {
+        let t = tempfile::tempdir().unwrap();
+        let project = t.path().join("project");
+        crate::author::run(&["new".into(), "data".into(), project.to_str().unwrap().into(), "--id".into(), "io.github.alice.local".into()]).unwrap();
+        let assets = t.path().join("assets");
+        fs::create_dir(&assets).unwrap();
+        crate::author::pack(&project, Some(assets.join("one.craftplugin").to_str().unwrap())).unwrap();
+        let out = t.path().join("catalogue");
+        build_local(&assets, &out).unwrap();
+        let i = Index::parse_cached(&fs::read(out.join("index.json")).unwrap()).unwrap();
+        assert_eq!(i.packages.len(), 1);
+        let p = PackageFile::parse(&fs::read(out.join("packages/io.github.alice.local.json")).unwrap(), &i.packages[0].id).unwrap();
+        assert!(p.releases[0].assets[0].url.starts_with("file:///"));
+        assert!(validate_asset_url(&p.releases[0].manifest.source, "v0.1.0", &p.releases[0].assets[0].url).is_err());
+        fs::write(out.join("index.json.sig"), "stale").unwrap();
+        build_local(&assets, &out).unwrap();
+        assert!(!out.join("index.json.sig").exists());
+        let next = Index::parse_cached(&fs::read(out.join("index.json")).unwrap()).unwrap();
+        assert_eq!(next.serial, i.serial + 1);
     }
 }

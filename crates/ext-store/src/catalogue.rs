@@ -50,6 +50,13 @@ impl Catalogue {
     }
     #[cfg(feature = "net")]
     pub fn download_release(asset: &Asset, max: u64) -> Result<Vec<u8>> {
+        Self::download_release_from(asset, max, "https://catalogue.invalid")
+    }
+    #[cfg(feature = "net")]
+    pub fn download_release_from(asset: &Asset, max: u64, base: &str) -> Result<Vec<u8>> {
+        if asset.url.starts_with("file:") && !file_allowed(base) {
+            return Err(error("file assets require a file catalogue or CRAFT_CATALOGUE_ALLOW_FILE=1"));
+        }
         let b = get(&asset.url, max.min(asset.size))?;
         if b.len() as u64 != asset.size || digest(&b) != asset.sha256 {
             return Err(error("the downloaded release is damaged or changed"));
@@ -60,11 +67,48 @@ impl Catalogue {
 #[cfg(feature = "net")]
 fn get(url: &str, max: u64) -> Result<Vec<u8>> {
     use std::io::Read;
-    let mut response = ureq::get(url).call().map_err(error)?;
     let mut b = vec![];
+    if let Some(path) = url.strip_prefix("file://") {
+        if !path.starts_with('/') || path.contains(['?', '#']) {
+            return Err(error("file URL must be an absolute local path"));
+        }
+        std::fs::File::open(path).map_err(error)?.take(max.saturating_add(1)).read_to_end(&mut b).map_err(error)?;
+        if b.len() as u64 > max {
+            return Err(error("the download is too large"));
+        }
+        return Ok(b);
+    }
+    let mut response = ureq::get(url).call().map_err(error)?;
     response.body_mut().as_reader().take(max.saturating_add(1)).read_to_end(&mut b).map_err(error)?;
     if b.len() as u64 > max {
         return Err(error("the download is too large"));
     }
     Ok(b)
+}
+
+#[cfg(feature = "net")]
+fn file_allowed(base: &str) -> bool {
+    base.starts_with("file://") || std::env::var("CRAFT_CATALOGUE_ALLOW_FILE").as_deref() == Ok("1")
+}
+
+#[cfg(all(test, feature = "net"))]
+mod local_tests {
+    use super::*;
+    #[test]
+    fn local_asset_policy_size_and_digest() {
+        let t = tempfile::tempdir().unwrap();
+        let path = t.path().join("archive.craftplugin");
+        std::fs::write(&path, b"archive").unwrap();
+        let mut asset = Asset { platform: None, url: format!("file://{}", path.display()), sha256: digest(b"archive"), size: 7 };
+        assert_eq!(Catalogue::download_release_from(&asset, 100, "file:///catalogue").unwrap(), b"archive");
+        if std::env::var("CRAFT_CATALOGUE_ALLOW_FILE").as_deref() == Ok("1") {
+            assert_eq!(Catalogue::download_release_from(&asset, 100, "https://example.com").unwrap(), b"archive");
+        } else {
+            assert!(Catalogue::download_release_from(&asset, 100, "https://example.com").is_err());
+        }
+        assert!(Catalogue::download_release_from(&asset, 3, "file:///catalogue").is_err());
+        asset.sha256 = "a".repeat(64);
+        assert!(Catalogue::download_release_from(&asset, 100, "file:///catalogue").is_err());
+        assert!(!verify_index(b"{}", &"0".repeat(128), TRUSTED_KEYS));
+    }
 }

@@ -367,3 +367,39 @@ fn form_result_refuses_invalid_ranges_and_oversize() {
         assert!(matches!(p.describe(log(), &|| Ok(())), Err(PluginError::Failed(..))));
     }
 }
+
+#[test]
+#[cfg(unix)]
+fn native_packaged_helper_round_trip() {
+    let (_, app, _) = session_fixture();
+    let grants = Arc::new(NativeGrants(AtomicBool::new(false)));
+    let i = inv(1);
+    if let Some(path) = std::env::var_os("CRAFT_E2E_NATIVE_EXE") {
+        let path = std::path::PathBuf::from(path);
+        let work = path.parent().unwrap();
+        assert!(crate::native::Helper::start(&i.plugin, i.version, &path, work, app.clone(), grants.clone(), log()).is_err());
+        grants.0.store(true, Ordering::Relaxed);
+        let mut helper = crate::native::Helper::start(&i.plugin, i.version, &path, work, app.clone(), grants.clone(), log()).unwrap();
+        helper.dispatch(i, &json!({"type":"command","id":"smoke"})).unwrap();
+        grants.0.store(false, Ordering::Relaxed);
+        assert!(!helper.supervise());
+    } else {
+        grants.0.store(true, Ordering::Relaxed);
+        let mut helper =
+            native_helper("read event\nprintf '%s\\n' '{\"type\":\"done\",\"id\":1,\"code\":0}'\nwhile read line; do :; done", app.clone(), grants);
+        helper.dispatch(i, &json!({})).unwrap();
+    }
+    assert_eq!(*app.committed.lock().unwrap(), vec![true]);
+}
+
+#[test]
+fn rust_sdk_reference_types_are_supported() {
+    let p = module(
+        r#"(table 1 funcref)
+        (func (export "craft_filter") (param i32 i32 i32 i32 i32) (result i32)
+            (drop (table.get (i32.const 0))) (i32.const 0))"#,
+        "",
+    );
+    let mut filter = Filter::new(&p, log()).unwrap();
+    filter.run(&json!({}), &mut [0.0, 0.0, 0.0, 1.0], 1, 1, &|| Ok(())).unwrap();
+}
