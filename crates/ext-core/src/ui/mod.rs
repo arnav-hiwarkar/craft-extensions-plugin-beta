@@ -1,10 +1,16 @@
 //! Declarative plugin UI: plugins describe, the host draws (theme, accessibility, no spoofed prompts,
 //! no plugin code on the UI thread). Sent as JSON by `ui.panel.set` and `ui.window.open`.
 //!
+//! This module holds the level-1.0 types, kept field-for-field so hosts that match on them keep
+//! compiling. The full vocabulary (level 1.1, a JSON superset of 1.0) is [`tree`]; hosts draw it with
+//! `craft_ext_ui::plugin_ui`.
+//!
 //! Invariants: bounded size and depth; every interactive widget has a stable `id` and a visible label
 //! (unlabelled controls are refused); events carry the tree `rev` so stale events are dropped.
 
 use serde::{Deserialize, Serialize};
+
+pub mod tree;
 
 pub const MAX_NODES: usize = 2_000;
 pub const MAX_DEPTH: usize = 16;
@@ -143,6 +149,14 @@ pub enum UiValue {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UiError(pub String);
+
+impl std::fmt::Display for UiError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl std::error::Error for UiError {}
 
 impl Node {
     /// Checks size, depth, labels and numbers before the host draws anything.
