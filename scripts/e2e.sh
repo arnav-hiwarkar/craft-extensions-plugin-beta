@@ -29,7 +29,9 @@ def run(*args, fail=None, code=None):
 def plugin(*args, app='effectcraft', **kw): return run('plugin','--app',app,*args,**kw)
 def author(path):
     for cmd in ['build','check','test']:
-        result = run(cmd,path)
+        # Catalogue packages ship release modules: debug (even opt-level 1) halftone exceeds the
+        # per-pixel fuel budget at ordinary frame sizes and every render fails as too slow.
+        result = run(cmd,path,*(['--release'] if cmd == 'build' else []))
         if cmd == 'test' and path.name == 'halftone':
             assert result and all(r['deterministic'] for r in result), result
     return run('pack',path,'--describe','--out',work/(path.name+'.craftplugin'))['file']
