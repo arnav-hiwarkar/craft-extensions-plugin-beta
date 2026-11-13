@@ -36,3 +36,25 @@ implementations.
   domain contract needs agreement from two apps.
 - **Levels:** L0 (manager, CLI, data add-ons), then L1 (`raster.filter`), then L2 (sessions:
   panels, commands, tools, events). An app may ship L0 first.
+
+## Commit and asynchronous replies
+
+Revalidate captured document/surface/gesture identity, cancellation, live enablement
+and grant generation on the owner thread before each external publication and
+again before accepting document/UI commit. Include synchronous work in the event
+deadline. File replacement is atomic per destination, not per event: on failure
+stop later writes, roll back document/UI and report how many files remain. Do not
+promise that Undo removes external files or native-helper effects. Acknowledge
+Finish only after finalization. Native dispatch must return failure and terminate
+the helper if its final consent check fails.
+
+Bind picker replies to a single pending request and captured document generation;
+discard stale/replayed replies before granting handles. Reauthorize the resulting
+event and every file operation. Bound pending questions and file/pixel allocations.
+Reject excess windows before acknowledging their call, counting staged windows
+and existing windows together. Replacement of an existing ID consumes no new slot.
+
+Beta workers serialize by plugin/module. Authors receive no package-wide ordering
+or shared-memory guarantee. Revocation stops work immediately; a dispose callback
+is reserved, not guaranteed. Opaque per-instance effect-state migration remains
+deferred. See the app migration docs for supported contracts and limitations.

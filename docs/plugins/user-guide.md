@@ -129,4 +129,20 @@ Commands are the same in every app. Replace `effectcraft-cli` with your app's CL
 
 Plugins are made by their authors. ArtCraft lists them but does not build, host or guarantee them.
 
-Beta availability: `tool` contributions work in FigCraft only. Font and theme contributions are stored and listed but are not activated in this beta.
+Beta availability: `tool` contributions work in all three app adapters. Font and theme contributions are stored and listed but are not activated in this beta.
+
+## File operations and cancelled work
+
+PhotoCraft asks you to choose a file or folder before a sandboxed plugin can use
+it. A cancelled or stale question grants no handle. Document edits and plugin UI
+roll back when an event fails or permissions change. File exports publish in order,
+with atomic replacement for each file. Earlier files can remain after failure or
+cancellation, and Undo does not remove them. The error reports their count. A native
+helper has full computer access after separate consent; it is not an OS sandbox,
+and stopping it cannot reverse changes it already made outside the document.
+
+Tools, panels and Resume are implemented in all three app adapters. Their current
+Mac desktop behavior still requires the deferred verification phase. FigCraft
+supports session contributions, but does not implement raster filters. The manager
+shows incompatibility by contract; changing an app version does not add a missing
+contract. Installing a package still requires separate setup and grants.

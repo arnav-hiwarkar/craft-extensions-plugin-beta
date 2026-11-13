@@ -1,5 +1,11 @@
 # Craft plugin architecture
 
+> Current source behavior is specified by [beta-design.md](beta-design.md), the
+> [app contract references](contracts/photocraft.md), app migration docs and
+> [Mac evidence ledger](session-handoff/MAC-EVIDENCE.md). The broader design below
+> is historical where it exceeds those beta contracts. It does not grant Wasm
+> arbitrary CLI/MCP command access, new object types or workflow APIs.
+
 > **Beta implementation (2026-11-12):** the code follows [beta-design.md](beta-design.md), which simplifies this design where they differ (one-maintainer store admission, signed index instead of TUF, per-contribution contracts and permissions, no bot). The superseded points are listed in [draft/decisions.md](draft/decisions.md#beta-decisions-2026-11-12).
 
 Status: **current, 2026-11-11 (confirmed post-call choices applied).** This is the single description of the Craft plugin and add-on system. It consolidates the eighteen design sessions (T01–T18) and the user's direction changes. Each decision is recorded with its date and wording in [the decision record](draft/decisions.md#design-session-decisions), and the question-and-answer trail is in [the session record](design-sessions/session-record.md). Where any other document in `docs/plugins/` or `docs/plugin-*.md` disagrees with this one, this one wins.

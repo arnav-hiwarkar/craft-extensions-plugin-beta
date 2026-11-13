@@ -214,3 +214,25 @@ wasm in the reference sandbox and embed its validated description in the package
 Plain `pack` never invokes guest code; neither command builds anything. The source manifest
 is unchanged. A missing optional description leaves its manifest form intact.
 Preset effect entries are `{ "effect": "plugin/contribution", "values": { ... } }`.
+
+## Current beta portability and failure handling
+
+Use the app contract references to select operations and permissions. Session 1.1
+adds tools and shared UI in EffectCraft and PhotoCraft; UI 1.0 remains supported.
+Describe UI as data and provide component fallbacks. The host chooses its renderer;
+plugins cannot select or detect it. Cross Review demonstrates session contributions
+across all three apps; Cross Vignette targets EffectCraft and PhotoCraft because
+FigCraft has no raster.filter implementation.
+
+Handle operation refusals and stale revisions. Do not assume events in separate
+modules share ordering or state, and do not depend on dispose for cleanup. Native
+helpers require separate full-access consent and platform-specific executables;
+the system-stamp example currently declares Linux only. Build real Mac/Windows
+helpers before adding those platform mappings.
+
+PhotoCraft file publication can leave earlier files after a later failure or
+cancellation. The error reports partial effects; document/UI rollback does not
+undo external writes. Picker replies are single-use and document-scoped. Reissue a
+question after switching documents. No parent-directory capability sandbox is
+claimed. Refresh its reference without a build with
+`python3 scripts/photocraft-contract-source.py`; Rust metadata is authoritative.

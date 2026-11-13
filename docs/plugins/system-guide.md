@@ -1,5 +1,11 @@
 # Craft plugin system guide
 
+> Current source behavior is specified by [beta-design.md](beta-design.md), the
+> [app contract references](contracts/photocraft.md), app migration docs and
+> [Mac evidence ledger](session-handoff/MAC-EVIDENCE.md). The broader design below
+> is historical where it exceeds those beta contracts. It does not grant Wasm
+> arbitrary CLI/MCP command access, new object types or workflow APIs.
+
 > **Beta implementation (2026-11-12):** the code follows [beta-design.md](beta-design.md), which simplifies this design where they differ (one-maintainer store admission, signed index instead of TUF, per-contribution contracts and permissions, no bot). The superseded points are listed in [draft/decisions.md](draft/decisions.md#beta-decisions-2026-11-12).
 
 Written 2026-11-12 at the user's request: every part and workflow of the plugin system, explained in plain language, one part at a time. It explains the decided design. **[The architecture](architecture.md) remains the authority**; where this guide and the architecture differ, the architecture wins and this guide should be corrected. Decisions and their dates are in [the decision record](draft/decisions.md#design-session-decisions).

@@ -102,10 +102,10 @@ document thread, wire projects/`ProjectPrompt`, embed `ManagerView` and `run_plu
 |---|---|---|
 | Native and wasm plugins | `ext-host::wasm` (`Filter`, `Session`), `ext-host::native::Helper` (JSON-lines, out of process) | Done in code; native helpers unrun (`CONFORMANCE`) |
 | Permissions enforced and revocable | `ext-core::permission`, `api::authorize` on every call, `GrantView` generation refresh, commit re-check | Done in code; runtime unverified (`CONFORMANCE`) |
-| SDK and adapters | `crates/guest`; `effectcraft-plugins`, `photocraft-plugins`, `figcraft-plugins` | Done in code — all three adapters active; FigCraft TODOs `PLUGIN-CANVAS-NAV`, `PLUGIN-PANEL-DOCK`, `PLUGIN-FAILURE-RESET`, `RESOURCES`, `SCOPE`, `CONTRACT-DOCS` |
-| Windows, panels, effects, tools, commands, data | `ext-core::ui`, `wasm::Session`, contribution kinds; EC/PC effects, panels, windows, presets, LUTs; FigCraft commands, panels, windows, tools | Partial — tools work only in FigCraft (gesture begin/update/commit, Escape rollback, `canvas.overlay.set`); EffectCraft and PhotoCraft mark Tool contributions unsupported; fonts/themes stored only (B15, FigCraft `RESOURCES`); EC `B5-WINDOW-LIMIT` |
+| SDK and adapters | `crates/guest`; `effectcraft-plugins`, `photocraft-plugins`, `figcraft-plugins` | Implemented in source; current runtime verification remains deferred. FigCraft retains conservative selection scopes and deferred resource activation. |
+| Windows, panels, effects, tools, commands, data | `ext-core::ui`, `wasm::Session`, contribution kinds; EC/PC effects, panels, windows, presets, LUTs; FigCraft commands, panels, windows, tools | Implemented in source across all three apps: tools, gesture undo/cancel and overlays. Runtime unverified. Fonts/themes remain stored only (B15, FigCraft `RESOURCES`). EC window budget now refuses excess calls. |
 | Events | `app.events`, `craft_event`, event hooks; ordered events in all three apps | Partial — delivery unverified (`CONFORMANCE`); EC `B4-DISPOSE` (no guest dispose callback before workers stop) and `B4-WORKER-ORDER` (ordering is per plugin/module, not per package) |
-| Contract docs, templates, tooling | `docs/plugins/contracts/*.md`, `templates/{effect,panel,data}`, `ext-cli::author`, `AppContract::to_markdown` | Done in code — each app prints its contract with `<app>-cli plugin contract`; the FigCraft page still says "integration pending" (`CONTRACT-DOCS`) |
+| Contract docs, templates, tooling | `docs/plugins/contracts/*.md`, `templates/{effect,panel,data}`, `ext-cli::author`, `AppContract::to_markdown` | Done in code — each app prints its contract with `<app>-cli plugin contract`; PhotoCraft reference refreshed from literal Rust metadata without compilation; current app execution remains deferred |
 | Catalogue metadata-only | `craft-plugins`: listings + release records, files on author Releases, digest-pinned; signed `dist/` serial 1 lists film-looks only | Done |
 | Vendors | `craft-plugins/vendors/<login>.toml` with numeric GitHub id; namespace check | Done |
 | Tiers official / verified / community | `ext-core::tier` (`VendorTier`, `Tier` + Local/Dev), catalogue vendor records | Done |
@@ -121,19 +121,23 @@ document thread, wire projects/`ProjectPrompt`, embed `ManagerView` and `run_plu
 | Clear incompatibility UX | `Compat::{Partly, Incompatible}` reasons in the setup sheet, versions list and `plugin info` | Done in code; GUI unverified |
 | Projects record plugins | `ext-core::project`, EC/FigCraft save/open + `ProjectPrompt`, `plugin project` | Partial — EC `B9-FEATURE-STATE`; PhotoCraft needs none today. Readiness checks every recorded contribution (present, this app, contract, enabled) plus its saved state version |
 | No auto-download or auto-enable | Install never enables; `check_project` is read-only; prompt buttons only | Done |
-| Safe degradation | Placeholders, preview pass-through, export refusal, safe mode, rollback, pause after 3 failures | Partial — EC `B9-FEATURE-STATE`; FigCraft `PLUGIN-FAILURE-RESET` (the pause is per process and has no resume in the manager) |
+| Safe degradation | Placeholders, preview pass-through, export refusal, safe mode, rollback, pause after 3 failures | Partial — EC `B9-FEATURE-STATE`; pause/Resume is implemented in source; current runtime checks remain deferred |
 | Manage without the launcher | `ManagerView` embedded in each app; `<app>-cli plugin …` | Done in code for EC, PC and FigCraft (Plugins window plus `figcraft-cli plugin`) and the launcher; GUI unverified |
 
-All three adapters passed a sol-high phase review and a final suite review; the findings were fixed in
-`41ae75ab`/`02105f91` (EffectCraft), `c370b115e`/`28bb50274` (PhotoCraft), `140a831f` (FigCraft) and
-`c326340` (shared). Where an app's `docs/plugin-migration.md` still names a TODO, the row above stays
-Partial under that name:
+Current Mac source review and regression-source additions are recorded in
+[MAC-EVIDENCE.md](session-handoff/MAC-EVIDENCE.md). Earlier phase results predate
+recovered changes and do not establish current runtime correctness.
 
-- EffectCraft: `B9-FEATURE-STATE`, `B4-DISPOSE`, `B4-WORKER-ORDER`, `B5-WINDOW-LIMIT`, `CONFORMANCE`.
-- PhotoCraft: `TODO(PhotoCraft-plugin-examples)` (halftone and film-looks not exercised on real
-  packages); its transactions, panels, filter gaps and catalogue rows are done.
-- FigCraft: `PLUGIN-CANVAS-NAV`, `PLUGIN-PANEL-DOCK`, `PLUGIN-FAILURE-RESET`, `RESOURCES`, `SCOPE`,
-  `CONTRACT-DOCS`; `LEGACY-REMOVAL` is complete.
+EffectCraft's window budget is fixed in source. Immediate worker stop without guest
+dispose and per-module ordering are explicit beta semantics; opaque per-instance
+state migration remains deferred. PhotoCraft's commit-time publication validation,
+stale picker invalidation and contract reference are updated in source. FigCraft's
+corrected wake fixture, notification semantics and identifier bounds were reviewed;
+its final runtime rerun is still pending. Fonts/theme activation remains deferred.
+
+The [user guide](user-guide.md), [author guide](author-guide.md),
+[adapter guide](adapter-guide.md) and [maintainer guide](maintainer-guide.md) describe
+current workflows and refusal/rollback limits.
 
 Shared deferrals unchanged: theme activation, native effects and pixel transport, temporal access,
 tiling, TUF, process leases (B12). Runtime, hostile modules, revocation races, real downloads and GUI

@@ -317,3 +317,25 @@ ext-core's palette is removed, R1), plugin object types, workflows, cross-plugin
 native effects and pixel transport, temporal frame access, tiling/region requests, leases.
 
 Beta availability: `tool` contributions work in FigCraft only. Font and theme contributions are stored and listed but are not activated in this beta.
+
+
+## Mac source decisions (2026-11-13)
+
+The beta retains per-file ordered atomic publication rather than batch transactions.
+Validate live grants, invocation cancellation, captured scope and deadline before
+individual publication and after the final write. Report irreversible partial file
+effects honestly and roll document/UI back on refusal. Picker replies are single-use,
+document-scoped and invalidated when store reconciliation replaces workers.
+
+Window limits count existing and staged unique IDs before acknowledging calls.
+Worker ordering is per module, while the app owns document transaction serialization.
+Unload/revocation stop workers without waiting for guest dispose; opaque per-instance
+state migration remains deferred. Native final-check refusal is a dispatch failure
+and terminates the helper. Native full access remains outside OS confinement.
+
+PhotoCraft session 1.1 and shared UI 1.1 extend the 1.0 contracts. Source metadata and
+[contract references](contracts/photocraft.md) describe supported operations; no
+arbitrary engine/CLI dispatcher is exposed. FigCraft has no raster.filter contract.
+Main integration uses Sol high per the latest user instruction. The
+[evidence ledger](session-handoff/MAC-EVIDENCE.md) separates source completion from
+runtime, desktop, native-helper and platform verification, which remain deferred.

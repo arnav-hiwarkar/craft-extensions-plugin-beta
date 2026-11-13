@@ -5,7 +5,7 @@ version = "1.0.0"
 license = "MIT"
 source = "https://github.com/arnav-hiwarkar/craft-extensions-plugin-beta"
 summary = "Deterministic edge shading"
-apps = ['effectcraft', 'figcraft', 'photocraft']
+apps = ['effectcraft', 'photocraft']
 [[contribution]]
 id = "vignette"
 kind = "effect"

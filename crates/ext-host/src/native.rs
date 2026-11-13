@@ -157,8 +157,8 @@ impl Helper {
         self.api.begin(&inv).map_err(|e| PluginError::Failed(e.code as i32, e.message))?;
         let id = self.next_id;
         self.next_id += 1;
-        let result = self.run(&inv, id, event);
-        let commit = result.is_ok() && self.check(&inv).is_ok();
+        let result = self.run(&inv, id, event).and_then(|()| self.check(&inv).map_err(|e| PluginError::Stopped(e.message)));
+        let commit = result.is_ok();
         self.api.finish(&inv, commit);
         if let Err(PluginError::Stopped(_) | PluginError::TooSlow | PluginError::Trap(_)) = &result {
             self.kill();
@@ -216,5 +216,64 @@ impl Helper {
 impl Drop for Helper {
     fn drop(&mut self) {
         self.kill();
+    }
+}
+
+#[cfg(all(test, unix))]
+mod final_validation_tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+    use super::*;
+    use crate::api::AppContract;
+    use craft_ext_core::{contract::Provided, id::AppId, permission::Permission};
+    use std::sync::{Mutex, atomic::{AtomicBool, AtomicU64, Ordering}};
+
+    struct App {
+        contract: AppContract,
+        commits: Mutex<Vec<bool>>,
+    }
+    impl AppApi for App {
+        fn contract(&self) -> &AppContract { &self.contract }
+        fn begin(&self, _: &Invocation) -> Result<(), OpError> { Ok(()) }
+        fn call(&self, _: &Invocation, _: &str, _: Value) -> Result<Value, OpError> { Ok(Value::Null) }
+        fn finish(&self, _: &Invocation, commit: bool) { self.commits.lock().unwrap().push(commit); }
+    }
+    struct RevokedAtFinish(AtomicU64);
+    impl Grants for RevokedAtFinish {
+        fn generation(&self, _: &ExtensionId) -> u64 {
+            // Initial dispatch and the single queued response are valid; finalization is stale.
+            if self.0.fetch_add(1, Ordering::Relaxed) < 2 { 1 } else { 2 }
+        }
+        fn allowed(&self, _: &ExtensionId, _: &Permission) -> bool { false }
+        fn stopped(&self, _: &ExtensionId, _: Version) -> bool { false }
+        fn full_access(&self, _: &ExtensionId) -> bool { true }
+    }
+
+    #[test]
+    fn final_revocation_returns_failure_rolls_back_and_kills_helper() {
+        let app = Arc::new(App {
+            contract: AppContract {
+                app: AppId::new("testcraft").unwrap(), display_name: "Test",
+                provided: Provided::new(&[]), ops: vec![], events: vec![], slots: vec![], notes: "",
+            },
+            commits: Mutex::new(vec![]),
+        });
+        let inv = Invocation {
+            app: AppId::new("testcraft").unwrap(), plugin: ExtensionId::new("org.example.test").unwrap(),
+            version: Version::new(1, 0, 0), contribution: "test".into(), grant_generation: 1,
+            cancel: Arc::new(AtomicBool::new(false)), deadline: None, label: "Test".into(), declared: vec![].into(),
+        };
+        let mut child = Command::new("sh").args(["-c", "while read line; do :; done"])
+            .stdin(Stdio::piped()).stdout(Stdio::null()).stderr(Stdio::null()).spawn().unwrap();
+        let stdin = child.stdin.take().unwrap();
+        let (tx, lines) = sync_channel(1);
+        // Prequeue the protocol result so the test has no response timing dependency.
+        tx.send(Some(json!({"type":"done", "id":1, "code":0}))).unwrap();
+        let mut helper = Helper {
+            child, stdin, lines, api: app.clone(), grants: Arc::new(RevokedAtFinish(AtomicU64::new(0))),
+            log: Arc::new(|_, _, _| {}), next_id: 1, plugin: inv.plugin.clone(), version: inv.version,
+        };
+        assert!(matches!(helper.dispatch(inv, &json!({})), Err(PluginError::Stopped(_))));
+        assert_eq!(*app.commits.lock().unwrap(), vec![false]);
+        assert!(helper.child.try_wait().unwrap().is_some());
     }
 }
