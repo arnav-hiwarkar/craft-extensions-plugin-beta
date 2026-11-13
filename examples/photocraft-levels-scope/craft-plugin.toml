@@ -1,0 +1,41 @@
+schema = 2
+id = "io.github.arnav-hiwarkar.photocraft-levels-scope"
+name = "Levels Scope"
+version = "1.0.0"
+license = "MIT OR Apache-2.0"
+source = "https://github.com/arnav-hiwarkar/photocraft-levels-scope"
+summary = "A live histogram panel: drag the black, gray and white points, then add them as a Levels layer"
+apps = ["photocraft"]
+
+[why]
+"document.read:document" = "Reads the image's histogram to draw it"
+"document.edit:document" = "Adds the Levels adjustment layer (or applies Levels) when you press the button"
+"app.events" = "Redraws the histogram when you open an image or change the selection"
+
+[[contribution]]
+id = "levels-scope"
+kind = "panel"
+contract = "photocraft.session@1.1"
+label = "Levels Scope"
+module = "photocraft_levels_scope.wasm"
+permissions = ["document.read:document"]
+optional_permissions = ["document.edit:document"]
+
+[[contribution]]
+id = "auto-levels-layer"
+kind = "command"
+contract = "photocraft.session@1.1"
+label = "Auto Levels Layer"
+category = "Levels Scope"
+module = "photocraft_levels_scope.wasm"
+permissions = ["document.read:document", "document.edit:document"]
+
+[[contribution]]
+id = "follow"
+kind = "event-hook"
+contract = "photocraft.session@1.1"
+label = "Follow the image"
+module = "photocraft_levels_scope.wasm"
+permissions = ["document.read:document"]
+# The panel's buttons may reach the plugin through this hook once it redrew the panel.
+optional_permissions = ["app.events", "document.edit:document"]

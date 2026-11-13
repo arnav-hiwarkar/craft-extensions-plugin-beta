@@ -1,0 +1,46 @@
+schema = 2
+id = "io.github.arnav-hiwarkar.cross-vignette"
+name = "Cross Vignette"
+version = "1.0.0"
+license = "MIT"
+source = "https://github.com/arnav-hiwarkar/craft-extensions-plugin-beta"
+summary = "Deterministic edge shading"
+apps = ['effectcraft', 'figcraft', 'photocraft']
+[[contribution]]
+id = "vignette"
+kind = "effect"
+contract = "raster.filter@1.0"
+label = "Vignette"
+module = "cross_vignette.wasm"
+files = ["LICENSE-MIT"]
+permissions = []
+[contribution.form]
+schema = 1
+key = "vignette"
+title = "Vignette"
+[[contribution.form.params]]
+key = "amount"
+label = "Edge darkness"
+unit = "percent"
+[contribution.form.params.kind]
+type = "range"
+default = 60
+min = 0
+max = 100
+[[contribution.form.params]]
+key = "shape"
+label = "Shape"
+[contribution.form.params.kind]
+type = "choice"
+default = "oval"
+options = [{id="oval",label="Oval"},{id="round",label="Round"}]
+[[contribution.form.params]]
+key = "radius"
+label = "Round radius"
+unit = "pixels"
+visible_when = {eq={key="shape",value="round"}}
+[contribution.form.params.kind]
+type = "range"
+default = 100
+min = 1
+max = 2000

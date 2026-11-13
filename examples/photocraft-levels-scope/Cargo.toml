@@ -1,0 +1,17 @@
+[package]
+name = "photocraft_levels_scope"
+version = "1.0.0"
+description = "PhotoCraft Levels Scope: a live histogram panel with draggable levels handles (example plugin)."
+edition = "2024"
+rust-version = "1.90"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+craft-guest = { path = "../../crates/guest" }
+
+# Standalone: this example is not a member of the craft-extensions workspace.
+[workspace]

@@ -1,0 +1,29 @@
+schema = 2
+id = "io.github.arnav-hiwarkar.photocraft-layer-export"
+name = "Layer Export"
+version = "1.0.0"
+license = "MIT OR Apache-2.0"
+source = "https://github.com/arnav-hiwarkar/photocraft-layer-export"
+summary = "Export the layers you choose as PNG, JPEG, WebP or TIFF files, with a JSON index, into a folder you pick"
+apps = ["photocraft"]
+
+[why]
+"document.read:document" = "Lists your layers and reads the ones you export"
+"files.write:picked" = "Writes the image files (and layers.json) into the folder you pick, nowhere else"
+
+[[contribution]]
+id = "export"
+kind = "panel"
+contract = "photocraft.session@1.1"
+label = "Layer Export"
+module = "photocraft_layer_export.wasm"
+permissions = ["document.read:document", "files.write:picked"]
+
+[[contribution]]
+id = "export-all"
+kind = "command"
+contract = "photocraft.session@1.1"
+label = "Export all layers…"
+category = "Layer Export"
+module = "photocraft_layer_export.wasm"
+permissions = ["document.read:document", "files.write:picked"]

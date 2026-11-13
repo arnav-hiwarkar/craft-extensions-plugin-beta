@@ -1,0 +1,27 @@
+schema = 2
+id = "io.github.arnav-hiwarkar.photocraft-gradient-ramp"
+name = "Gradient Ramp"
+version = "1.0.0"
+license = "MIT OR Apache-2.0"
+source = "https://github.com/arnav-hiwarkar/photocraft-gradient-ramp"
+summary = "A canvas tool: drag to draw a linear, radial or reflected gradient on a new layer, with a live guide"
+apps = ["photocraft"]
+
+[why]
+"document.edit:document" = "Adds a layer and paints the gradient you drag"
+
+[[contribution]]
+id = "gradient"
+kind = "tool"
+contract = "photocraft.session@1.1"
+label = "Gradient Ramp"
+module = "photocraft_gradient_tool.wasm"
+permissions = ["document.edit:document"]
+
+[[contribution]]
+id = "options"
+kind = "panel"
+contract = "photocraft.session@1.1"
+label = "Gradient Ramp options"
+module = "photocraft_gradient_tool.wasm"
+permissions = []

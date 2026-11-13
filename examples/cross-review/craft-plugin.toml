@@ -1,0 +1,32 @@
+schema = 2
+id = "io.github.arnav-hiwarkar.cross-review"
+name = "Cross Review"
+version = "1.0.0"
+license = "MIT"
+source = "https://github.com/arnav-hiwarkar/craft-extensions-plugin-beta"
+summary = "Mark the first layer reviewed across apps"
+apps = ['effectcraft', 'figcraft', 'photocraft']
+[[contribution]]
+id = "effectcraft-apply"
+kind = "command"
+contract = "effectcraft.session@1.0"
+label = "Mark first layer reviewed"
+files = ["LICENSE-MIT"]
+permissions = ["document.edit:document"]
+module = "cross_review.wasm"
+[[contribution]]
+id = "photocraft-apply"
+kind = "command"
+contract = "photocraft.session@1.0"
+label = "Mark first layer reviewed"
+files = ["LICENSE-MIT"]
+permissions = ["document.edit:document"]
+module = "cross_review.wasm"
+[[contribution]]
+id = "figcraft-apply"
+kind = "command"
+contract = "figcraft.session@1.0"
+label = "Mark first layer reviewed"
+files = ["LICENSE-MIT"]
+permissions = ["document.edit:document"]
+module = "cross_review.wasm"

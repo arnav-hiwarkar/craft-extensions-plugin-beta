@@ -1,0 +1,3 @@
+# Build outputs: craft-ext build / pack
+*.wasm
+*.craftplugin

@@ -1,0 +1,17 @@
+[package]
+name = "photocraft_layer_export"
+version = "1.0.0"
+description = "PhotoCraft Layer Export: export layers as image files into a folder you pick (example plugin)."
+edition = "2024"
+rust-version = "1.90"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+craft-guest = { path = "../../crates/guest" }
+
+# Standalone: this example is not a member of the craft-extensions workspace.
+[workspace]

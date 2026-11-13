@@ -8,7 +8,7 @@ pub fn provided(app: &str) -> Option<Provided> {
         "figcraft" => &["figcraft.session", "resource.font", "craft-theme"],
         _ => return None,
     };
-    Some(Provided::new(&names.iter().map(|n| (*n, 1, if matches!(*n, "effectcraft.session" | "figcraft.session") { 1 } else { 0 })).collect::<Vec<_>>()))
+    Some(Provided::new(&names.iter().map(|n| (*n, 1, if matches!(*n, "effectcraft.session" | "figcraft.session" | "photocraft.session") { 1 } else { 0 })).collect::<Vec<_>>()))
 }
 
 #[cfg(test)]
