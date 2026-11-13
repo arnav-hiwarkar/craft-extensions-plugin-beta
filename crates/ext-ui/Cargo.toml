@@ -13,8 +13,8 @@ egui = { version = "0.37", default-features = false }
 serde_json.workspace = true
 
 [features]
-# Marks where the craft-framework engine plugs in. Until that engine exists, choosing
-# `EngineChoice::Framework` draws with egui whether or not this feature is on.
+# Compatibility marker for framework integration. Hosts install an Engine through
+# PluginUi::set_framework_engine; without one, Framework falls back to egui.
 framework = []
 
 [dev-dependencies]

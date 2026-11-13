@@ -425,3 +425,35 @@ fn overlays_paint_with_a_transform() {
     })
     .drop_without_applying_deltas();
 }
+
+
+#[test]
+fn installed_framework_receives_existing_trees_and_revisioned_events() {
+    struct Framework(std::sync::Arc<std::sync::Mutex<Vec<String>>>);
+    impl Engine for Framework {
+        fn draw(&mut self, _: &mut egui::Ui, surface: Surface<'_>, _: &mut dyn Host) -> Vec<UiEvent> {
+            self.0.lock().unwrap().push(surface.key.to_string());
+            vec![UiEvent { surface: surface.key.to_string(), rev: surface.rev, widget: "run".into(), value: UiValue::Click }]
+        }
+        fn forget(&mut self, key: &str) { self.0.lock().unwrap().push(format!("forget:{key}")); }
+    }
+    let calls = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let mut h = Harness::new(json!({"type":"button", "id":"run", "label":"Run"}));
+    h.ui = PluginUi::new(EngineChoice::Framework);
+    h.ui.set_framework_engine(Some(Box::new(Framework(calls.clone()))));
+    h.rev = 7;
+    assert_eq!(h.ui.engine(), EngineChoice::Framework);
+    let events = h.frame(vec![]);
+    assert_eq!(events.len(), 1);
+    assert_eq!(events[0].surface, "panel");
+    assert_eq!(events[0].rev, 7);
+    assert_eq!(events[0].widget, "run");
+    assert_eq!(events[0].value, UiValue::Click);
+    h.ui.forget("panel");
+    assert_eq!(*calls.lock().unwrap(), vec!["panel", "forget:panel"]);
+    h.ui.set_framework_engine(None);
+    assert_eq!(h.ui.engine(), EngineChoice::Egui);
+    h.host.rects.clear();
+    assert!(h.frame(vec![]).is_empty());
+    assert!(h.host.rects.contains_key("run"));
+}

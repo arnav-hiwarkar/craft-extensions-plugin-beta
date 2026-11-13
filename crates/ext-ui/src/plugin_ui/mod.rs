@@ -7,7 +7,7 @@
 //! The **app** chooses the engine ([`EngineChoice`]); a plugin can never choose or detect it: the
 //! tree and the events are the same whatever draws them. Today [`EngineChoice::Egui`] draws
 //! everything; [`EngineChoice::Framework`] is reserved for the craft-framework renderer and falls
-//! back to egui until it exists (cargo feature `framework` marks the switch point).
+//! back to egui until the host installs an implementation with [`PluginUi::set_framework_engine`].
 //!
 //! What stays in the app sits behind [`Host`]: automation/accessibility registration of widgets,
 //! native framework components, translated host words, and where windows dock (the app styles the
@@ -36,13 +36,12 @@ pub enum EngineChoice {
     /// The built-in egui renderer: draws every node, form and draw op.
     #[default]
     Egui,
-    /// The craft-framework renderer (aiongg's `render_form` and component library). Reserved:
-    /// until it lands this resolves to [`EngineChoice::Egui`].
+    /// The host-installed craft-framework renderer; falls back to egui when absent.
     Framework,
 }
 
 impl EngineChoice {
-    /// The engine that will actually draw.
+    /// Default resolution without a host-installed renderer. Use [`PluginUi::engine`] for a host instance.
     pub fn resolved(self) -> EngineChoice {
         match self {
             EngineChoice::Egui => EngineChoice::Egui,
@@ -98,6 +97,7 @@ impl Host for NoHost {}
 pub struct PluginUi {
     choice: EngineChoice,
     egui: EguiEngine,
+    framework: Option<Box<dyn Engine>>,
     trees: HashMap<String, (u64, Arc<Result<Node, String>>)>,
 }
 
@@ -109,7 +109,7 @@ impl Default for PluginUi {
 
 impl PluginUi {
     pub fn new(choice: EngineChoice) -> Self {
-        Self { choice, egui: EguiEngine::default(), trees: HashMap::new() }
+        Self { choice, egui: EguiEngine::default(), framework: None, trees: HashMap::new() }
     }
 
     /// The engine the app asked for.
@@ -119,14 +119,33 @@ impl PluginUi {
 
     /// The engine actually drawing.
     pub fn engine(&self) -> EngineChoice {
-        self.choice.resolved()
+        if self.choice == EngineChoice::Framework && self.framework.is_some() {
+            EngineChoice::Framework
+        } else {
+            self.choice.resolved()
+        }
+    }
+
+    /// Installs or removes the host's framework renderer. Trees, revisions and guest events
+    /// retain the same contract; the plugin receives no renderer identity or selection API.
+    /// Call during host setup or between frames. Removing it restores the egui fallback.
+    pub fn set_framework_engine(&mut self, engine: Option<Box<dyn Engine>>) {
+        if let Some(previous) = self.framework.as_mut() {
+            for key in self.trees.keys() {
+                previous.forget(key);
+            }
+        }
+        self.framework = engine;
     }
 
     /// Draws a parsed, validated tree.
     pub fn draw(&mut self, ui: &mut egui::Ui, surface: Surface<'_>, host: &mut dyn Host) -> Vec<UiEvent> {
-        match self.choice.resolved() {
-            EngineChoice::Egui | EngineChoice::Framework => self.egui.draw(ui, surface, host),
+        if self.choice == EngineChoice::Framework
+            && let Some(engine) = self.framework.as_mut()
+        {
+            return engine.draw(ui, surface, host);
         }
+        self.egui.draw(ui, surface, host)
     }
 
     /// Parses (once per revision) and draws a JSON tree as the app's runtime stores it. `None`
@@ -180,5 +199,8 @@ impl PluginUi {
     pub fn forget(&mut self, key: &str) {
         self.trees.remove(key);
         self.egui.forget(key);
+        if let Some(engine) = self.framework.as_mut() {
+            engine.forget(key);
+        }
     }
 }

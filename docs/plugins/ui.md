@@ -343,3 +343,8 @@ the framework's renderer becomes an engine here (none affect plugins, which only
 - Its tool pointer events (`Down`/`Move`/`Up` with button, modifiers and pen samples) match the
   canvas events here, minus pressure and tilt.
 - Its icon catalogue uses meaning-based names; the icon names here are a subset of them.
+
+
+The host-side installation boundary and the checked future framework/theme revision
+are documented in [framework integration](framework-integration.md). No future
+framework runtime is linked or activated by this beta source change.
