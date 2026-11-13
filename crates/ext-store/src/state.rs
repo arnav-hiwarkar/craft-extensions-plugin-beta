@@ -82,6 +82,27 @@ impl StoreState {
         }
         serde_json::from_value(v).map_err(error)
     }
+    /// Changes only when something that decides which plugin code `app` runs changes: its setups
+    /// (active/pending versions, enabled contributions, grants, consent, grant generation, pins),
+    /// the bytes of each active release and whether the kill list disables it. A catalogue refresh,
+    /// an unrelated install or another app's setup leave it unchanged, so apps reload plugins only
+    /// when they must (the global `generation` moves on every store write).
+    pub fn app_fingerprint(&self, app: &AppId) -> u64 {
+        let rows: Vec<_> = self
+            .apps
+            .get(app)
+            .into_iter()
+            .flatten()
+            .map(|(id, a)| {
+                let release = a.active.and_then(|v| self.packages.get(id).and_then(|p| p.releases.get(&v)).map(|r| (v, r)));
+                let active = release.map(|(v, r)| (r.sha256.clone(), self.blocked(id, v, &r.sha256, Severity::Disable)));
+                (id, a, active)
+            })
+            .collect();
+        let bytes = serde_json::to_vec(&rows).unwrap_or_default();
+        let hex = crate::store::digest(&bytes);
+        hex.get(..16).and_then(|h| u64::from_str_radix(h, 16).ok()).unwrap_or(0)
+    }
     pub fn blocked(&self, id: &ExtensionId, v: Version, sha: &str, severity: Severity) -> bool {
         let vendor = self.packages.get(id).and_then(|p| p.releases.get(&v).and_then(|r| r.origin.as_ref()).unwrap_or(&p.origin).vendor());
         self.revocations.iter().any(|r| r.severity >= severity && r.matches(id, v, sha, vendor))

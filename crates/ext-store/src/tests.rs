@@ -160,11 +160,17 @@ fn native_updates_need_fresh_acceptance_and_enable_checks_context() {
     for version in ["1.0.0", "2.0.0"] {
         let bytes = native_package(version);
         let i = s.install_bytes(&bytes, Tier::Local, Origin::Local { sha256: digest(&bytes) }).unwrap();
-        s.set_full_access(&app, &id, true).unwrap();
         s.set_active(&app, &id, i.version).unwrap();
         assert_eq!(s.state().unwrap().apps[&app][&id].pending, Some(i.version));
+        // Consent given to the previous version never carries over to a new executable.
+        assert!(!s.state().unwrap().apps[&app][&id].full_access);
+        assert!(s.accept_pending(&app, &id).is_err());
+        s.set_full_access(&app, &id, true).unwrap();
         s.accept_pending(&app, &id).unwrap();
     }
+    // Re-activating the same version keeps its consent.
+    s.set_active(&app, &id, Version::parse("2.0.0").unwrap()).unwrap();
+    assert!(s.state().unwrap().apps[&app][&id].full_access);
     assert!(s.set_enabled_checked(&app, &id, "run", true, Some((&Provided::default(), "linux-x86_64"))).is_err());
     let provided = Provided::new(&[("app.session", 1, 0)]);
     assert!(s.set_enabled_checked(&app, &id, "run", true, Some((&provided, "windows-x86_64"))).is_err());
@@ -372,4 +378,60 @@ permissions = []
     assert!(error.to_string().contains("Commands unavailable"));
     store.set_enabled_checked(&app, &id, "panel", true, Some((&provided, "test"))).unwrap();
     assert_eq!(store.state().unwrap().apps[&app][&id].enabled, ["panel".to_string()].into_iter().collect::<std::collections::BTreeSet<_>>());
+}
+
+#[test]
+fn disabling_one_contribution_invalidates_running_work() {
+    let t = tempfile::tempdir().unwrap();
+    let s = Store::at(t.path());
+    let (app, id) = ids();
+    let i = install(&s, "1.0.0", "");
+    s.set_active(&app, &id, i.version).unwrap();
+    let c = i.manifest.contributions[0].id.clone();
+    s.set_enabled(&app, &id, &c, true).unwrap();
+    let before = s.state().unwrap().apps[&app][&id].grant_generation;
+    s.set_enabled(&app, &id, &c, false).unwrap();
+    assert!(s.state().unwrap().apps[&app][&id].grant_generation > before);
+    // Disabling something already off changes nothing.
+    let after = s.state().unwrap().apps[&app][&id].grant_generation;
+    s.set_enabled(&app, &id, &c, false).unwrap();
+    assert_eq!(s.state().unwrap().apps[&app][&id].grant_generation, after);
+}
+
+#[test]
+fn leftover_release_directory_from_a_crash_does_not_block_install() {
+    let t = tempfile::tempdir().unwrap();
+    let s = Store::at(t.path());
+    let bytes = package("1.0.0", "", b"wasm");
+    let first = s.install_bytes(&bytes, Tier::Community, Origin::Catalogue { vendor: "example".into(), repo: "test".into() }).unwrap();
+    // Simulate a crash after the rename but before the state write: files present, no record.
+    let (_, id) = ids();
+    s.uninstall(&id).unwrap();
+    std::fs::create_dir_all(&first.dir).unwrap();
+    std::fs::write(first.dir.join("stale"), b"x").unwrap();
+    let again = s.install_bytes(&bytes, Tier::Community, Origin::Catalogue { vendor: "example".into(), repo: "test".into() }).unwrap();
+    assert_eq!(again.dir, first.dir);
+    assert!(!again.dir.join("stale").exists());
+}
+
+#[test]
+fn app_fingerprint_ignores_unrelated_store_writes() {
+    let t = tempfile::tempdir().unwrap();
+    let s = Store::at(t.path());
+    let (app, id) = ids();
+    let i = install(&s, "1.0.0", "");
+    s.set_active(&app, &id, i.version).unwrap();
+    let c = i.manifest.contributions[0].id.clone();
+    s.set_enabled(&app, &id, &c, true).unwrap();
+    let base = s.state().unwrap().app_fingerprint(&app);
+    // A catalogue refresh and an unrelated install bump the global generation only.
+    let generation = s.state().unwrap().generation;
+    s.record_catalogue(5, 1).unwrap();
+    install(&s, "2.0.0", "");
+    let state = s.state().unwrap();
+    assert!(state.generation > generation);
+    assert_eq!(state.app_fingerprint(&app), base);
+    // This app's own changes move it.
+    s.set_enabled(&app, &id, &c, false).unwrap();
+    assert_ne!(s.state().unwrap().app_fingerprint(&app), base);
 }

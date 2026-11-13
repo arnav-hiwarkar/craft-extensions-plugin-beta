@@ -43,9 +43,11 @@ impl GrantView {
             return Ok(false);
         }
         let state = self.store.state()?;
+        let before = self.state.app_fingerprint(&self.app);
         self.state = state;
         self.stamp = stamp;
-        Ok(true)
+        // Grants are always fresh; report a change only when this app's loaded plugins are affected.
+        Ok(self.state.app_fingerprint(&self.app) != before)
     }
     pub fn allowed(&self, id: &ExtensionId, p: &Permission) -> bool {
         self.state.apps.get(&self.app).and_then(|a| a.get(id)).is_some_and(|a| a.grants.iter().any(|g| g.covers(p)))

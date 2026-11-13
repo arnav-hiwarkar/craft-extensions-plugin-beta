@@ -218,9 +218,27 @@ fn read_guest(caller: &Caller<'_, HostData>, mem: &Memory, ptr: i32, len: i32) -
     data.get(ptr..end).map(<[u8]>::to_vec).ok_or(Code::Invalid)
 }
 
+/// Fuel charged for each host import call, plus per byte crossing the boundary. Without it a loop
+/// of host calls costs only its own few instructions, so logging or app calls could run unbounded
+/// work inside one fuel slice. Charges drain the current slice; the per-event total still bounds.
+const HOST_CALL_FUEL: u64 = 100_000;
+const HOST_LOG_FUEL: u64 = 10_000;
+const HOST_BYTE_FUEL: u64 = 100;
+
+fn charge(caller: &mut Caller<'_, HostData>, cost: u64) {
+    if let Ok(left) = caller.get_fuel() {
+        let _ = caller.set_fuel(left.saturating_sub(cost));
+    }
+}
+
+fn byte_fuel(len: i32) -> u64 {
+    HOST_BYTE_FUEL.saturating_mul(u64::try_from(len).unwrap_or(0))
+}
+
 fn linker(engine: &Engine) -> Linker<HostData> {
     let mut l = Linker::<HostData>::new(engine);
-    let _ = l.func_wrap("craft", "log", |caller: Caller<'_, HostData>, level: i32, ptr: i32, len: i32| {
+    let _ = l.func_wrap("craft", "log", |mut caller: Caller<'_, HostData>, level: i32, ptr: i32, len: i32| {
+        charge(&mut caller, HOST_LOG_FUEL.saturating_add(byte_fuel(len.min(4096))));
         let Some(mem) = caller.get_export("memory").and_then(|e| e.into_memory()) else { return };
         if let Ok(bytes) = read_guest(&caller, &mem, ptr, len.min(4096)) {
             let text = String::from_utf8_lossy(&bytes);
@@ -228,6 +246,7 @@ fn linker(engine: &Engine) -> Linker<HostData> {
         }
     });
     let _ = l.func_wrap("craft", "call", |mut caller: Caller<'_, HostData>, op: i32, op_len: i32, args: i32, args_len: i32| -> i64 {
+        charge(&mut caller, HOST_CALL_FUEL.saturating_add(byte_fuel(args_len)));
         let Some(mem) = caller.get_export("memory").and_then(|e| e.into_memory()) else { return Code::Internal as i64 };
         let op = match read_guest(&caller, &mem, op, op_len.min(128)).map(String::from_utf8) {
             Ok(Ok(s)) => s,

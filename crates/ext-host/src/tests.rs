@@ -68,6 +68,26 @@ fn infinite_loop_is_stopped() {
 }
 
 #[test]
+fn host_calls_cost_fuel_so_a_log_loop_is_bounded() {
+    let p = module(
+        r#"(func (export "craft_filter") (param i32 i32 i32 i32 i32) (result i32)
+             (loop $l (call $log (i32.const 0) (i32.const 0) (i32.const 64)) (br $l)) (i32.const 0))"#,
+        r#"(import "craft" "log" (func $log (param i32 i32 i32)))"#,
+    );
+    let count = Arc::new(AtomicU64::new(0));
+    let seen = count.clone();
+    let sink: LogFn = Arc::new(move |_, _, _| {
+        seen.fetch_add(1, Ordering::Relaxed);
+    });
+    let mut f = Filter::new(&p, sink).unwrap();
+    let mut px = vec![0.0; 4];
+    assert_eq!(f.run(&json!({}), &mut px, 1, 1, &|| Ok(())).unwrap_err(), PluginError::TooSlow);
+    // Free imports allowed millions of calls in this budget; each now costs host-side fuel.
+    let calls = count.load(Ordering::Relaxed);
+    assert!(calls > 0 && calls < 20_000, "{calls}");
+}
+
+#[test]
 fn unknown_import_is_refused() {
     let text = format!("(module (import \"env\" \"system\" (func)) {ABI})");
     assert!(matches!(Plugin::load("x.y", &wat::parse_str(text).unwrap()), Err(PluginError::Load(_))));

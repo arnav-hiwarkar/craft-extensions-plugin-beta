@@ -428,8 +428,8 @@ pub fn run(args: &[String]) -> Result<Value> {
         ));
     }
     a.arity(1)?;
-    if a.at(0)? == "build" && a.opt("local-assets").is_some() {
-        return build_local(Path::new(a.opt("local-assets").unwrap()), Path::new(a.opt("out").ok_or_else(|| Usage("--out is required".into()))?));
+    if let (true, Some(assets)) = (a.at(0)? == "build", a.opt("local-assets")) {
+        return build_local(Path::new(assets), Path::new(a.opt("out").ok_or_else(|| Usage("--out is required".into()))?));
     }
     let repo = Path::new(a.opt("repo").ok_or_else(|| Usage("--repo is required".into()))?);
     match a.at(0)? {

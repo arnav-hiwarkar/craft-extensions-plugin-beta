@@ -223,7 +223,10 @@ impl Manager {
                 req.matches(r.version)
                     && pin.is_none_or(|p| p.matches(r.version))
                     && self.compat(&r.manifest).usable()
-                    && r.asset_for(&self.platform).is_some_and(|a| index.revocation(id, r.version, &a.sha256).is_none())
+                    // Advisories only warn; BlockNew and Disable withdraw the release, as for updates.
+                    && r.asset_for(&self.platform).is_some_and(|a| {
+                        index.revocation(id, r.version, &a.sha256).is_none_or(|x| x.severity < catalogue::Severity::BlockNew)
+                    })
             })
             .max_by_key(|r| r.version)
             .ok_or_else(|| error(format!("no compatible, non-revoked release for {id} {req}; conflicting requirements or pin")))?;
@@ -588,6 +591,9 @@ mod dependency_tests {
             date: "2026-11-13".into(),
         });
         assert!(resolve(&index).is_err());
+        // An advisory warns but never blocks installation.
+        index.revocations[0].severity = catalogue::Severity::Advisory;
+        assert_eq!(resolve(&index).unwrap().len(), 2);
         index.revocations.clear();
         for release in &mut packages[1].releases {
             release.manifest.requires.insert(film.clone(), VersionReq::Any);
