@@ -34,3 +34,24 @@ review documentation `93810278`. Shared source/docs are recorded by this ledger'
 containing commit. Launcher `2956d3a` and catalogue `f4623c6` remain unchanged after
 bounded integration review. This is source completion for the scoped beta contract;
 runtime readiness and the explicit beta deferrals above are not claimed complete.
+
+## Delegated continuation
+
+The next user instruction explicitly requested a small delegated team. Sol 6.1
+medium reviewed PhotoCraft allocation/picker boundaries; Luna medium reconciled
+app documentation/evidence. Both were read-only with no nested delegation or
+Cargo. Main Sol high owned every edit, avoiding concurrent writers.
+
+Confirmed export defect: encoding preceded the staged-byte limit. PhotoCraft now
+checks the canonical IO memory estimate against remaining allowance before layer
+extraction/rendering, then checks exact encoded length before materialization.
+For PSD the latter occurs before the final whole-file byte allocation. The estimate
+is not a hard allocator quota: flat encoders still allocate their internal output
+before the exact size check. No strictly capped/interruptible codec allocation is
+claimed. Canonical import already has read limits and memory admission.
+
+An exhausted-export-budget regression was added as source only. The reviewers
+found no additional demonstrated picker defect. PhotoCraft examples no longer
+claim current passing execution; both apps' older Linux records are explicitly
+historical. Standalone rustfmt parsing and git diff checks ran, with no Cargo or
+runtime tests. PhotoCraft is now `8f7dea948`; FigCraft is `41623822`.
