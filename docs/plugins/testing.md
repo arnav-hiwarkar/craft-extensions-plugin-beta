@@ -16,7 +16,7 @@ To use it in an app (or `craft-ext plugin --app effectcraft`):
 
 ```sh
 export CRAFT_EXT_DIR="$(mktemp -d)"
-export CRAFT_CATALOGUE_URL="file:///home/ash/projects/plugin-beta/test-catalogue/"
+export CRAFT_CATALOGUE_URL="file://$ROOT/test-catalogue/"
 craft-ext plugin --app effectcraft refresh
 ```
 
