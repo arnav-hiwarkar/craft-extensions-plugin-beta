@@ -134,7 +134,9 @@ jobs:
             bins: figcraft figcraft-cli
           - app: craft-launcher
             build: -p artcraft-launcher
-            test: cargo test -p artcraft-launcher-ui-egui -p artcraft-launcher-core --lib  # plugin dialog is ext-ui; tested in shared
+            # Plugin dialog is ext-ui (tested in shared). One thread: i18n tests share a process-wide
+            # current language and race (pre-existing; e.g. language_labels_come_from_the_registry).
+            test: cargo test -p artcraft-launcher-ui-egui -p artcraft-launcher-core --lib -- --test-threads=1
             bins: artcraft-launcher
     steps:
       - uses: actions/checkout@v4
