@@ -15,11 +15,55 @@ pub fn verify_index(bytes: &[u8], sig_hex: &str, keys: &[&str]) -> bool {
         ed25519_dalek::VerifyingKey::from_bytes(&b).is_ok_and(|k| k.verify_strict(bytes, &ed25519_dalek::Signature::from_bytes(&sig)).is_ok())
     })
 }
+/// Environment variable naming an extra ed25519 public key (hex) for a local TEST catalogue.
+pub const TEST_KEY_ENV: &str = "CRAFT_CATALOGUE_TEST_KEY";
+
+/// Keys accepted for a catalogue at `base`: the compiled [`TRUSTED_KEYS`], plus a local test key
+/// only when every development condition holds. The override is compiled out of release builds,
+/// and in debug builds it needs `CRAFT_CATALOGUE_TEST_KEY`, `CRAFT_CATALOGUE_ALLOW_FILE=1` and a
+/// `file://` catalogue base. It never applies to HTTPS catalogues and never skips any other check.
+pub fn trusted_keys_for(base: &str) -> Vec<String> {
+    let mut keys: Vec<String> = TRUSTED_KEYS.iter().map(|k| (*k).to_string()).collect();
+    if let Some(key) = test_key(base, std::env::var(TEST_KEY_ENV).ok(), std::env::var("CRAFT_CATALOGUE_ALLOW_FILE").ok()) {
+        keys.push(key);
+    }
+    keys
+}
+fn test_key(base: &str, key: Option<String>, allow_file: Option<String>) -> Option<String> {
+    if !cfg!(debug_assertions) || allow_file.as_deref() != Some("1") || !base.starts_with("file://") {
+        return None;
+    }
+    let key = key?.trim().to_ascii_lowercase();
+    (key.len() == 64 && hex::decode(&key).is_ok()).then_some(key)
+}
+fn verify_for(bytes: &[u8], sig: &[u8], base: &str) -> Result<bool> {
+    let keys = trusted_keys_for(base);
+    let keys: Vec<&str> = keys.iter().map(String::as_str).collect();
+    Ok(verify_index(bytes, std::str::from_utf8(sig).map_err(error)?, &keys))
+}
+/// The configured catalogue base, as the manager reads it.
+fn configured_base() -> String {
+    std::env::var("CRAFT_CATALOGUE_URL").unwrap_or_else(|_| DEFAULT_URL.into())
+}
+/// Resolve a release asset URL. Relative URLs (plain path segments, no `..`) are resolved against
+/// the catalogue base, so a local catalogue directory can be moved or copied as a unit.
+pub fn resolve_asset_url(url: &str, base: &str) -> Result<String> {
+    if url.contains("://") {
+        return Ok(url.to_string());
+    }
+    let valid = !url.is_empty()
+        && !url.contains(['\\', '?', '#', ':'])
+        && url.split('/').all(|s| !s.is_empty() && s != "." && s != "..");
+    if !valid {
+        return Err(error("relative asset URL must be plain path segments"));
+    }
+    Ok(format!("{}/{}", base.trim_end_matches('/'), url))
+}
 impl Catalogue {
     pub fn cached(dir: &Path) -> Result<Index> {
         let b = crate::state_read(dir.join("index.json"), MAX_INDEX_BYTES)?;
         let sig = crate::state_read(dir.join("index.json.sig"), 1024)?;
-        if !verify_index(&b, std::str::from_utf8(&sig).map_err(error)?, TRUSTED_KEYS) {
+        if !verify_for(&b, &sig, &configured_base())? {
             return Err(error("the cached catalogue signature is invalid"));
         }
         Index::parse_cached(&b).map_err(error)
@@ -28,7 +72,7 @@ impl Catalogue {
     pub fn fetch(base: &str, cache: &Path, now: u64, high_water: u64) -> Result<Index> {
         let b = get(&format!("{}/index.json", base.trim_end_matches('/')), MAX_INDEX_BYTES as u64)?;
         let sig = get(&format!("{}/index.json.sig", base.trim_end_matches('/')), 1024)?;
-        if !verify_index(&b, std::str::from_utf8(&sig).map_err(error)?, TRUSTED_KEYS) {
+        if !verify_for(&b, &sig, base)? {
             return Err(error("the catalogue signature is invalid"));
         }
         let i = Index::parse(&b, now, high_water).map_err(error)?;
@@ -54,10 +98,11 @@ impl Catalogue {
     }
     #[cfg(feature = "net")]
     pub fn download_release_from(asset: &Asset, max: u64, base: &str) -> Result<Vec<u8>> {
-        if asset.url.starts_with("file:") && !file_allowed(base) {
+        let url = resolve_asset_url(&asset.url, base)?;
+        if url.starts_with("file:") && !file_allowed(base) {
             return Err(error("file assets require a file catalogue or CRAFT_CATALOGUE_ALLOW_FILE=1"));
         }
-        let b = get(&asset.url, max.min(asset.size))?;
+        let b = get(&url, max.min(asset.size))?;
         if b.len() as u64 != asset.size || digest(&b) != asset.sha256 {
             return Err(error("the downloaded release is damaged or changed"));
         }
@@ -110,5 +155,31 @@ mod local_tests {
         asset.sha256 = "a".repeat(64);
         assert!(Catalogue::download_release_from(&asset, 100, "file:///catalogue").is_err());
         assert!(!verify_index(b"{}", &"0".repeat(128), TRUSTED_KEYS));
+    }
+}
+
+#[cfg(test)]
+mod trust_tests {
+    use super::*;
+    const KEY: &str = "d49ebfdf63910eafaaba1cf72ee2dd43f1e82b4cf8cea8c5a0ce93021c99323b";
+    #[test]
+    fn test_key_needs_debug_file_base_and_allow_flag() {
+        let one = Some("1".to_string());
+        let key = Some(KEY.to_string());
+        assert_eq!(test_key("file:///c/", key.clone(), one.clone()).is_some(), cfg!(debug_assertions));
+        assert!(test_key("https://example.com/", key.clone(), one.clone()).is_none());
+        assert!(test_key("file:///c/", key.clone(), None).is_none());
+        assert!(test_key("file:///c/", key.clone(), Some("true".into())).is_none());
+        assert!(test_key("file:///c/", None, one.clone()).is_none());
+        assert!(test_key("file:///c/", Some("zz".repeat(32)), one.clone()).is_none());
+        assert!(test_key("file:///c/", Some("ab".into()), one).is_none());
+    }
+    #[test]
+    fn relative_assets_resolve_inside_the_catalogue() {
+        assert_eq!(resolve_asset_url("assets/a.craftplugin", "file:///c/").unwrap(), "file:///c/assets/a.craftplugin");
+        assert_eq!(resolve_asset_url("https://x/a", "file:///c").unwrap(), "https://x/a");
+        for bad in ["", "../a", "assets/../a", "/abs", "a//b", "a?b", "a#b", "c:/a", "a\\b", "./a"] {
+            assert!(resolve_asset_url(bad, "file:///c/").is_err(), "{bad}");
+        }
     }
 }

@@ -310,6 +310,9 @@ pub fn build(repo: &Path, offline: bool) -> Result<Value> {
 }
 /// Build development metadata from real archives; signing remains a separate explicit step.
 pub fn build_local(assets: &Path, out: &Path) -> Result<Value> {
+    fs::create_dir_all(out)?;
+    // Archives inside the catalogue directory get relative URLs, so the directory stays portable.
+    let out_abs = out.canonicalize()?;
     let mut grouped: BTreeMap<ExtensionId, Vec<Release>> = BTreeMap::new();
     for path in entries(assets)? {
         if path.extension().is_none_or(|e| e != "craftplugin") {
@@ -330,7 +333,7 @@ pub fn build_local(assets: &Path, out: &Path) -> Result<Value> {
             published: crate::author::date(craft_ext_store::store::now()),
             assets: vec![Asset {
                 platform,
-                url: format!("file://{}", path.canonicalize()?.display()),
+                url: asset_url(&path.canonicalize()?, &out_abs)?,
                 sha256: craft_ext_store::store::digest(&bytes),
                 size: bytes.len() as u64,
             }],
@@ -395,6 +398,18 @@ pub fn build_local(assets: &Path, out: &Path) -> Result<Value> {
     let _ = fs::remove_file(out.join("index.json.sig"));
     Ok(json!({"packages":index.packages.len(),"next":"catalogue sign --repo <out> --key <file>"}))
 }
+fn asset_url(path: &Path, out: &Path) -> Result<String> {
+    if let Ok(rel) = path.strip_prefix(out) {
+        let parts = rel.components().map(|c| c.as_os_str().to_str().map(str::to_string)).collect::<Option<Vec<_>>>();
+        if let Some(parts) = parts {
+            let url = parts.join("/");
+            if craft_ext_store::catalogue::resolve_asset_url(&url, "file:///").is_ok() {
+                return Ok(url);
+            }
+        }
+    }
+    Ok(format!("file://{}", path.display()))
+}
 pub fn run(args: &[String]) -> Result<Value> {
     let a = Args::parse(args, &["repo", "only", "key", "out", "local-assets"], &["offline"])?;
     if a.pos.is_empty() || a.has("help") {
@@ -430,7 +445,7 @@ pub fn run(args: &[String]) -> Result<Value> {
             use std::io::Write;
             options.open(path)?.write_all(hex::encode(seed).as_bytes())?;
             Ok(
-                json!({"public_key":hex::encode(key.verifying_key().as_bytes()),"instruction":"Paste public_key into craft_ext_core::catalogue::TRUSTED_KEYS"}),
+                json!({"public_key":hex::encode(key.verifying_key().as_bytes()),"instruction":"Paste public_key into craft_ext_core::catalogue::TRUSTED_KEYS","test_instruction":"For a local test catalogue only (debug builds, file:// catalogue): export CRAFT_CATALOGUE_TEST_KEY=<public_key> CRAFT_CATALOGUE_ALLOW_FILE=1"}),
             )
         }
         "sign" => {
@@ -630,11 +645,19 @@ mod local_tests {
         assert_eq!(i.packages.len(), 1);
         let p = PackageFile::parse(&fs::read(out.join("packages/io.github.alice.local.json")).unwrap(), &i.packages[0].id).unwrap();
         assert!(p.releases[0].assets[0].url.starts_with("file:///"));
+        // Archives inside the catalogue directory are referenced relatively.
+        let inside = out.join("assets");
+        fs::create_dir(&inside).unwrap();
+        fs::copy(assets.join("one.craftplugin"), inside.join("one.craftplugin")).unwrap();
+        build_local(&inside, &out).unwrap();
+        let p = PackageFile::parse(&fs::read(out.join("packages/io.github.alice.local.json")).unwrap(), &i.packages[0].id).unwrap();
+        assert_eq!(p.releases[0].assets[0].url, "assets/one.craftplugin");
+        build_local(&assets, &out).unwrap();
         assert!(validate_asset_url(&p.releases[0].manifest.source, "v0.1.0", &p.releases[0].assets[0].url).is_err());
         fs::write(out.join("index.json.sig"), "stale").unwrap();
         build_local(&assets, &out).unwrap();
         assert!(!out.join("index.json.sig").exists());
         let next = Index::parse_cached(&fs::read(out.join("index.json")).unwrap()).unwrap();
-        assert_eq!(next.serial, i.serial + 1);
+        assert_eq!(next.serial, i.serial + 3);
     }
 }
