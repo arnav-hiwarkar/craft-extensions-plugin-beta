@@ -20,6 +20,16 @@ pub fn files(m: &Manifest) -> BTreeSet<String> {
         .chain(m.native.iter().flat_map(|n| n.executables.values()).cloned())
         .collect()
 }
+/// Only Cargo example targets explicitly named by contribution modules are author build inputs.
+fn module_examples(m: &Manifest, cargo: &toml::Value) -> BTreeSet<String> {
+    cargo.get("example").and_then(toml::Value::as_array).into_iter().flatten()
+        .filter_map(|target| target.get("name").and_then(toml::Value::as_str))
+        .filter(|name| m.contributions.iter().filter_map(|c| c.module.as_ref()).any(|module| {
+            Path::new(module).file_stem().and_then(|stem| stem.to_str()) == Some(name.replace('-', "_").as_str())
+        }))
+        .map(str::to_string).collect()
+}
+
 pub fn date(seconds: u64) -> String {
     let z = (seconds / 86400) as i64 + 719468;
     let era = z / 146097;
@@ -180,6 +190,16 @@ pub fn run(args: &[String]) -> Result<Value> {
             }
             let mut command = std::process::Command::new("cargo");
             command.args(["build", "--target", "wasm32-unknown-unknown", "--message-format=json"]);
+            let cargo: toml::Value = toml::from_str(&fs::read_to_string(dir.join("Cargo.toml"))?)?;
+            let examples = module_examples(&m, &cargo);
+            if !examples.is_empty() {
+                if cargo.get("lib").is_some() || dir.join("src/lib.rs").is_file() {
+                    command.arg("--lib");
+                }
+                for name in examples {
+                    command.args(["--example", &name]);
+                }
+            }
             if a.has("release") {
                 command.arg("--release");
             } else if std::env::var_os("CARGO_PROFILE_DEV_OPT_LEVEL").is_none() {
@@ -377,6 +397,14 @@ fn check_wasm(bytes: &[u8], effect: bool) -> Result<()> {
 #[cfg(test)]
 mod beta_tests {
     use super::*;
+    #[test]
+    fn author_build_selects_only_manifest_panel_targets() {
+        let manifest = Manifest::parse(include_bytes!("../../../examples/cross-review/craft-plugin.toml")).unwrap();
+        let mut cargo: toml::Value = toml::from_str(include_str!("../../../examples/cross-review/Cargo.toml")).unwrap();
+        cargo["example"].as_array_mut().unwrap().push(toml::from_str("name = 'unrelated_preview'").unwrap());
+        assert_eq!(module_examples(&manifest, &cargo), ["effectcraft_review_panel", "figcraft_review_panel", "photocraft_review_panel"].into_iter().map(str::to_string).collect::<BTreeSet<_>>());
+    }
+
     #[test]
     fn pack_describe_embeds_form_without_changing_source() {
         let t = tempfile::tempdir().unwrap();

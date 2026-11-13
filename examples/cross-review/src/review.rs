@@ -62,7 +62,8 @@ pub fn rename(app: App) -> Result<(), String> {
 fn tree(app: App, status: &str) -> JsonValue {
     ui::column(vec![
         ui::group("Review target", vec![ui::label(app.scope()), ui::label(status)]),
-        ui::row(vec![ui::button("review-first", "Mark first layer Reviewed"), ui::button("refresh", "Refresh target")]),
+        ui::component("review-actions", "craft.review-actions", 1, json!({}),
+            ui::row(vec![ui::button("review-first", "Mark first layer Reviewed"), ui::button("refresh", "Refresh target")])),
         ui::label("Renames one ordinary layer. Undo in the host restores its name."),
     ])
 }
@@ -111,8 +112,8 @@ mod tests {
         for app in [App::EffectCraft, App::PhotoCraft, App::FigCraft] {
             let tree = tree(app, "Permission denied");
             assert_eq!(tree["children"][0]["children"][1]["text"], "Permission denied");
-            assert_eq!(tree["children"][1]["children"][0]["id"], "review-first");
-            assert_eq!(tree["children"][1]["children"][1]["id"], "refresh");
+            assert_eq!(tree["children"][1]["fallback"]["children"][0]["id"], "review-first");
+            assert_eq!(tree["children"][1]["fallback"]["children"][1]["id"], "refresh");
         }
     }
 }

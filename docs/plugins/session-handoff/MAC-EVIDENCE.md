@@ -55,3 +55,36 @@ found no additional demonstrated picker defect. PhotoCraft examples no longer
 claim current passing execution; both apps' older Linux records are explicitly
 historical. Standalone rustfmt parsing and git diff checks ran, with no Cargo or
 runtime tests. PhotoCraft is now `8f7dea948`; FigCraft is `41623822`.
+
+## Workflow completion continuation
+
+- PhotoCraft `3b0160cbd` binds pending questions to canonical store root, enabled
+  contribution, release version, store and grant generation. Validation no longer
+  depends on the runtime being attached during a headless transaction. Regression
+  fixtures exercise real revoke/grant/re-enable transitions under a disposable
+  CRAFT_EXT_DIR; they are explicitly ignored/unrun, never counted as passing.
+- Cross Review `c076609` adds one panel entry module for each app with common
+  controls and errors. Integration adds a named component fallback and author CLI
+  support for building/copying manifest-referenced Cargo example modules.
+- `PluginUi` can accept a host framework `Engine`; existing trees/events and the
+  egui fallback remain unchanged. Source tests cover renderer installation and
+  revisioned events, surface cleanup and fallback after removal. They are unrun.
+- The supplied framework branch was checked through GitHub at
+  `8ab6ea366ac67629e2699820f46b0ffd0fc2e6bd`. Its theme payload is
+  `craft-design-theme@1`, distinct from the plugin capability name `craft-theme`.
+  The future host adapter must share its egui revision and use its canonical theme
+  parser/store. No framework dependency or theme activation was introduced.
+- Reopening shared manager setup now restores saved choices/grants. Empty setup
+  selection is refused before store writes. Unsupported contribution kinds are
+  refused at the canonical enable boundary even for partly compatible packages.
+  This applies to launcher, apps and CLI through the shared platform.
+- Halftone's stale FigCraft advertisement is removed. The cheap metadata/source
+  verifier found and now guards it. It passed for 15 example packages, five
+  multi-app packages, with 9 EffectCraft, 7 PhotoCraft and 5 FigCraft packages.
+  Counts establish source metadata coverage, not installed/executed plugins.
+
+Executed here: standalone Rust parsing, Python metadata/source checks, TOML parsing
+and diff checks. No Cargo, guest/app builds, runtime tests, CI or releases ran.
+All new behavioral regression source remains unrun. Current framework runtime,
+real release packages/catalogue downloads, UI interaction, native platform helpers
+and the deferred Mac/Windows/GPU matrix remain separate verification gates.

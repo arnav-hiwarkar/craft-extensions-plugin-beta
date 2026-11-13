@@ -6,9 +6,17 @@ Updated 2026-11-11. Start here when working on Craft plugins and add-ons.
 
 ## Read this first
 
-**[The Craft plugin architecture](architecture.md)** is the single current description of the system. It consolidates the original eighteen design topics and confirmed post-call choices. Read the [post-call current understanding](design-sessions/post-call-reconciliation.md#current-understanding-after-the-first-pass) for the confirmed manual EffectCraft L0/L1 MVP, explicit deferrals, and remaining questions. The first pass is complete; the entire replacement implementation plan is not newly finalized.
+[Beta design](beta-design.md) specifies the current implementation and supersedes
+older architecture/system-guide proposals. Read [the user guide](user-guide.md),
+[author guide](author-guide.md), [adapter guide](adapter-guide.md) and
+[maintainer guide](maintainer-guide.md) for current workflows. The
+[UI reference](ui.md) and [framework integration](framework-integration.md) define
+the backend-independent contract and future host transition.
 
-Design only. Implementation, new repositories, publication and releases each need their own approval. The [delivery plan](architecture.md#22-delivery-plan) orders the work; [open items](architecture.md#24-open-items) lists what still needs an owner or evidence.
+Source implementation is authorized and underway. Builds, broad runtime testing,
+CI and release publication remain a separate phase under the latest user limits.
+The [Mac evidence ledger](session-handoff/MAC-EVIDENCE.md) records changes and checks;
+older execution records do not prove current runtime correctness.
 
 ## Where things live
 
@@ -29,7 +37,7 @@ Design only. Implementation, new repositories, publication and releases each nee
 | Earlier drafts, research and discussion | [Draft](draft/README.md), [research](research/README.md), [discussion archive](discussion/README.md), and the `docs/plugin-*.md` files |
 | Jeremy's original handoff | [Repository archive](sources/jeremy-handoff/README.md), [supplied text](sources/jeremy-extensions-todo.txt), [crosswalk](readiness/jeremy-crosswalk.md) |
 
-Every document other than the architecture, the decision record, the session record, the family map and the merge-hold list carries a status note: it is history and evidence, and the architecture wins where they disagree.
+Every document other than the architecture, the decision record, the session record, the family map and the merge-hold list carries a status note: it is history and evidence; current beta-design and contract references take precedence where they disagree.
 
 ## Detailed evidence and investigations
 
@@ -52,14 +60,14 @@ Every document other than the architecture, the decision record, the session rec
 
 The [discussion archive](discussion/README.md) preserves the technical requests and substantive answers from before the design sessions. Historical responses can contain proposals or facts later corrected. Their presence is not approval.
 
-When records differ, use this order: the user's latest explicit choice (decision and session records), then [the architecture](architecture.md), then source evidence at a named revision, then earlier drafts and research. Source inspection establishes what code says at that revision; it does not establish runtime behaviour or current branch state.
+When records differ, use this order: the user's latest explicit choice (decision and session records), then [beta design](beta-design.md) and current app contracts, then source evidence at a named revision, then earlier drafts and research. Source inspection establishes what code says at that revision; it does not establish runtime behaviour or current branch state.
 
 The ChatGPT share link remains unreadable and its conversation contents are not archived. The Claude chart's visual layout and original artifact source remain unavailable. Its complete user-supplied text is archived. Do not claim these missing materials were reviewed.
 
 ## Keeping the record current
 
 1. Record an explicit user choice in the [decision record](draft/decisions.md), with what it replaces, and its trail in the [session record](design-sessions/session-record.md).
-2. Update [the architecture](architecture.md) in the same change, so it stays the one current description.
+2. Update [beta design](beta-design.md) and current contract/workflow references in the same change; mark older architecture proposals as historical.
 3. Put proposals, evidence and alternatives in the relevant design-session section or investigation, marked with their status.
 4. Keep original material in `sources/` unchanged. Preserve corrections without presenting old conclusions as current.
 
@@ -68,6 +76,6 @@ The ChatGPT share link remains unreadable and its conversation contents are not 
 - Reuse craft-extensions as the home of every shared plugin-platform crate. Do not create a competing installer, schema or store anywhere else.
 - Shared code stays independent of application crates. Each app's adapter lives in that app.
 - Each app's current plugin system is replaced, not extended, in the same change set that lands its adapter.
-- No implementation, repository creation, publication or release without separate approval.
+- Source fixes and documentation are authorized. CI and release publication require separate approval.
 
-All files here are local worktree changes until separately committed. No Rust builds, app runtime tests, release packages or security certification were produced by this documentation work.
+Current source work is committed in logical slices to the private beta branches. No Rust builds, app runtime tests, release packages or security certification were produced by this documentation work.

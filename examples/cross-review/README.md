@@ -44,7 +44,12 @@ Source status: helper regression tests are present and unrun. No Cargo, guest
 build, app run, smoke script, or packaging was executed for this change. The
 Cargo example targets must later be compiled for Wasm and their three named
 `.wasm` outputs included alongside `cross_review.wasm` before packaging. The
-author CLI's default library build alone does not produce these panel modules.
+author CLI now builds and copies manifest-referenced Cargo example targets alongside
+the library. Unreferenced Cargo examples are not built.
 No binaries or packages are included. Later validation must exercise initial
 panel rendering, refresh, rename, Undo, empty documents, grant revocation, and
 all three existing command smoke paths.
+
+The action row is a named `craft.review-actions` component with an ordinary row of
+buttons as its fallback. Hosts without that component render the same useful controls.
+The version-1 UI contract and widget IDs stay the same when the host renderer changes.

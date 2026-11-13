@@ -1,6 +1,6 @@
 # Halftone
 
-A `raster.filter@1.0` effect for EffectCraft, PhotoCraft and FigCraft. It draws round dots on a
+A `raster.filter@1.0` effect for EffectCraft and PhotoCraft. FigCraft does not implement this contract. It draws round dots on a
 rotated grid. Each dot's area follows the darkness of its cell, so shadows get big dots and highlights
 get small ones.
 

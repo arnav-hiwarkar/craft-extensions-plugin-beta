@@ -5,7 +5,7 @@ version = "1.0.0"
 license = "MIT OR Apache-2.0"
 source = "https://github.com/arnav-hiwarkar/halftone"
 summary = "Round halftone dots on a rotated grid, sized by local darkness"
-apps = ["effectcraft", "photocraft", "figcraft"]
+apps = ["effectcraft", "photocraft"]
 
 [[contribution]]
 id = "halftone"

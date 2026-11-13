@@ -339,3 +339,17 @@ arbitrary engine/CLI dispatcher is exposed. FigCraft has no raster.filter contra
 Main integration uses Sol high per the latest user instruction. The
 [evidence ledger](session-handoff/MAC-EVIDENCE.md) separates source completion from
 runtime, desktop, native-helper and platform verification, which remain deferred.
+
+The host renderer seam is now executable source rather than a reserved choice:
+`PluginUi::set_framework_engine` installs an `Engine` without changing guest trees,
+UI revisions or event values. The egui fallback remains available. See
+[framework integration](framework-integration.md) for the checked framework commit,
+single-egui-revision requirement, runtime lifecycle and canonical theme schema.
+Theme activation remains deferred, using the framework's parser/store when adopted.
+
+The shared setup sheet now restores saved contribution choices and granted rights;
+it never treats an empty selection as successful enablement. Unsupported kinds are
+refused both in the sheet and the canonical store boundary, even when other
+contributions make a package partly compatible. Author builds include only Cargo
+example targets explicitly referenced by Wasm modules, so multi-module examples
+use the same build/check/pack flow as ordinary plugins.

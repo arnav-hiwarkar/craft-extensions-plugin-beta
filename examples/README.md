@@ -46,7 +46,8 @@ Installation never grants or enables. `plugin permissions <id>` shows the
 permission sheet; `plugin disable <id> <contribution>` and
 `plugin revoke <id> <permission>` remove access. These commands come from the
 shared `ext-cli` parser. Cross Review's README explains its separate panel module
-outputs; the default author library build is insufficient for that package.
+outputs; `craft-ext build` now builds the library plus manifest-referenced Cargo
+example targets and copies their artifacts before `craft-ext check`/`pack`.
 
 `native-system-stamp` demonstrates an out-of-process helper for EffectCraft and
 FigCraft. Its committed executable mapping is **Linux x86_64 only**

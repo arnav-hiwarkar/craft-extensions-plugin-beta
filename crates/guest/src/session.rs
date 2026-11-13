@@ -45,7 +45,8 @@ pub enum Event {
         /// The event's payload.
         payload: Value,
     },
-    /// The plugin is being turned off or unloaded. Release anything you hold.
+    /// Reserved unload notification. Beta revocation and shutdown may stop the worker
+    /// immediately without delivering it; never rely on this event for cleanup.
     Dispose,
     /// An event this SDK version does not know, as the raw JSON.
     Unknown(Value),
