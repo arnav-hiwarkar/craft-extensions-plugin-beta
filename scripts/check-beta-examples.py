@@ -52,7 +52,9 @@ for manifest_path in sorted((root / 'examples').glob('*/craft-plugin.toml')):
         for filename in c.get('files', []):
             assert (folder / filename).is_file(), f'{folder.name}: missing resource {filename}'
     if 'native' in package:
-        assert 'macos-aarch64' not in package['native']['executables'], 'Mac native example requires a real platform build'
+        # One universal archive: each platform's helper has its own path, built by CI on that platform.
+        exes = package['native']['executables']
+        assert set(exes) <= {'linux-x86_64', 'macos-aarch64'} and len(set(exes.values())) == len(exes), exes
     multi += len(usable) > 1
     packages += 1
 assert all(n >= 3 for n in counts.values()), counts
