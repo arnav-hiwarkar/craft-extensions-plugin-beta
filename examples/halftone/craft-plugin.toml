@@ -16,22 +16,36 @@ category = "Stylize"
 module = "halftone.wasm"
 permissions = []
 
-[[contribution.param]]
-id = "size"
+[contribution.form]
+schema = 1
+key = "halftone"
+title = "Halftone"
+
+[contribution.form.preview]
+enabled = true
+compare = true
+
+[[contribution.form.params]]
+key = "size"
 label = "Dot size"
-type = "slider"
+unit = "pixels"
+[contribution.form.params.kind]
+type = "range"
 default = 8
 min = 2
 max = 64
 
-[[contribution.param]]
-id = "angle"
+[[contribution.form.params]]
+key = "angle"
 label = "Grid angle"
+unit = "degrees"
+[contribution.form.params.kind]
 type = "angle"
 default = 45
 
-[[contribution.param]]
-id = "mono"
+[[contribution.form.params]]
+key = "mono"
 label = "Black and white"
-type = "checkbox"
+[contribution.form.params.kind]
+type = "bool"
 default = true

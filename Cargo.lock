@@ -220,6 +220,7 @@ dependencies = [
  "toml",
  "ureq",
  "wasmi",
+ "wat",
  "zip",
 ]
 
@@ -272,6 +273,7 @@ dependencies = [
 name = "craft-guest"
 version = "0.1.0"
 dependencies = [
+ "craft-ext-core",
  "serde",
  "serde_json",
 ]

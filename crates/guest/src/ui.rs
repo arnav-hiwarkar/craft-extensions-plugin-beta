@@ -147,3 +147,12 @@ mod tests {
         assert!(plot["ops"][1].get("stroke").is_none(), "an absent stroke is left out, not null");
     }
 }
+
+/// A host-rendered form; widget event keys are the form's parameter keys.
+pub fn form(form: &crate::Form, values: &crate::Values) -> Node {
+    json!({"type":"form", "form":form, "values":values})
+}
+/// A named framework component, or its fallback on hosts without that version.
+pub fn component(key: &str, name: &str, version: u32, props: Value, fallback: Node) -> Node {
+    json!({"type":"component", "key":key,"name":name,"version":version,"props":props,"fallback":fallback})
+}

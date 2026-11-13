@@ -63,10 +63,16 @@ category = "Stylize"
 permissions = []                      # required: granted before it can be turned on
 optional_permissions = ["network:api.example.com"]   # off until the person allows them
 state_version = 0                     # bump when saved state changes shape
-[[contribution.param]]
-id = "size"
+[contribution.form]
+schema = 1
+key = "halftone"
+title = "Halftone"
+
+[[contribution.form.params]]
+key = "size"
 label = "Dot size"
-type = "slider"                       # slider | angle | checkbox | select | color | point | text
+[contribution.form.params.kind]
+type = "range"
 default = 8
 min = 1
 max = 64
@@ -164,3 +170,37 @@ Beta availability: `tool` contributions work in FigCraft only. Font and theme co
 `craft-ext test` runs effects twice for deterministic, valid output. For packages with no effects it exits successfully with `"tested": []` and the message "No automated tests for panels/commands yet; run in the app with `craft-ext dev`". This does not verify panels or commands.
 
 Standalone `craft-ext plugin project <references.json>` reads a JSON array of plugin references. App CLIs implement `plugin project <project-file>` by extracting references and calling `craft_ext_cli::print_project_status`.
+
+## Forms (schema 1)
+
+`[contribution.form]` replaces parameter tables. It contains `schema = 1`, `key`, `title`,
+and `[[contribution.form.params]]` rows with `key`, `label`, and a nested `kind` tagged by `type`.
+Words accept a string or `{ id, english }`; `t!("Title")` gives the SDK word a plugin-crate id
+and English fallback. Choices/radios store string option ids, never indices.
+
+```rust
+use craft_guest::{Form, Unit, t};
+fn describe() -> Form {
+    Form::new("vignette", t!("Vignette"))
+        .slider("amount", t!("Amount"), -100.0..=100.0, 0.0).unit(Unit::Percent)
+        .choice("shape", t!("Shape"), &[("round", t!("Round")), ("oval", t!("Oval"))], "round")
+        .preview()
+}
+// filter!(describe = describe, apply = apply);
+// Optional: filter!(describe = describe, update = update, apply = apply);
+```
+
+Update functions take `Update { values, rev }` and return `Patch::none(rev)` with chained
+`.set(key, Value::Number(n))`, `.disable(key)`, `.enable(key)`, `.hide(key)`, or `.show(key)`.
+The host must apply a patch atomically with `Form::apply_patch` to its `FormState`.
+Conditions use `{"eq":{"key":"mode","value":"round"}}`, `all`, `any`, or `not`.
+Forms allow 128 rows; conditions allow depth 16 and 256 nodes. Invalid values are refused,
+including non-finite and out-of-range numbers. Color defaults are straight RGBA in the host
+working space (HDR RGB allowed); angles use degrees and points declare their coordinate space.
+`Params(&values)` provides `f/int/b/choice/color/point/text` access.
+
+Write the form in the manifest, or use `craft-ext pack --describe` to load the already compiled
+wasm in the reference sandbox and embed its validated description in the packaged manifest.
+Plain `pack` never invokes guest code; neither command builds anything. The source manifest
+is unchanged. A missing optional description leaves its manifest form intact.
+Preset effect entries are `{ "effect": "plugin/contribution", "values": { ... } }`.

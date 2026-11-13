@@ -23,7 +23,7 @@ pub const MAX_MANIFEST_BYTES: usize = 128 * 1024;
 pub const SCHEMA: u32 = 2;
 pub const MAX_APPS: usize = 32;
 pub const MAX_CONTRIBUTIONS: usize = 128;
-pub const MAX_PARAMS: usize = 64;
+
 
 /// What a contribution adds.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
@@ -68,57 +68,6 @@ impl ContributionKind {
     }
 }
 
-/// An effect or command parameter. The host draws the control, animates it and saves it.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "kebab-case")]
-pub enum ParamKind {
-    Slider {
-        default: f64,
-        min: f64,
-        max: f64,
-        #[serde(default)]
-        integer: bool,
-    },
-    Angle {
-        #[serde(default)]
-        default: f64,
-    },
-    Checkbox {
-        #[serde(default)]
-        default: bool,
-    },
-    Select {
-        options: Vec<String>,
-        #[serde(default)]
-        default: u32,
-    },
-    Color {
-        #[serde(default = "white")]
-        default: [f64; 4],
-    },
-    Point {
-        #[serde(default)]
-        default: [f64; 2],
-    },
-    Text {
-        #[serde(default)]
-        default: String,
-    },
-}
-
-fn white() -> [f64; 4] {
-    [1.0, 1.0, 1.0, 1.0]
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-/// (Unknown keys inside a parameter are ignored: serde cannot refuse them through `flatten`.)
-pub struct Param {
-    pub id: String,
-    pub label: String,
-    #[serde(flatten)]
-    pub kind: ParamKind,
-}
-
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Contribution {
@@ -147,8 +96,8 @@ pub struct Contribution {
     /// Version of the state this contribution saves in projects; bump when the shape changes.
     #[serde(default)]
     pub state_version: u32,
-    #[serde(default, rename = "param")]
-    pub params: Vec<Param>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub form: Option<crate::form::Form>,
 }
 
 impl Contribution {
@@ -294,26 +243,7 @@ impl Manifest {
             for p in c.module.iter().chain(c.files.iter()) {
                 validate_path(p).map_err(|e| ManifestError(format!("{}: {e}", c.id)))?;
             }
-            if c.params.len() > MAX_PARAMS {
-                return err(format!("contribution {} has too many parameters", c.id));
-            }
-            let mut pids = BTreeSet::new();
-            for p in &c.params {
-                if !local_id(&p.id) || !pids.insert(p.id.as_str()) {
-                    return err(format!("parameter id \"{}\" is invalid or repeated", p.id));
-                }
-                t("parameter label", &p.label, 64, Lines::One)?;
-                if let ParamKind::Slider { default, min, max, .. } = p.kind
-                    && !(min.is_finite() && max.is_finite() && min < max && (min..=max).contains(&default))
-                {
-                    return err(format!("parameter {} has an invalid range", p.id));
-                }
-                if let ParamKind::Select { options, default } = &p.kind
-                    && (options.is_empty() || options.len() > 64 || *default as usize >= options.len())
-                {
-                    return err(format!("parameter {} has invalid options", p.id));
-                }
-            }
+            if let Some(form) = &c.form { form.validate().map_err(ManifestError)?; }
         }
         if self.native.is_some() && self.contributions.iter().any(|c| c.kind == ContributionKind::Effect) {
             return err("native packages cannot contribute effects in this version (use a sandboxed module)");

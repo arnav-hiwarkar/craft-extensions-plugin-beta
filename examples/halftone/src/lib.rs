@@ -100,4 +100,12 @@ fn halftone(ctx: &FilterCtx, img: &mut Image<'_>) -> Result<(), String> {
     Ok(())
 }
 
-filter!(halftone);
+fn describe() -> craft_guest::Form {
+    use craft_guest::{Form, Unit, t};
+    Form::new("halftone", t!("Halftone"))
+        .slider("size", t!("Dot size"), 2.0..=64.0, 8.0).unit(Unit::Pixels)
+        .angle("angle", t!("Grid angle"), 45.0).unit(Unit::Degrees)
+        .toggle("mono", t!("Black and white"), true).preview()
+}
+
+filter!(describe = describe, apply = halftone);

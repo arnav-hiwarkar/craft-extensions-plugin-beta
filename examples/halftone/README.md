@@ -4,7 +4,8 @@ A `raster.filter@1.0` effect for EffectCraft, PhotoCraft and FigCraft. It draws 
 rotated grid. Each dot's area follows the darkness of its cell, so shadows get big dots and highlights
 get small ones.
 
-Parameters (declared in `craft-plugin.toml`):
+The form is built by `describe()` in `src/lib.rs`; the manifest also carries a static form.
+Use `craft-ext pack --describe` to embed the SDK description without editing the source manifest:
 
 - **Dot size** (2–64, default 8): grid cell in layer pixels.
 - **Grid angle** (degrees, default 45): rotation of the grid.

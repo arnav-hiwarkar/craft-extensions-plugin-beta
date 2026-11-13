@@ -1,17 +1,17 @@
 //! Transforms (`raster.filter@1`): the per-call context and the pixel buffer.
 
+use crate::Values;
 use serde::Deserialize;
-use serde_json::{Map, Value};
 
 /// The context the host sends with every filter call (beta-design B4, ABI v1).
 ///
-/// Parameters come from the `[[contribution.param]]` table in `craft-plugin.toml`. Every declared
+/// Parameters come from the `[contribution.form]` table in `craft-plugin.toml`. Every declared
 /// parameter is present. The typed helpers return `Err` for a missing or mistyped value, so a filter
 /// can use `?` and the host reports the problem instead of rendering garbage.
 #[derive(Clone, Debug, Deserialize)]
 pub struct FilterCtx {
     /// Parameter values by id.
-    pub params: Map<String, Value>,
+    pub params: Values,
     /// Layer time in seconds.
     pub time: f64,
     /// Buffer pixels per layer pixel.
@@ -29,49 +29,38 @@ pub struct FilterCtx {
 }
 
 impl FilterCtx {
-    /// The raw JSON value of parameter `id`.
-    pub fn param(&self, id: &str) -> Result<&Value, String> {
-        self.params.get(id).ok_or_else(|| format!("missing parameter `{id}`"))
+    /// Access all form values.
+    pub fn values(&self) -> crate::Params<'_> {
+        crate::Params(&self.params)
     }
-
-    /// A number (slider, angle, or pixels parameter).
-    pub fn f(&self, id: &str) -> Result<f64, String> {
-        self.param(id)?.as_f64().ok_or_else(|| format!("parameter `{id}` is not a number"))
+    /// Reads a number.
+    pub fn f(&self, key: &str) -> Result<f64, String> {
+        self.values().f(key)
     }
-
-    /// A checkbox.
-    pub fn b(&self, id: &str) -> Result<bool, String> {
-        self.param(id)?.as_bool().ok_or_else(|| format!("parameter `{id}` is not a checkbox value"))
+    /// Reads an integer.
+    pub fn int(&self, key: &str) -> Result<i64, String> {
+        self.values().int(key)
     }
-
-    /// A select parameter: the zero-based index of the chosen option.
-    pub fn index(&self, id: &str) -> Result<u32, String> {
-        self.param(id)?.as_u64().and_then(|i| u32::try_from(i).ok()).ok_or_else(|| format!("parameter `{id}` is not an option index"))
+    /// Reads a boolean.
+    pub fn b(&self, key: &str) -> Result<bool, String> {
+        self.values().b(key)
     }
-
-    /// A text parameter.
-    pub fn text(&self, id: &str) -> Result<&str, String> {
-        self.param(id)?.as_str().ok_or_else(|| format!("parameter `{id}` is not text"))
+    /// Reads a stable choice id.
+    pub fn choice(&self, key: &str) -> Result<&str, String> {
+        self.values().choice(key)
     }
-
-    /// A point parameter `[x, y]`.
-    pub fn point(&self, id: &str) -> Result<[f64; 2], String> {
-        fixed(id, self.param(id)?)
+    /// Reads text.
+    pub fn text(&self, key: &str) -> Result<&str, String> {
+        self.values().text(key)
     }
-
-    /// A colour parameter `[r, g, b, a]`.
-    pub fn color(&self, id: &str) -> Result<[f64; 4], String> {
-        fixed(id, self.param(id)?)
+    /// Reads straight RGBA in the host working space.
+    pub fn color(&self, key: &str) -> Result<[f32; 4], String> {
+        self.values().color(key)
     }
-}
-
-fn fixed<const N: usize>(id: &str, v: &Value) -> Result<[f64; N], String> {
-    let items = v.as_array().filter(|a| a.len() == N).ok_or_else(|| format!("parameter `{id}` needs {N} numbers"))?;
-    let mut out = [0.0; N];
-    for (slot, item) in out.iter_mut().zip(items) {
-        *slot = item.as_f64().ok_or_else(|| format!("parameter `{id}` needs {N} numbers"))?;
+    /// Reads a point in the form’s coordinate space.
+    pub fn point(&self, key: &str) -> Result<[f64; 2], String> {
+        self.values().point(key)
     }
-    Ok(out)
 }
 
 /// The pixels of one filter call: premultiplied RGBA `f32`, row-major, top row first.
@@ -113,7 +102,7 @@ mod tests {
 
     fn ctx() -> FilterCtx {
         serde_json::from_value(json!({
-            "params": {"size": 8, "angle": 45.5, "mono": true, "mode": 2, "label": "x", "at": [3, 4.5], "tint": [1, 0.5, 0, 1]},
+            "params": {"size": 8, "angle": 45.5, "mono": true, "mode": "round", "label": "x", "at": [3, 4.5], "tint": [1, 0.5, 0, 1]},
             "time": 1.25, "scale": 2.0, "origin": [0, 16], "full": [640, 480],
             "quality": "final", "seed": 7, "color": "linear-srgb"
         }))
@@ -126,7 +115,7 @@ mod tests {
         assert_eq!(c.f("size"), Ok(8.0));
         assert_eq!(c.f("angle"), Ok(45.5));
         assert_eq!(c.b("mono"), Ok(true));
-        assert_eq!(c.index("mode"), Ok(2));
+        assert_eq!(c.choice("mode"), Ok("round"));
         assert_eq!(c.text("label"), Ok("x"));
         assert_eq!(c.point("at"), Ok([3.0, 4.5]));
         assert_eq!(c.color("tint"), Ok([1.0, 0.5, 0.0, 1.0]));

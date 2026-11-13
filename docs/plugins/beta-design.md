@@ -64,14 +64,22 @@ category = "Stylize"
 permissions = []                    # required; per contribution, so a filter never inherits a panel's rights
 optional_permissions = ["network:api.example.com"]
 state_version = 0
-[[contribution.param]]
-id = "size"
+[contribution.form]
+schema = 1
+key = "halftone"
+title = "Halftone"
+
+[[contribution.form.params]]
+key = "size"
 label = "Dot size"
-type = "slider"
+[contribution.form.params.kind]
+type = "range"
 default = 8
 min = 1
 max = 64
 ```
+
+Forms use independent schema 1 (`contribution.form`): keyed rows, Word translation ids with English fallback, typed Values, and bounded conditions. Choice defaults are stable ids. No legacy parameter-table compatibility.
 
 ## B2. Versions and compatibility (contracts, not app versions)
 
@@ -167,6 +175,13 @@ max = 64
 - Errors: traps, budget exhaustion and invalid output roll back; 3 failures pause the plugin for the
   session. The host never panics because of a plugin.
 
+Optional exports: `craft_describe() -> i32` emits Form JSON; `craft_update(ptr,len) -> i32`
+reads `{"values":...,"rev":n}` and emits Patch JSON. Both return 0 on success and write exactly
+one bounded JSON response through the new `craft.result(ptr,len) -> i32` import (0 on success).
+They run in fresh instances with event fuel limits, cancellation checks, and no app calls.
+The host validates the description and applies update patches atomically against the base revision.
+Filter context `params` is the typed form Values map keyed by parameter keys.
+
 ## B5. Plugin UI (host draws everything)
 
 - Plugins describe UI as a small JSON tree (`column`, `row`, `label`, `button`, `slider`, `checkbox`,
@@ -176,6 +191,10 @@ max = 64
   the tree revision so stale events are dropped (R12).
 - Menus/commands/tools are contributions; the host places them after built-ins, grouped by plugin.
   Plugins cannot change built-ins, shortcuts, settings, undo, or plugin management.
+
+`Node::Form { form, values }` delegates rendering to the framework; widget events use param keys.
+`Node::Component { key, name, version, props, fallback }` requests a named versioned framework
+component; unknown components render the recursively validated fallback. Props are capped at 64 KiB.
 
 ## B6. Native plugins
 

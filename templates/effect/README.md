@@ -6,3 +6,5 @@ then `src/lib.rs` for the pixels.
 Build: `cargo build --target wasm32-unknown-unknown --release`, then copy
 `target/wasm32-unknown-unknown/release/plugin.wasm` next to the manifest.
 Check and pack with `craft-ext check` and `craft-ext pack`.
+
+The form lives in `[contribution.form]` (schema 1). Alternatively define `describe() -> craft_guest::Form`, use `filter!(describe = describe, apply = effect)`, and package with `craft-ext pack --describe` after compiling the wasm.

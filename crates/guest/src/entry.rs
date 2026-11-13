@@ -73,3 +73,25 @@ fn read_event(ev: i32, ev_len: i32) -> Result<Event, String> {
     abi::with_bytes(addr(ev)?, len, |bytes| serde_json::from_slice::<Event>(bytes).map_err(|e| format!("bad event: {e}")))
         .ok_or_else(|| "the host's event is not in scratch memory".to_owned())?
 }
+
+/// Sends a described form to the host.
+pub fn describe_entry(run: impl FnOnce() -> crate::Form) -> i32 {
+    let form = run().0;
+    if form.validate().is_err() {
+        return -1;
+    }
+    match serde_json::to_vec(&form) {
+        Ok(b) => abi::result(&b),
+        Err(_) => -1,
+    }
+}
+/// Decodes a form update and sends its patch.
+pub fn update_entry(ptr: i32, len: i32, run: impl FnOnce(crate::Update) -> crate::Patch) -> i32 {
+    let Ok(len) = usize::try_from(len) else { return -1 };
+    let Ok(ptr) = addr(ptr) else { return -1 };
+    let Some(Ok(input)) = abi::with_bytes(ptr, len, |b| serde_json::from_slice::<crate::Update>(b)) else { return -1 };
+    match serde_json::to_vec(&run(input)) {
+        Ok(b) => abi::result(&b),
+        Err(_) => -1,
+    }
+}

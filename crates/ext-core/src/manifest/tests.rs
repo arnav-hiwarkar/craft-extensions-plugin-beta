@@ -23,10 +23,16 @@ optional_permissions = ["network:api.example.com"]
 module = "halftone.wasm"
 label = "Halftone"
 category = "Stylize"
-[[contribution.param]]
-id = "size"
+[contribution.form]
+schema = 1
+key = "halftone"
+title = "Halftone"
+
+[[contribution.form.params]]
+key = "size"
 label = "Dot size"
-type = "slider"
+[contribution.form.params.kind]
+type = "range"
 default = 8
 min = 1
 max = 64
@@ -39,7 +45,7 @@ fn ec() -> AppId {
 #[test]
 fn parses_sample() {
     let m = Manifest::parse(SAMPLE.as_bytes()).unwrap();
-    assert_eq!(m.contributions[0].params.len(), 1);
+    assert_eq!(m.contributions[0].form.as_ref().unwrap().params.len(), 1);
     assert!(m.has_code() && !m.is_native());
     let again = Manifest::parse(m.to_toml().as_bytes()).unwrap();
     assert_eq!(again, m);

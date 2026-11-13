@@ -16,10 +16,16 @@ category = "Stylize"
 module = "plugin.wasm"
 permissions = []
 
-[[contribution.param]]
-id = "amount"
+[contribution.form]
+schema = 1
+key = "effect"
+title = "Effect"
+
+[[contribution.form.params]]
+key = "amount"
 label = "Amount"
-type = "slider"
+[contribution.form.params.kind]
+type = "range"
 default = 0.5
 min = 0
 max = 1

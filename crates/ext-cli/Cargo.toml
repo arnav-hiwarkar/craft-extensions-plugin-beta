@@ -34,3 +34,4 @@ wasmi = { version = "2", default-features = false, features = ["std", "validate"
 
 [dev-dependencies]
 tempfile = "3.27.0"
+wat = "1"

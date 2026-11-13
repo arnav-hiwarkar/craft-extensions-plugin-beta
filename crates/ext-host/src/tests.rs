@@ -57,10 +57,7 @@ fn filter_inverts_and_reuses_instance() {
 
 #[test]
 fn infinite_loop_is_stopped() {
-    let p = module(
-        r#"(func (export "craft_filter") (param i32 i32 i32 i32 i32) (result i32) (loop $l (br $l)) (i32.const 0))"#,
-        "",
-    );
+    let p = module(r#"(func (export "craft_filter") (param i32 i32 i32 i32 i32) (result i32) (loop $l (br $l)) (i32.const 0))"#, "");
     let mut f = Filter::new(&p, log()).unwrap();
     let mut px = vec![0.0; 4];
     // Cancelled at the first slice boundary…
@@ -134,7 +131,15 @@ fn session_fixture() -> (Session, Arc<FakeApp>, Arc<FakeGrants>) {
             app: AppId::new("testcraft").unwrap(),
             display_name: "TestCraft",
             provided: Provided::new(&[("testcraft.session", 1, 0)]),
-            ops: vec![OpSpec { id: "doc.fill", kind: OpKind::Edit, summary: "", args: "{}", result: "{}", requires: needs_edit, permission_rule: "" }],
+            ops: vec![OpSpec {
+                id: "doc.fill",
+                kind: OpKind::Edit,
+                summary: "",
+                args: "{}",
+                result: "{}",
+                requires: needs_edit,
+                permission_rule: "",
+            }],
             events: vec![],
             slots: vec![],
             notes: "",
@@ -185,18 +190,31 @@ struct OwnerApp {
     grants: Arc<FakeGrants>,
 }
 impl AppApi for OwnerApp {
-    fn contract(&self) -> &AppContract { &self.app.contract }
-    fn authorizes_on_owner_thread(&self) -> bool { true }
-    fn begin(&self, inv: &Invocation) -> Result<(), OpError> { self.app.begin(inv) }
+    fn contract(&self) -> &AppContract {
+        &self.app.contract
+    }
+    fn authorizes_on_owner_thread(&self) -> bool {
+        true
+    }
+    fn begin(&self, inv: &Invocation) -> Result<(), OpError> {
+        self.app.begin(inv)
+    }
     fn call(&self, inv: &Invocation, op: &str, args: Value) -> Result<Value, OpError> {
         std::thread::scope(|scope| {
-            std::thread::Builder::new().name("app-owner".into()).spawn_scoped(scope, || {
-                authorize(self.contract(), self.grants.as_ref(), inv, op, &args)?;
-                self.app.call(inv, op, args)
-            }).unwrap().join().unwrap()
+            std::thread::Builder::new()
+                .name("app-owner".into())
+                .spawn_scoped(scope, || {
+                    authorize(self.contract(), self.grants.as_ref(), inv, op, &args)?;
+                    self.app.call(inv, op, args)
+                })
+                .unwrap()
+                .join()
+                .unwrap()
         })
     }
-    fn finish(&self, inv: &Invocation, commit: bool) { self.app.finish(inv, commit) }
+    fn finish(&self, inv: &Invocation, commit: bool) {
+        self.app.finish(inv, commit)
+    }
 }
 fn needs_edit_on_owner(args: &Value) -> Vec<Permission> {
     assert_eq!(std::thread::current().name(), Some("app-owner"));
@@ -208,13 +226,15 @@ fn owner_thread_authorization_and_recoverable_call_errors() {
     Arc::get_mut(&mut app).unwrap().contract.ops[0].requires = needs_edit_on_owner;
     let api = Arc::new(OwnerApp { app: app.clone(), grants: grants.clone() });
     // The guest handles an op denial, unknown op or invalid args, then completes the event.
-    let p = module(r#"(data (i32.const 16) "doc.fillunknown!")
+    let p = module(
+        r#"(data (i32.const 16) "doc.fillunknown!")
        (func (export "craft_event") (param i32 i32) (result i32)
          (drop (call $call (i32.const 16) (i32.const 8) (i32.const 0) (i32.const 0)))
          (drop (call $call (i32.const 24) (i32.const 8) (i32.const 0) (i32.const 0)))
          (drop (call $call (i32.const 16) (i32.const 8) (i32.const 16) (i32.const 1)))
          (i32.const 0))"#,
-       r#"(import "craft" "call" (func $call (param i32 i32 i32 i32) (result i64)))"#);
+        r#"(import "craft" "call" (func $call (param i32 i32 i32 i32) (result i64)))"#,
+    );
     let mut s = Session::new(&p, api, grants.clone(), log()).unwrap();
     s.dispatch(inv(1), &json!({})).unwrap();
     grants.edit.store(false, Ordering::Relaxed);
@@ -228,15 +248,27 @@ fn owner_thread_authorization_and_recoverable_call_errors() {
 struct NativeGrants(AtomicBool);
 #[cfg(unix)]
 impl Grants for NativeGrants {
-    fn generation(&self, _: &ExtensionId) -> u64 { 1 }
-    fn allowed(&self, _: &ExtensionId, _: &Permission) -> bool { false }
-    fn stopped(&self, _: &ExtensionId, _: Version) -> bool { false }
-    fn full_access(&self, _: &ExtensionId) -> bool { self.0.load(Ordering::Relaxed) }
+    fn generation(&self, _: &ExtensionId) -> u64 {
+        1
+    }
+    fn allowed(&self, _: &ExtensionId, _: &Permission) -> bool {
+        false
+    }
+    fn stopped(&self, _: &ExtensionId, _: Version) -> bool {
+        false
+    }
+    fn full_access(&self, _: &ExtensionId) -> bool {
+        self.0.load(Ordering::Relaxed)
+    }
 }
 #[cfg(unix)]
 fn native_helper(script: &str, api: Arc<dyn AppApi>, grants: Arc<dyn Grants>) -> crate::native::Helper {
     use std::os::unix::fs::PermissionsExt;
-    let path = std::env::temp_dir().join(format!("craft-helper-{}-{}", std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+    let path = std::env::temp_dir().join(format!(
+        "craft-helper-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
+    ));
     std::fs::write(&path, format!("#!/bin/sh\nread hello\nprintf '%s\\n' '{{\"type\":\"ready\"}}'\n{script}\n")).unwrap();
     std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o700)).unwrap();
     let i = inv(1);
@@ -265,18 +297,73 @@ fn silent_native_helper_detects_revocation_without_waiting_for_event_timeout() {
 fn native_op_denial_is_recoverable() {
     struct Denying(Arc<FakeApp>);
     impl AppApi for Denying {
-        fn contract(&self) -> &AppContract { self.0.contract() }
-        fn begin(&self, i: &Invocation) -> Result<(), OpError> { self.0.begin(i) }
-        fn call(&self, _: &Invocation, _: &str, _: Value) -> Result<Value, OpError> { Err(OpError::denied("operation denied")) }
-        fn finish(&self, i: &Invocation, commit: bool) { self.0.finish(i, commit) }
+        fn contract(&self) -> &AppContract {
+            self.0.contract()
+        }
+        fn begin(&self, i: &Invocation) -> Result<(), OpError> {
+            self.0.begin(i)
+        }
+        fn call(&self, _: &Invocation, _: &str, _: Value) -> Result<Value, OpError> {
+            Err(OpError::denied("operation denied"))
+        }
+        fn finish(&self, i: &Invocation, commit: bool) {
+            self.0.finish(i, commit)
+        }
     }
     let (_, app, _) = session_fixture();
     let grants = Arc::new(NativeGrants(AtomicBool::new(true)));
-    let mut helper = native_helper(r#"read event
+    let mut helper = native_helper(
+        r#"read event
 printf '%s\n' '{"type":"call","id":1,"op":"doc.fill","args":{}}'
 read reply
 printf '%s\n' '{"type":"done","id":1,"code":0}'
-while read line; do :; done"#, Arc::new(Denying(app.clone())), grants);
+while read line; do :; done"#,
+        Arc::new(Denying(app.clone())),
+        grants,
+    );
     helper.dispatch(inv(1), &json!({})).unwrap();
     assert_eq!(*app.committed.lock().unwrap(), vec![true]);
+}
+
+fn form_plugin(output: &str, name: &str) -> Plugin {
+    let escaped = output.as_bytes().iter().map(|b| format!("\\{b:02x}")).collect::<String>();
+    let params = if name == "craft_update" { "(param i32 i32)" } else { "" };
+    module(
+        &format!(
+            r#"(data (i32.const 0) "{escaped}") (func (export "{name}") {params} (result i32) (call $result (i32.const 0) (i32.const {})))"#,
+            output.len()
+        ),
+        r#"(import "craft" "result" (func $result (param i32 i32) (result i32)))"#,
+    )
+}
+#[test]
+fn form_describe_update_and_invalid_outputs() {
+    let p = form_plugin(r#"{"schema":1,"key":"test","title":"Test","params":[]}"#, "craft_describe");
+    assert_eq!(p.describe(log(), &|| Ok(())).unwrap().unwrap().key, "test");
+    assert!(p.update(&Default::default(), 0, log(), &|| Ok(())).unwrap().is_none());
+    let p = form_plugin(r#"{"schema":1,"base_rev":2,"rev":3,"ops":[]}"#, "craft_update");
+    assert_eq!(p.update(&Default::default(), 2, log(), &|| Ok(())).unwrap().unwrap().rev, 3);
+    assert!(p.update(&Default::default(), 1, log(), &|| Ok(())).is_err());
+    for text in ["{}", r#"{"schema":9,"key":"test","title":"Test","params":[]}"#] {
+        assert!(form_plugin(text, "craft_describe").describe(log(), &|| Ok(())).is_err());
+    }
+    let p = module(r#"(func (export "craft_describe") (result i32) (i32.const 0))"#, "");
+    assert!(matches!(p.describe(log(), &|| Ok(())), Err(PluginError::InvalidOutput(_))));
+    let p = module(r#"(func (export "craft_describe") (result i32) (loop $l (br $l)) (i32.const 0))"#, "");
+    let calls = AtomicU64::new(0);
+    assert_eq!(
+        p.describe(log(), &|| { if calls.fetch_add(1, Ordering::SeqCst) > 0 { Err(PluginError::Cancelled) } else { Ok(()) } }).unwrap_err(),
+        PluginError::Cancelled
+    );
+}
+
+#[test]
+fn form_result_refuses_invalid_ranges_and_oversize() {
+    for (ptr, len) in [(i32::MAX, 16), (0, -1), (0, MAX_CALL_BYTES as i32 + 1)] {
+        let p = module(
+            &format!(r#"(func (export "craft_describe") (result i32) (call $result (i32.const {ptr}) (i32.const {len})))"#),
+            r#"(import "craft" "result" (func $result (param i32 i32) (result i32)))"#,
+        );
+        assert!(matches!(p.describe(log(), &|| Ok(())), Err(PluginError::Failed(..))));
+    }
 }

@@ -14,6 +14,7 @@
 pub mod catalogue;
 pub mod contract;
 pub mod id;
+pub mod form;
 pub mod licence;
 pub mod manifest;
 pub mod path;

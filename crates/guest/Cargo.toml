@@ -19,3 +19,4 @@ todo = "warn"
 [dependencies]
 serde.workspace = true
 serde_json.workspace = true
+craft-ext-core = { path = "../ext-core" }

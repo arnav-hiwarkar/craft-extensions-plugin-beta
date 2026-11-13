@@ -81,6 +81,8 @@ unsafe extern "C" {
     fn craft_log(level: i32, ptr: i32, len: i32);
     #[link_name = "call"]
     fn craft_call(op: i32, op_len: i32, args: i32, args_len: i32) -> i64;
+    #[link_name = "result"]
+    fn craft_result(ptr: i32, len: i32) -> i32;
     #[link_name = "take"]
     fn craft_take(dst: i32, len: i32) -> i32;
 }
@@ -174,4 +176,14 @@ mod tests {
         assert!(with_f32_mut(addr, 3, |_| ()).is_none(), "too many values for the buffer");
         reset();
     }
+}
+
+#[cfg(target_arch = "wasm32")]
+pub(crate) fn result(bytes: &[u8]) -> i32 {
+    // SAFETY: live immutable bytes; host copies a bounded range.
+    unsafe { craft_result(ptr_of(bytes), len_of(bytes)) }
+}
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn result(_bytes: &[u8]) -> i32 {
+    -7
 }

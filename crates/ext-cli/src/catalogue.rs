@@ -477,7 +477,18 @@ mod beta_tests {
             }
         }
         assert_eq!(count, 3);
-        let (_, packages, _) = assemble(&repo, true, None).unwrap();
+        // Test the current source records, independently of previously generated/signed dist files.
+        let fresh = tempfile::tempdir().unwrap();
+        fn copy_source(from: &Path, to: &Path) {
+            fs::create_dir_all(to).unwrap();
+            for path in entries(from).unwrap() {
+                let target = to.join(path.file_name().unwrap());
+                if path.is_dir() { copy_source(&path, &target); }
+                else { fs::copy(path, target).unwrap(); }
+            }
+        }
+        for dir in ["plugins", "vendors"] { copy_source(&repo.join(dir), &fresh.path().join(dir)); }
+        let (_, packages, _) = assemble(fresh.path(), true, None).unwrap();
         assert_eq!(packages.len(), 1);
         assert_eq!(packages[0].id.as_str(), "io.github.arnav-hiwarkar.film-looks");
     }

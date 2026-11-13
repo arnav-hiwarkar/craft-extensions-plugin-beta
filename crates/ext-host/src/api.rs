@@ -1,3 +1,8 @@
+//! Form ABI: optional `craft_describe() -> i32` and `craft_update(ptr,len) -> i32` return zero
+//! after `craft.result(ptr,len) -> i32` copies one JSON response (Form or Patch) into bounded host
+//! storage. Update input is `{"values":...,"rev":n}`; filter `params` is `form::Values`.
+//! See `wasm::Plugin::{describe,update}` for fuel-limited, isolated execution. Apps apply patches
+//! with `Form::apply_patch`; rejected/stale patches leave values and presentation state unchanged.
 //! What an app adapter implements, and what the host checks before the adapter runs anything.
 //!
 //! Invariants:

@@ -92,7 +92,7 @@ impl Plugin {
         let engine = engine();
         let module = Module::new(&engine, bytes).map_err(|e| PluginError::Load(e.to_string()))?;
         for import in module.imports() {
-            if import.module() != "craft" || !matches!(import.name(), "log" | "call" | "take") {
+            if import.module() != "craft" || !matches!(import.name(), "log" | "call" | "take" | "result") {
                 return Err(PluginError::Load(format!("unknown import {}::{}", import.module(), import.name())));
             }
         }
@@ -107,6 +107,59 @@ impl Plugin {
 
     pub fn exports(&self, name: &str) -> bool {
         self.module.exports().any(|e| e.name() == name)
+    }
+}
+
+impl Plugin {
+    /// Optional form description. Runs in a fresh sandbox, with event fuel limits and no app API.
+    pub fn describe(&self, log: LogFn, check: &dyn Fn() -> Result<(), PluginError>) -> Result<Option<craft_ext_core::form::Form>, PluginError> {
+        if !self.exports("craft_describe") {
+            return Ok(None);
+        }
+        let bytes = self.form_call("craft_describe", None, log, check)?;
+        let form: craft_ext_core::form::Form = serde_json::from_slice(&bytes).map_err(|e| PluginError::InvalidOutput(e.to_string()))?;
+        form.validate().map_err(PluginError::InvalidOutput)?;
+        Ok(Some(form))
+    }
+    /// Optional dynamic update; callers atomically apply the returned patch against their form state.
+    pub fn update(
+        &self,
+        values: &craft_ext_core::form::Values,
+        rev: u64,
+        log: LogFn,
+        check: &dyn Fn() -> Result<(), PluginError>,
+    ) -> Result<Option<craft_ext_core::form::Patch>, PluginError> {
+        if !self.exports("craft_update") {
+            return Ok(None);
+        }
+        let input = serde_json::to_vec(&serde_json::json!({"values":values,"rev":rev})).map_err(|e| PluginError::InvalidOutput(e.to_string()))?;
+        let bytes = self.form_call("craft_update", Some(&input), log, check)?;
+        let patch: craft_ext_core::form::Patch = serde_json::from_slice(&bytes).map_err(|e| PluginError::InvalidOutput(e.to_string()))?;
+        if patch.schema != craft_ext_core::form::FORM_SCHEMA || patch.base_rev != rev || patch.rev <= rev || patch.ops.len() > 512 {
+            return Err(PluginError::InvalidOutput("invalid update revision or size".into()));
+        }
+        Ok(Some(patch))
+    }
+    fn form_call(&self, name: &str, input: Option<&[u8]>, log: LogFn, check: &dyn Fn() -> Result<(), PluginError>) -> Result<Vec<u8>, PluginError> {
+        check()?;
+        let mut inst = instantiate(self, MAX_SESSION_MEMORY, log, None)?;
+        inst.reset.call(&mut inst.store, ()).map_err(|e| map_err(e, &inst.store))?;
+        let code = if let Some(bytes) = input {
+            if bytes.len() > MAX_CALL_BYTES {
+                return Err(PluginError::TooMuchMemory);
+            }
+            let ptr = write_scratch(&mut inst, bytes)?;
+            let f = inst.func::<(i32, i32), i32>(name)?;
+            run_sliced(&mut inst, &f, (ptr, bytes.len() as i32), FUEL_PER_EVENT, &|_| check())?
+        } else {
+            let f = inst.func::<(), i32>(name)?;
+            run_sliced(&mut inst, &f, (), FUEL_PER_EVENT, &|_| check())?
+        };
+        check()?;
+        if code != 0 {
+            return Err(PluginError::Failed(code, String::new()));
+        }
+        inst.store.data_mut().pending.take().map(|p| p.0.clone()).ok_or_else(|| PluginError::InvalidOutput("missing craft.result".into()))
     }
 }
 
@@ -229,6 +282,23 @@ fn linker(engine: &Engine) -> Linker<HostData> {
             Err(_) => Code::Invalid as i32,
         }
     });
+    let _ = l.func_wrap("craft", "result", |mut caller: Caller<'_, HostData>, ptr: i32, len: i32| -> i32 {
+        let Some(mem) = caller.get_export("memory").and_then(|e| e.into_memory()) else { return Code::Invalid as i32 };
+        let bytes = match read_guest(&caller, &mem, ptr, len) {
+            Ok(b) => b,
+            Err(c) => return c as i32,
+        };
+        if caller.data().pending.is_some() {
+            return Code::Invalid as i32;
+        }
+        match Pending::reserve(bytes) {
+            Some(p) => {
+                caller.data_mut().pending = Some(p);
+                0
+            }
+            None => Code::Budget as i32,
+        }
+    });
     l
 }
 
@@ -262,11 +332,7 @@ fn map_err(e: wasmi::Error, store: &Store<HostData>) -> PluginError {
         return PluginError::Stopped(reason);
     }
     let text = e.to_string();
-    if text.contains("memory") && (text.contains("limit") || text.contains("grow")) {
-        PluginError::TooMuchMemory
-    } else {
-        PluginError::Trap(text)
-    }
+    if text.contains("memory") && (text.contains("limit") || text.contains("grow")) { PluginError::TooMuchMemory } else { PluginError::Trap(text) }
 }
 
 /// Runs `func` with fuel slices, checking `keep_going` between slices.
@@ -330,7 +396,14 @@ impl Filter {
 
     /// Runs the filter; on any failure the instance is discarded and a fresh one is made for the
     /// next call, so no state from a failed run survives (B4). `pixels` is changed only on success.
-    pub fn run(&mut self, ctx: &Value, pixels: &mut [f32], width: u32, height: u32, check: &dyn Fn() -> Result<(), PluginError>) -> Result<(), PluginError> {
+    pub fn run(
+        &mut self,
+        ctx: &Value,
+        pixels: &mut [f32],
+        width: u32,
+        height: u32,
+        check: &dyn Fn() -> Result<(), PluginError>,
+    ) -> Result<(), PluginError> {
         check()?;
         let mut inst = match self.inst.take() {
             Some(i) => i,
@@ -351,7 +424,15 @@ impl Filter {
 
     /// Runs on premultiplied RGBA f32 pixels and returns the validated result. `ctx` is the B4 JSON
     /// object. `check` is called between fuel slices (cancel, deadline, kill list).
-    fn run_inner(inst: &mut Inst, ctx: &Value, len: usize, pixels: &[f32], width: u32, height: u32, check: &dyn Fn() -> Result<(), PluginError>) -> Result<Vec<f32>, PluginError> {
+    fn run_inner(
+        inst: &mut Inst,
+        ctx: &Value,
+        len: usize,
+        pixels: &[f32],
+        width: u32,
+        height: u32,
+        check: &dyn Fn() -> Result<(), PluginError>,
+    ) -> Result<Vec<f32>, PluginError> {
         let n = (width as usize).checked_mul(height as usize).and_then(|n| n.checked_mul(4)).ok_or(PluginError::TooMuchMemory)?;
         if len != n {
             return Err(PluginError::InvalidOutput("pixel buffer size does not match".into()));
@@ -455,7 +536,10 @@ impl Session {
                 Ok(())
             }
             Err(e) => {
-                if matches!(e, PluginError::Trap(_) | PluginError::TooSlow | PluginError::TooMuchMemory | PluginError::Cancelled | PluginError::Stopped(_)) {
+                if matches!(
+                    e,
+                    PluginError::Trap(_) | PluginError::TooSlow | PluginError::TooMuchMemory | PluginError::Cancelled | PluginError::Stopped(_)
+                ) {
                     // Interrupted mid-run: the guest's memory may be half-updated. Start clean.
                     if matches!(e, PluginError::Trap(_) | PluginError::TooSlow | PluginError::TooMuchMemory) {
                         self.failures += 1;
