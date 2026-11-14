@@ -17,6 +17,9 @@ names = [
     "maintainer-guide.md",
     "community-comparison-and-backlog.md", "community-nzo-review.md", "community-ecscripts-review.md",
     "community-bouncraft-review.md",
+    "plugincraft-review.md", "public-effectcraft-release-extensions.md",
+    "compiled-host-and-blender-extension-lessons.md", "adobe-extension-and-plugin-requirements.md",
+    "sdk-strategy-and-capability-roadmap.md",
 ]
 files = [guide_root / name for name in names] + [root / "STATUS.md", root / "TESTING.md"]
 errors = []
@@ -103,16 +106,17 @@ for path in files:
         elif parsed.fragment and link_path.suffix == ".md" and unquote(parsed.fragment) not in anchors(link_path):
             errors.append(f"{path.relative_to(root)}: missing heading anchor {target}")
 
-atlas = guide_root / "maps/overview.html"
-if not atlas.is_file():
-    errors.append("Missing offline interactive atlas")
-else:
+for visual_name in ("overview.html", "community-capabilities.html", "sdk-capabilities.html"):
+    atlas = guide_root / "maps" / visual_name
+    if not atlas.is_file():
+        errors.append(f"Missing offline visual: {visual_name}")
+        continue
     markup = atlas.read_text()
     if re.search(r'<(?:script|link)[^>]+(?:src|href)=["\x27]https?://', markup):
-        errors.append("Interactive atlas must not require remote scripts or styles")
+        errors.append(f"{visual_name}: offline visuals must not require remote scripts or styles")
     for target in re.findall(r'data-doc="([^"]+)"', markup):
         if not (guide_root / target).is_file():
-            errors.append(f"Interactive atlas: missing guide {target}")
+            errors.append(f"{visual_name}: missing guide {target}")
 
 if counts["mermaid_diagrams"] < 11:
     errors.append("Expected ten workflow maps and the native sequence diagram")

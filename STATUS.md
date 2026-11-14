@@ -66,6 +66,13 @@ tradeoffs. Pinned revisions and release digests identify the inspected evidence.
 The original NZO store remains inaccessible; EC Scripts' server enforcement is unknown.
 These research notes propose follow-up work and do not claim the features are implemented.
 
+The [expanded SDK strategy](docs/plugins/sdk-strategy-and-capability-roadmap.md) adds
+four inspected PluginCraft packages, public EC v0.24.1 extension interfaces and
+Blender/OpenFX/Adobe comparisons. Public temporal Wasm ABI 2 and native helper
+effects are migration gaps in the beta. Typed schemas, project-owned state and
+audio/timeline requirements extend the same backlog. Source and documentation
+review do not establish commercial-plugin equivalence or binary compatibility.
+
 ## Fixed in this phase
 
 From CI: `setup --all` and `craft-ext dev` tried to enable other apps' contracts;
