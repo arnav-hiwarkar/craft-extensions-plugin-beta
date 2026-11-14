@@ -14,6 +14,16 @@ files, artifacts, visibility changes and secrets live only in `arnav-hiwarkar/*`
 (`*-plugin-beta` and `craft-plugins`) and the private Forgejo mirror. Every `gh` call
 names `--repo arnav-hiwarkar/<name>`. No releases, tags, PRs or issues without approval.
 
+## Latest green run
+
+[Run 43528828595](https://github.com/arnav-hiwarkar/craft-extensions-plugin-beta/actions/runs/43528828595)
+(2026-11-14), every job passed on Linux x86_64 and macOS arm64. Unit tests passed:
+shared crates 148 (1 ignored: maintainer publication), EffectCraft plugin and UI host
+78, PhotoCraft 46, FigCraft 39, launcher core and UI 171. 15 examples built, checked,
+tested and packed; the test catalogue holds them all (plus Film looks 1.0.0); 21
+app/package installs passed on each platform; cross-app, EffectCraft session and shared
+e2e smokes passed. The optional Windows compile check was not run.
+
 ## What CI verifies on every run
 
 - Shared crates (`ext-core`, `ext-store`, `ext-host`, `ext-ui`, `ext-cli`, `guest`): debug
