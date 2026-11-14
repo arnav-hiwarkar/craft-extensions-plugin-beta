@@ -1,13 +1,20 @@
 # How the plugin system works
 
 This page explains the moving parts of the Craft plugin platform and how a plugin gets from the
-catalogue into an app. It describes the source as it is now. Statements marked **verified** were
-checked by the `plugin-beta` CI workflow (GitHub Actions, Linux and macOS arm64). Everything else is
-read from source; paths are relative to this repository unless they name an app repository.
+catalogue into an app. Behavior descriptions are based on inspected source. The repository's
+[status record](../../STATUS.md#latest-green-run) records
+[CI run #20](https://github.com/arnav-hiwarkar/craft-extensions-plugin-beta/actions/runs/43551011455)
+at `909897f`: Linux x86_64 and macOS arm64 builds and smokes passed; Windows was compile-only.
+That evidence applies to that revision and those checks, not GUI or GPU behavior. See
+[evidence coverage](coverage.md) for limits. No local CLI, app or platform checks were performed
+for this documentation correction.
 
 For what each app offers plugins, see [capabilities.md](capabilities.md). For the UI vocabulary, see
 [ui.md](ui.md). For the catalogue and signing, see
 [store-and-distribution.md](store-and-distribution.md).
+
+See also the [workflow maps](maps.md), [formats and versioning](formats-and-versioning.md),
+and [native protocol reference](native-protocol.md).
 
 ## Components
 
@@ -73,11 +80,11 @@ discover ─▶ install ─▶ setup sheet ─▶ enable ─▶ run
    downloads each archive, checks its size and SHA-256 against the signed metadata, checks that the
    manifest inside equals the catalogue record, and unpacks it under the store lock
    (`crates/ext-store/src/manager.rs`, `store.rs`). `install-file` does the same for a local file
-   with tier **Local**. **Install never enables anything** (verified).
+   with tier **Local**. **Install never enables anything** (source behavior).
 3. **Setup and permissions.** The setup sheet (or `plugin setup`) shows the union of the required and
    optional permissions of the chosen contributions, each as a sentence the host writes, followed by
    the author's `[why]` text. Required permissions must be granted before a contribution can be
-   enabled; setup without them is refused (verified). Native packages need a separate "full access
+   enabled; setup without them is refused (source behavior). Native packages need a separate "full access
    to your computer" consent (`--full-access`).
 4. **Enable.** Enabling is per app and per contribution. `Store::set_enabled_checked` refuses a
    contribution whose contract is not provided, whose kind the app marks unsupported, whose
@@ -126,7 +133,8 @@ loosen (`crates/ext-host/src/wasm.rs`):
   0–1 and colour is zeroed where alpha is zero. Three consecutive trap, time or memory failures pause
   a session plugin until the user resumes it.
 - **Determinism.** Filters must not depend on invocation history: the host may re-instantiate at any
-  time. Plugin effect renders are deterministic (verified).
+  time. `scripts/cross-app-smoke.py` compares two EffectCraft vignette renders byte for byte;
+  this is not proof that arbitrary plugins are deterministic.
 
 Transforms have no session, so a filter that calls `craft.call` gets `-2` (denied).
 
@@ -139,7 +147,7 @@ command, panel, event-hook and tool; native packages cannot contribute effects
 
 - **Out of process.** The host starts the executable with an empty environment (only
   `CRAFT_PLUGIN_PROTOCOL=1`), a private working folder, and stderr discarded. It speaks protocol 1 as
-  JSON lines on stdin/stdout, at most 1 MiB per line: `hello` → `ready`, then `event`, `call` /
+  JSON lines on stdin/stdout, with helper output capped at 1 MiB per line: `hello` → `ready`, then `event`, `call` /
   `result`, `log` and `done`. Start-up must finish in 10 s; one event may take at most 60 s.
 - **Separate consent.** The manager shows "Native: full access to your computer". Without that
   consent the helper is never started.
@@ -149,7 +157,7 @@ command, panel, event-hook and tool; native packages cannot contribute effects
   the kill list and the grant generation. All three adapters also run the same `authorize` permission
   check on every native call as they do for wasm calls, so a native contribution still needs its
   declared permissions granted. Native System Stamp needs `--full-access` consent plus
-  `document.edit:document`, and its edit undoes in one step (verified).
+  `document.edit:document`, and its edit undoes in one step (source behavior).
 - **Supervision.** Adapters call `Helper::supervise`, which kills the helper as soon as consent is
   withdrawn or the plugin is stopped, even while it is idle. A stop during an event rolls the event
   back and kills the helper.
@@ -225,8 +233,8 @@ transaction opened by begin() … closed by finish(commit) ─▶ one labelled u
 - **Rollback on failure.** The event rolls back when the guest returns non-zero, traps, runs out of
   fuel or time, is cancelled, or loses its grant before commit. A failed operation returns an error
   code to the guest without aborting the transaction; the guest may handle it and continue.
-- Cross Review renames a layer or node with exactly one undo step in EffectCraft, PhotoCraft and
-  FigCraft (verified).
+- `scripts/cross-app-smoke.py` checks Cross Review edits followed by one Undo in EffectCraft,
+  PhotoCraft and FigCraft. The recorded CI result above covers that smoke at its recorded revision.
 - EffectCraft and PhotoCraft refuse outside edits, such as Undo or menu commands, while a plugin tool
   gesture is open (`effectcraft/crates/engine/src/ext.rs`,
   `photocraft/crates/engine/src/session/execute.rs`).
@@ -278,7 +286,7 @@ Safe mode starts an app with no plugin code running; the manager still works.
 
 - **User revocation.** Revoking a permission or disabling a contribution in one app bumps the grant
   generation. Running work for that plugin stops at the next fuel slice or host call and rolls back;
-  late results are discarded. A revoked contribution's command is refused (verified).
+  late results are discarded. A revoked contribution's command is refused (source behavior).
 - **Kill list.** Each app refreshes the catalogue at start-up and about every 6 hours (schedules
   differ slightly per app; see [capabilities.md](capabilities.md)). The refresh stores the signed
   revocations in the store. A `disable` entry stops matching releases in every app, including local

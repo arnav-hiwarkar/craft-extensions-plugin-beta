@@ -149,7 +149,7 @@ is the example).
 
 ## Forms
 
-`{"type":"form","form":{…},"values":{…}}` (1.0) draws a [form schema 1](author-guide.md#forms-schema-1)
+`{"type":"form","form":{…},"values":{…}}` (1.0) draws a [form schema 1](author-guide.md#7-effect-forms)
 in the panel: the same rows as an effect's controls. Widget events use the **parameter key** as the
 widget id and the typed value (`number`, `bool`, choice id string, `[r,g,b,a]`, `[x,y]`, text).
 
@@ -167,7 +167,7 @@ widget id and the typed value (`number`, `bool`, choice id string, `[r,g,b,a]`, 
 ```json
 {"type":"canvas","id":"pad","label":"Sketch pad","width":300,"height":200,
  "listen":["move","wheel","double-click","keys"],"cursor":"crosshair","hint":"Draw here",
- "ops":[ … ]}
+ "ops":[]}
 ```
 
 `width` and `height` are points (0 < side ≤ 8192). Coordinates in ops and events are points from
@@ -199,6 +199,9 @@ draw a ring as a stroke or as two shapes. At most 4096 commands per path.
 
 ```json
 {"gradient":"linear","from":[0,0],"to":[200,0],"stops":[{"at":0,"rgba":[1,0,0,1]},{"at":1,"rgba":[0,0,1,1]}]}
+```
+
+```json
 {"gradient":"radial","center":[50,50],"radius":40,"stops":[{"at":0,"rgba":[1,1,1,1]},{"at":1,"rgba":[1,1,1,0]}]}
 ```
 
@@ -247,8 +250,10 @@ Level-1.0 plugins that read only `kind` and `at` keep working: the extra fields 
 Widget changes reach your session as:
 
 ```json
-{"event":"ui","surface":"<panel or window id>","rev":4,"widget":"<id or parameter key>","value":…}
+{"event":"ui","surface":"<panel or window id>","rev":4,"widget":"<id or parameter key>","value":null}
 ```
+
+The example above is a button event. Other widgets send the values below.
 
 | `value` shape | From |
 |---|---|
@@ -353,9 +358,8 @@ ui::set_panel("layers", tree)?;
   framework components), `tr` (your translations of host words) and `form_titles`.
 - Validate trees in your `ui.panel.set` / `ui.window.open` handler with
   `craft_ext_core::ui::tree::Node::parse` and
-  `validate_at(ui_level_for_session(declared))`. PhotoCraft does this; EffectCraft and FigCraft
-  currently call `validate` only. Provide `<app>.session@1.1` once the shared renderer draws your
-  panels.
+  `validate_at(ui_level_for_session(declared))`. All three adapters enforce this level.
+  Provide `<app>.session@1.1` when supporting UI 1.1.
 - `FormView` holds a form with its own state for dialogs (live edits, `apply_patch`,
   `replace_form`). `paint_ops(painter, Xf::new(offset, zoom), clip, ops, images)` paints draw
   lists such as canvas overlays (`canvas.overlay.set`, checked with `validate_draw_list`).
@@ -387,3 +391,7 @@ the framework's renderer becomes an engine here (none affect plugins, which only
 The host-side installation boundary and the checked future framework/theme revision
 are documented in [framework integration](framework-integration.md). No future
 framework runtime is linked or activated by this beta source change.
+
+For the shared flows and version boundaries, see [workflow maps](maps.md) and
+[formats and versioning](formats-and-versioning.md). This page describes source behavior;
+it does not establish local CLI, GUI or platform verification.

@@ -16,6 +16,12 @@ The platform is shared code in `craft-extensions`:
 The app adds **one adapter**: code in the app's repository that maps the platform onto the app's
 documents, commands, undo, threads and UI. It contains no copy of shared logic.
 
+These are source-backed integration descriptions, not local runtime or GUI verification.
+See the [workflow maps](maps.md), [format and version boundaries](formats-and-versioning.md),
+and [native protocol](native-protocol.md) for the shared flows and wire format. Native helpers
+require separate full OS access consent; their host calls still use declared rights, live grants
+and captured scope.
+
 ## Reference adapters
 
 | App | Adapter | App-side pieces |
@@ -92,8 +98,12 @@ cancelled or past its deadline, the plugin is not stopped, the grant generation 
 the document is the one captured. If any check fails, roll back.
 
 Stage UI changes (panel trees, windows, overlays) during the event and publish them only on
-commit. Run side effects (PhotoCraft file writes) only after commit, and re-check grants,
-cancellation and scope before each one. Report external effects that a rollback cannot undo.
+commit. PhotoCraft publishes staged files one at a time **before accepting the document/UI
+commit**. It checks live grants, cancellation, captured scope and the deadline before each file
+and after the last publication (`plugin_sessions.rs`, `Staged::publish_files` in `plugin_ops.rs`).
+A publication or final-check failure rolls back document and UI changes, but previously published
+files remain; the failing destination may also have changed. External writes are not batch-atomic
+and document Undo cannot reverse them. File operations are refused during tool gestures.
 
 | | EffectCraft | PhotoCraft | FigCraft |
 |---|---|---|---|

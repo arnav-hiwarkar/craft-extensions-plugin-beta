@@ -20,6 +20,11 @@ under [Where the contract pages and the code differ](#where-the-contract-pages-a
 How permissions are enforced on each call is explained in
 [how-it-works.md](how-it-works.md#permissions-are-checked-on-every-host-call).
 
+This reference describes inspected source, not a local CLI run or GUI/platform verification.
+See the [workflow maps](maps.md), [formats and versioning](formats-and-versioning.md), and
+[native protocol](native-protocol.md). All three adapters enforce tree levels with `validate_at`
+using the contribution's declared session level; this includes EffectCraft and FigCraft.
+
 ## Summary
 
 | | EffectCraft | PhotoCraft | FigCraft |
@@ -143,7 +148,8 @@ PhotoCraft is the only app with file operations. A plugin never sees a path.
    grants. The handle itself works only for that plugin and that file or folder, until the app quits.
 3. `files.read` and `layer.import` need a handle picked in `open` mode. Save targets must be safe
    names; hidden and executable names and symlinked targets are refused.
-4. Writes are staged until the event commits, then **published one file at a time** with per-file
+4. Writes are staged during the event, then **published one file at a time before accepting the
+   document/UI commit**, with per-file
    atomic replacement, in order. Before each publication and after the last one the host checks live
    grants, cancellation, captured scope and the event deadline.
 5. **This is not batch-atomic.** If a later write or the final check fails, the commit returns an
@@ -219,13 +225,12 @@ differences are in behaviour and slot descriptions:
 |---|---|---|
 | EffectCraft | `lut`: "absolute `.cube` paths" | `plugin.resources` lists `plugin://<id>/<contribution>/<file>` references, resolved by the host (`effectcraft/crates/plugins/src/runtime.rs`, `lib.rs`). |
 | EffectCraft | `theme`: "Stored and listed" | The loader refuses theme contributions as not supported yet. |
-| EffectCraft | (not stated) | Trees are checked with `Node::validate` only, so a contribution declaring `@1.0` may still send UI 1.1 trees. |
 | PhotoCraft | `files.write`: "≤ 1 MiB" | No per-operation size check in `plugin_ops.rs`; the 1 MiB host argument cap and a 512 MiB staging budget apply. |
 | PhotoCraft | (not stated) | No four-window limit; at most 32 surfaces per app and 4 MiB of trees in total. |
 | FigCraft | `dispose`: "The worker is stopping" | `dispose` is never sent; workers are dropped. |
 | FigCraft | Overlays "cleared when a tool gesture ends" | An overlay set outside a gesture stays until the next gesture ends, a resume or a reload. |
 | FigCraft | "Coordinates are document units" | Tool and overlay coordinates are page units. |
-| FigCraft | (not stated) | A fifth window is silently dropped, and the call still succeeds. Trees are checked with `Node::validate` only. |
+| FigCraft | (not stated) | A fifth window is silently dropped, and the call still succeeds. |
 
 Source comment that is out of date: `crates/ext-host/src/native.rs` says permissions are "moot" for
 native helpers. In all three apps each native call still passes through `authorize`, so declared and
