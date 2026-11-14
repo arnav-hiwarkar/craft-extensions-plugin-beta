@@ -14,7 +14,7 @@ apps = ["figcraft"]
 [[contribution]]
 id = "shapes"
 kind = "panel"
-contract = "figcraft.session@1.0"
+contract = "figcraft.session@1.1"
 label = "Shapes"
 module = "figcraft_shapes.wasm"
 permissions = ["document.edit:document"]
@@ -23,7 +23,7 @@ optional_permissions = ["app.events"]
 [[contribution]]
 id = "create-shapes"
 kind = "command"
-contract = "figcraft.session@1.0"
+contract = "figcraft.session@1.1"
 label = "Create shapes"
 category = "Shapes"
 module = "figcraft_shapes.wasm"
@@ -32,7 +32,7 @@ permissions = ["document.edit:document"]
 [[contribution]]
 id = "draw-rect"
 kind = "tool"
-contract = "figcraft.session@1.0"
+contract = "figcraft.session@1.1"
 label = "Draw rectangle"
 module = "figcraft_shapes.wasm"
 permissions = ["document.edit:document"]

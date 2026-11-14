@@ -1,6 +1,6 @@
 # Shapes (FigCraft example)
 
-A session plugin for FigCraft (`figcraft.session@1.0`). Everything it makes is an ordinary
+A session plugin for FigCraft (`figcraft.session@1.1`). Everything it makes is an ordinary
 FigCraft layer: uninstalling the plugin keeps the layers.
 
 - **Shapes** panel: a form (shape, size, count, colour) and a **Create shapes** button.

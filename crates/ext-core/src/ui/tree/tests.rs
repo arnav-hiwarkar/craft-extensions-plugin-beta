@@ -266,3 +266,16 @@ fn icon_list_is_sorted_and_valid() {
         icon_name(Some(name)).unwrap();
     }
 }
+
+#[test]
+fn basic_sdk_trees_are_ui_1_0() {
+    // What the guest SDK's column/row/label/button helpers emit: plugins that declare a 1.0
+    // session contract and use only these must keep working in every app.
+    let tree = serde_json::json!({"type":"column","children":[
+        {"type":"label","text":"Runs locally."},
+        {"type":"row","children":[{"type":"button","id":"a","label":"A"},{"type":"button","id":"b","label":"B"}]}
+    ]});
+    let node: Node = serde_json::from_value(tree).unwrap();
+    assert_eq!(node.level(), UI_LEVEL_1_0);
+    assert!(node.validate_at(UI_LEVEL_1_0).is_ok());
+}
