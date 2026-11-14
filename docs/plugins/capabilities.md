@@ -32,7 +32,7 @@ How permissions are enforced on each call is explained in
 | Network or clipboard operations | None | None | None |
 | Native helpers | command, panel, tool, event-hook | command, panel, tool, event-hook | command, panel, tool, event-hook |
 | Windows | 4 per plugin (5th refused) | 32 surfaces (panels + windows) per app | 4 per plugin (5th silently dropped) |
-| UI level enforced from the declared session minor | No | Yes | No |
+| UI level enforced from the declared session minor | Yes | Yes | Yes |
 | Project plugin references | Yes | No | Yes |
 | Safe mode | `--safe-mode` / `EFFECTCRAFT_SAFE_MODE=1` | `PHOTOCRAFT_SAFE_MODE=1` | `FIGCRAFT_SAFE_MODE=1` |
 

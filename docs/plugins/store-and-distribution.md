@@ -59,11 +59,12 @@ dist/
   be browsed, but cannot authorise installs.
 - **Caps.** Index 8 MiB and 20 000 packages; package file 4 MiB and 2 000 releases; 10 000
   revocations; release download 300 MiB.
-- **Cache.** `Manager::refresh` fetches and verifies the index, writes `index.json.sig` and
-  `index.json` into `<store>/catalogue/`, and records the serial, refresh time and revocations in
-  `store-v2.json`. Every later read re-verifies the cached signature. Known limit: the two cache files
-  are each written atomically but not as a pair; an interruption between them leaves a cache that
-  fails verification until the next refresh repairs it.
+- **Cache.** `Manager::refresh` fetches and verifies the index, then, under the store lock and
+  after the serial check, writes `<store>/catalogue/index.signed` (the signature line, a newline,
+  then the exact index bytes) in one atomic write, and records the serial, refresh time and
+  revocations in `store-v2.json`. A reader never pairs one index with another's signature, and a
+  slower, older refresh cannot replace a newer cache. Every later read re-verifies the signature;
+  an older cache in the two-file layout is still read until the next refresh.
 
 ## Signing and key handling (implemented)
 

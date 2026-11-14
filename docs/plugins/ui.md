@@ -69,11 +69,10 @@ draw ops). A level-1.0 tree is valid, unchanged, at 1.1.
   plugin runs.
 - **Check it.** `craft_guest::ui::level(&tree)` returns the level a tree needs;
   `craft_guest::ui::check(&tree)` runs the host's validation.
-- **Enforcement differs by app.** PhotoCraft validates every tree with
-  `Node::validate_at(ui_level_for_session(declared))`, so a contribution declaring
-  `photocraft.session@1.0` may send only 1.0 trees. EffectCraft and FigCraft currently call
-  `Node::validate` only, so they also accept 1.1 trees from a contribution that declared `@1.0`. Do not
-  rely on that: declare what you use.
+- **Enforced in every app.** EffectCraft, PhotoCraft and FigCraft validate every panel and window
+  tree with `Node::validate_at(ui_level_for_session(declared))`, so a contribution declaring
+  `<app>.session@1.0` may send only 1.0 trees; a newer tree is refused with the reason. Declare what
+  you use. (Canvas overlays are host drawing and are checked at the newest level.)
 - **Forward compatible.** A node whose `type` the app does not know is not an error: it draws its
   `fallback` node if it has one, otherwise a visible notice ("This part of the panel needs a newer
   version of the app"). Any node may carry `"fallback": {…}` for this purpose. A *known* type with

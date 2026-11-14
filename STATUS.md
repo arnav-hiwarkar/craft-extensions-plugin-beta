@@ -56,18 +56,25 @@ plugins only when their own plugin setup changes; EffectCraft and PhotoCraft ref
 outside edits during a plugin gesture; EffectCraft reports rolled-back events as
 failures; PhotoCraft panels stay closed.
 
+Second round (deferred review items): FigCraft honours the missing-plugin prompt per
+document and asks once per document; EffectCraft and FigCraft keep saved plugin references
+on the loaded release when the saved state version matches, listing only used
+contributions; native helpers run in their own process group, which is stopped with them;
+the catalogue cache is one file written atomically under the store lock after the serial
+check; all three apps enforce the declared UI level; unavailable plugin commands explain
+why; the guest SDK exposes tool modifiers, pressure, button, command params and the full
+event JSON.
+
 ## Open items and known limits
 
-- Native helpers: child processes they start are not killed with them. Native is not an
-  OS sandbox.
-- The cached catalogue files are not replaced atomically as a pair (a refresh repairs).
-- FigCraft ignores the missing-plugin prompt's Skip / Open without choices; EffectCraft
-  and FigCraft do not refresh saved plugin references after an update.
+- Native is not an OS sandbox: a helper can still start processes outside its group on
+  purpose, and its external effects cannot be undone.
 - PhotoCraft applies plugin filters destructively and records no project references, so
-  it never shows a missing-plugin prompt (LUT layers keep an embedded table).
-- UI level checks are stricter in PhotoCraft than in the other two apps.
+  it never shows a missing-plugin prompt (LUT layers keep an embedded table). A pending
+  PhotoCraft file question is dropped silently if that plugin reloads.
 - For plugin authors: no persistent storage, network or clipboard operations, background
-  jobs, tool modifiers in the guest SDK, or panel open/close events yet.
+  jobs, panel open/close events, or panel form patches outside FigCraft yet.
+- A plugin panel can request costly polygon drawing every frame (no per-revision cache).
 - Pre-existing, not plugin work: the launcher's i18n tests race on a process-wide
   language, so CI runs them on one thread.
 - Beta deferrals unchanged: theme activation, TUF, accounts and reviews, OS confinement

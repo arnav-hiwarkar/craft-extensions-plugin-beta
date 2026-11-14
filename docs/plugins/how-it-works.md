@@ -155,8 +155,9 @@ command, panel, event-hook and tool; native packages cannot contribute effects
   back and kills the helper.
 
 **This is not an OS sandbox.** The helper can do anything the user's account can. Killing it cannot
-undo what it already did, such as files it wrote or data it sent. Known limit: child processes the
-helper starts are not killed with it.
+undo what it already did, such as files it wrote or data it sent. The helper runs in its own process
+group, and stopping it stops that whole group (`crates/ext-host/src/native.rs`); a process that leaves
+the group on purpose is not covered.
 
 ## Permissions are checked on every host call
 
@@ -296,23 +297,20 @@ and Continue. Missing contributions keep their saved parameters and state as pla
 | App | Project references |
 |---|---|
 | EffectCraft | Records references and shows the prompt. Skip and Open without them suppress the listed plugins for that document. Missing effects stay placeholders and rendering refuses, naming the plugin. |
-| FigCraft | Records references and shows the prompt, but ignores the Skip and Open without them choices: it only closes the prompt (`figcraft/crates/ui-egui/src/plugins_ui.rs`). |
+| FigCraft | Records references and shows the prompt once per document. Skip and Open without them suppress the listed plugins for that document: their events are refused, their panels hidden and a running gesture cancelled. |
 | PhotoCraft | Records no plugin references. Plugin filters apply destructively, so a document does not depend on a plugin later. |
 
-Known limit: in EffectCraft and FigCraft a saved plugin reference is not refreshed after an update; the
-project keeps the version and digest it first recorded.
+A saved reference names only the contributions the project uses. After an update it moves to the loaded
+release when that release reads the same saved-state version; after a state schema change it keeps the
+recorded release, so reopening reports the mismatch instead of reading old state with new code.
 
 `<app>-cli plugin project <file>` prints the same statuses with the `plugin install` and
 `plugin setup` commands to run.
 
 ## Known limits
 
-- Native helpers are not OS-sandboxed, and their child processes are not killed with them.
-- The catalogue cache files `index.json` and `index.json.sig` are each written atomically but not
-  as a pair; a crash between the two writes leaves a cache whose signature fails, and the next
-  refresh repairs it.
+- Native helpers are not OS-sandboxed; a process that leaves the helper's group on purpose survives it.
 - Private-address refusal for network requests is not implemented in shared code. There are no
   network operations, so nothing can make a request yet.
 - A panel can ask for expensive polygon drawing on every frame.
-- UI level checks are stricter in PhotoCraft than in EffectCraft and FigCraft (see
-  [ui.md](ui.md#versioning)).
+- A pending PhotoCraft file question is dropped silently if that plugin reloads.
