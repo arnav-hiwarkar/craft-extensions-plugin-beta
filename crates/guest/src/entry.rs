@@ -70,8 +70,10 @@ where
 
 fn read_event(ev: i32, ev_len: i32) -> Result<Event, String> {
     let len = usize::try_from(ev_len).map_err(|_| "bad event length".to_owned())?;
-    abi::with_bytes(addr(ev)?, len, |bytes| serde_json::from_slice::<Event>(bytes).map_err(|e| format!("bad event: {e}")))
-        .ok_or_else(|| "the host's event is not in scratch memory".to_owned())?
+    let value = abi::with_bytes(addr(ev)?, len, |bytes| serde_json::from_slice::<serde_json::Value>(bytes).map_err(|e| format!("bad event: {e}")))
+        .ok_or_else(|| "the host's event is not in scratch memory".to_owned())??;
+    crate::session::set_current(&value);
+    Ok(Event::from_value(value))
 }
 
 /// Sends a described form to the host.

@@ -74,6 +74,58 @@ impl Event {
     }
 }
 
+std::thread_local! {
+    /// The full JSON of the event being handled (wasm runs one event at a time).
+    static CURRENT: std::cell::RefCell<Value> = const { std::cell::RefCell::new(Value::Null) };
+}
+
+/// Records the event being handled; the SDK's session entry calls this before your handler.
+pub(crate) fn set_current(value: &Value) {
+    CURRENT.with(|c| *c.borrow_mut() = value.clone());
+}
+
+/// The complete JSON of the event being handled, including fields [`Event`] does not model (for
+/// example a `files.picked` answer, which arrives as [`Event::Unknown`]). `Null` outside an event.
+pub fn current_event_json() -> Value {
+    CURRENT.with(|c| c.borrow().clone())
+}
+
+/// The `params` object of the command event being handled (what a menu, a script or an agent
+/// passed when running the command), or `Null`.
+pub fn command_params() -> Value {
+    CURRENT.with(|c| c.borrow().get("params").cloned().unwrap_or(Value::Null))
+}
+
+/// Details of the tool event being handled that [`Event::Tool`] does not carry. Fields an app does
+/// not send stay `None` / `Null`: check the app's contract for which it provides.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ToolDetails {
+    /// Modifier keys, as the app sends them (for example `{"shift":true}`).
+    pub modifiers: Value,
+    /// Pen pressure from 0 to 1, when the app reports it.
+    pub pressure: Option<f64>,
+    /// The pointer button, such as `"primary"`, when the app reports it.
+    pub button: Option<String>,
+    /// Where the gesture began, when the app reports it.
+    pub start: Value,
+    /// The document time in seconds, when the app reports it (EffectCraft).
+    pub time: Option<f64>,
+}
+
+/// [`ToolDetails`] of the tool event being handled.
+pub fn tool_details() -> ToolDetails {
+    CURRENT.with(|c| {
+        let v = c.borrow();
+        ToolDetails {
+            modifiers: v.get("modifiers").cloned().unwrap_or(Value::Null),
+            pressure: v.get("pressure").and_then(Value::as_f64),
+            button: v.get("button").and_then(Value::as_str).map(str::to_owned),
+            start: v.get("start").cloned().unwrap_or(Value::Null),
+            time: v.get("time").and_then(Value::as_f64),
+        }
+    })
+}
+
 impl<'de> Deserialize<'de> for Event {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         Value::deserialize(d).map(Self::from_value)
@@ -84,6 +136,19 @@ impl<'de> Deserialize<'de> for Event {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn the_full_event_keeps_fields_the_enum_does_not_model() {
+        set_current(&json!({"event":"tool","phase":"update","at":[1,2],"modifiers":{"shift":true},"pressure":0.5,"button":"primary","start":[0,0],"time":1.5}));
+        let t = tool_details();
+        assert_eq!(t.modifiers, json!({"shift":true}));
+        assert_eq!((t.pressure, t.button.as_deref(), t.time), (Some(0.5), Some("primary"), Some(1.5)));
+        set_current(&json!({"event":"command","id":"go","params":{"count":3}}));
+        assert_eq!(command_params(), json!({"count":3}));
+        set_current(&json!({"event":"files.picked","request":7,"handle":"h1"}));
+        assert_eq!(current_event_json()["handle"], "h1");
+        assert_eq!(tool_details(), ToolDetails::default());
+    }
 
     #[test]
     fn parses_known_events_and_keeps_unknown_ones() {

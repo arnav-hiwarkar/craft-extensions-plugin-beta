@@ -92,7 +92,7 @@ pub use filter::{FilterCtx, Image};
 pub use host::{CallError, LogLevel, call, log};
 pub use serde_json;
 pub use serde_json::{Value as JsonValue, json};
-pub use session::Event;
+pub use session::{Event, ToolDetails, command_params, current_event_json, tool_details};
 
 /// Runtime glue for the macros. Not part of the author API.
 #[doc(hidden)]

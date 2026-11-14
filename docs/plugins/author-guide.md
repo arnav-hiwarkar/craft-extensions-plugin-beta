@@ -501,9 +501,12 @@ The full workflow, vendor registration and store rules are in
 - **No network or clipboard.** The permissions parse, but no operation uses them.
 - **No long-running work.** An event may hold the document for about 5 s and must finish within 8
   or 9 s, within its fuel. There are no background jobs.
-- **The SDK drops some event fields.** `Event::Tool` exposes only `phase` and `at`, although the
-  apps send `modifiers` (and PhotoCraft also `button`, `pressure`, `start` and `zoom`).
-  `Event::Command` exposes only `id`, although PhotoCraft and FigCraft send `params`.
+- **Extra event fields come from helpers, not the `Event` enum.** `Event::Tool` carries `phase`
+  and `at`, and `Event::Command` carries `id`, so existing matches keep compiling. While handling an
+  event, `craft_guest::tool_details()` returns `modifiers` (all apps) and `button`, `pressure`,
+  `start` (PhotoCraft) or `time` (EffectCraft) when the app sends them; `command_params()` returns
+  the command's `params` (PhotoCraft, FigCraft); `current_event_json()` returns the whole event, for
+  example a PhotoCraft `files.picked` answer that arrives as `Event::Unknown`.
 - **Panel form patches only in FigCraft.** FigCraft's `ui.panel.set` and `ui.window.open` accept
   `{panel|id, patch}` to patch a panel's root form in place. EffectCraft and PhotoCraft do not.
   (Effect-dialog patches through `craft_update` work in EffectCraft and PhotoCraft.) The SDK has no
