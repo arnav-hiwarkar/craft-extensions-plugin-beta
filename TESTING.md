@@ -1,6 +1,6 @@
 # Testing the Craft plugin beta on a Mac
 
-Everything is built and tested by the `plugin-beta` workflow in
+Builds and automated checks are recorded by the `plugin-beta` workflow in
 [arnav-hiwarkar/craft-extensions-plugin-beta](https://github.com/arnav-hiwarkar/craft-extensions-plugin-beta/actions/workflows/plugin-beta.yml).
 You do not need Rust or a local build: download the artifacts of a green run and test those.
 All builds are **debug** builds. Do not use them for real work.
@@ -20,7 +20,9 @@ ls bin   # effectcraft effectcraft-cli photocraft photocraft-cli figcraft figcra
 ```
 
 The binaries are unsigned. If macOS still refuses one, right-click it in Finder ▸ Open once.
-Artifacts expire after 14 days; re-run the workflow (`gh workflow run plugin-beta --repo $REPO`) to get fresh ones.
+Artifacts expire after 14 days; select a newer successful run with available artifacts.
+For separate run folders and prepared beta bundles, follow
+[isolated beta installation](docs/plugins/installation-and-testing.md).
 
 ## 2. Point every app at the test catalogue
 
@@ -35,8 +37,18 @@ export CRAFT_CATALOGUE_URL="file://$PWD/test-catalogue/"     # keep the trailing
 export CRAFT_CATALOGUE_ALLOW_FILE=1
 export CRAFT_CATALOGUE_TEST_KEY=$(cat test-catalogue/TEST-KEY.pub)
 export CRAFT_EXT_DIR="$(mktemp -d)"                          # a throwaway plugin store
+BETA_SETTINGS="$(mktemp -d)"
+export EFFECTCRAFT_CONFIG_DIR="$BETA_SETTINGS/effectcraft"
+export PHOTOCRAFT_CONFIG_DIR="$BETA_SETTINGS/photocraft"
+export FIGCRAFT_CONFIG_DIR="$BETA_SETTINGS/figcraft"
+mkdir -p "$EFFECTCRAFT_CONFIG_DIR" "$PHOTOCRAFT_CONFIG_DIR" "$FIGCRAFT_CONFIG_DIR"
+touch "$PWD/bin/portable.txt" # launcher settings in bin/ArtCraftLauncherData
 export PATH="$PWD/bin:$PATH"
 ```
+
+`CRAFT_EXT_DIR` isolates only the plugin store. The three config overrides isolate app
+preferences, and the portable marker isolates launcher settings. These directories persist
+after quitting.
 
 Launch the apps **from this shell** so they inherit the variables (`effectcraft &`, `photocraft &`,
 `figcraft &`, `artcraft-launcher &`). The catalogue expires 30 days after the run that built it.
@@ -126,7 +138,8 @@ nowhere else.
 
 ## 8. What CI already checked
 
-Each green run builds and tests, on Linux and macOS arm64:
+The latest recorded evidence is [Run #20](https://github.com/arnav-hiwarkar/craft-extensions-plugin-beta/actions/runs/43551011455),
+2026-11-14, commit `909897f`. The recorded Linux x86_64 and macOS arm64 jobs passed:
 
 - the shared crates (`ext-core`, `ext-store`, `ext-host`, `ext-ui`, `ext-cli`, `guest`) with all tests;
 - each app and its CLI (debug), plus its plugin adapter and plugin UI-host tests (Linux);
@@ -136,6 +149,10 @@ Each green run builds and tests, on Linux and macOS arm64:
   the cross-app smoke (edit, Undo, revoke, render determinism), the EffectCraft session smoke, and on
   Linux the shared end-to-end manager flow (updates, pins, rollback, kill list, forged signature,
   changed metadata, local installs, project references).
+
+The numbered app checklists above are procedures, not completed GUI evidence. Targeted
+local Cross Review edit/Undo checks do not establish full app verification. No new app,
+guest, build or test-suite run was performed for this documentation correction.
 
 Not checked by CI: anything needing a display (GUI clicks above), GPU rendering, Windows (optional
 compile check only), notarised or release builds.

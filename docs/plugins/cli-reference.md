@@ -58,7 +58,9 @@ Runs `cargo build --target wasm32-unknown-unknown` in `[dir]` and copies each bu
 - When no contribution has a `module` (data or native-only packages), it prints
   `No wasm modules to build` and succeeds.
 - If `Cargo.toml` has `[[example]]` targets whose names match a module file name (`-` read as
-  `_`), it builds those examples and the library, and nothing else.
+  `_`), it builds those examples and the library if present.
+- The library is selected with `--lib` only if `[lib]` or `src/lib.rs` exists. Unrelated
+  examples are not selected when matching example targets exist.
 - Without `--release`, it uses the dev profile at optimisation level 1 (unoptimised SDK code can run
   out of sandbox fuel). Set `CARGO_PROFILE_DEV_OPT_LEVEL` to override.
 - A module is matched to a built file by file stem. If there is only one built `.wasm`, every module
@@ -70,7 +72,8 @@ craft-ext build examples/cross-review --release
 
 ### `craft-ext check [dir] [--store]`
 
-Checks a package before you pack it. It fails when:
+Checks existing files without building or executing guest code. It checks each contribution
+against its kind, including when contributions share a module. It fails when:
 
 - a file named by the manifest (modules, data files, native executables) is missing;
 - a module is not valid wasm, lacks a required export (`craft_abi`, `craft_alloc`, `craft_reset`,
@@ -105,6 +108,7 @@ Writes a `.craftplugin` zip with the manifest and only the files it names. The d
 `<dir>/<id>-<version>.craftplugin`. Symbolic links and paths outside `[dir]` are refused. Native
 executables are stored with mode `755`.
 
+- Plain `pack` does not run `check` or `test`. Run those explicitly before packaging.
 - `--describe` loads each compiled module in the reference sandbox, calls its optional
   `craft_describe`, and embeds the returned form in the packaged manifest. The source manifest is
   not changed. Plain `pack` runs no plugin code. Neither form builds anything.
@@ -137,6 +141,10 @@ CRAFT_EXT_DIR="<development_store>" effectcraft-cli plugin setup io.github.ink.g
 ```
 
 ### `craft-ext catalogue ...`
+
+`keygen` requires `--repo` in the current parser, even though it does not read that directory.
+Include it when following older key setup instructions that omit it. `build --local-assets`
+is the branch that bypasses the repository requirement.
 
 Maintainer commands for the catalogue repository. Store policy and the publishing workflow are in
 [store-and-distribution.md](store-and-distribution.md).
@@ -302,12 +310,16 @@ command id is reported as unknown.
 | `PHOTOCRAFT_SAFE_MODE` | PhotoCraft (`photocraft/crates/plugins/src/lib.rs`) | `1` loads no plugin code. The manager still works. |
 | `FIGCRAFT_SAFE_MODE` | FigCraft (`figcraft/crates/plugins/src/lib.rs`) | `1` loads no plugin code and refuses plugin events. The manager still works. |
 
-A local test catalogue, for example:
+App settings are separate from `CRAFT_EXT_DIR`. See [isolated beta installation](installation-and-testing.md)
+for app config overrides and launcher portable mode. Format details are in
+[formats and versioning](formats-and-versioning.md), with flows in [workflow maps](maps.md).
+
+A local test catalogue, for example (replace `PUBLIC_KEY_FROM_KEYGEN` before running):
 
 ```sh
 craft-ext catalogue build --local-assets ./packages --out ./catalogue
 craft-ext catalogue keygen --repo ./catalogue --out ./test.key   # prints public_key
 craft-ext catalogue sign --repo ./catalogue --key ./test.key
 CRAFT_CATALOGUE_URL="file://$PWD/catalogue" CRAFT_CATALOGUE_ALLOW_FILE=1 \
-CRAFT_CATALOGUE_TEST_KEY=<public_key> effectcraft-cli plugin refresh   # debug build only
+CRAFT_CATALOGUE_TEST_KEY="PUBLIC_KEY_FROM_KEYGEN" effectcraft-cli plugin refresh   # debug build only
 ```

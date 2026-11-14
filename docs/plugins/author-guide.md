@@ -8,6 +8,11 @@ contribution only when it provides that contract.
 Related pages: [CLI reference](cli-reference.md), [UI reference](ui.md), the generated contract
 pages ([EffectCraft](contracts/effectcraft.md), [PhotoCraft](contracts/photocraft.md),
 [FigCraft](contracts/figcraft.md)), and [store and distribution](store-and-distribution.md).
+See the [workflow maps](maps.md), [formats and versioning](formats-and-versioning.md),
+[native protocol](native-protocol.md), and [isolated beta installation](installation-and-testing.md).
+
+Behavior below describes the source implementation. Recorded CI evidence is in
+[STATUS](../../STATUS.md#latest-green-run); GUI and platform checks require separate evidence.
 
 ## 1. What you can make
 
@@ -39,12 +44,12 @@ number fields, toggles, icons, paths, gradients and the other nodes in the [UI r
 Install the Rust target once: `rustup target add wasm32-unknown-unknown`. Then:
 
 ```sh
-craft-ext new effect grain --id io.github.<your-login>.grain   # or: panel, data
+craft-ext new effect grain --id io.github.ink.grain   # replace ink with your GitHub login; or: panel, data
 cd grain
 craft-ext build              # wasm32-unknown-unknown, dev profile at opt-level 1
 craft-ext check              # files, exports, imports, licence
 craft-ext test               # effects only: deterministic, valid pixels
-craft-ext pack               # writes io.github.<your-login>.grain-0.1.0.craftplugin
+craft-ext pack               # writes io.github.ink.grain-0.1.0.craftplugin
 ```
 
 The three templates are:
@@ -55,9 +60,11 @@ The three templates are:
 - `data`: a LUT and a preset file, no code.
 
 `craft-ext build --release` builds the release profile. If your `Cargo.toml` has `[[example]]`
-targets named after manifest modules, `build` builds those and the library, and copies each
+targets named after manifest modules, `build` selects those examples and the library if present, and copies each
 `.wasm` to its module path. `examples/cross-review` uses this to ship one command module and
-three panel modules from one crate.
+three panel modules from one crate. Run `check` after building to inspect every referenced module.
+`test` runs only effect contributions; a successful result for a panel-only package does not
+exercise its panels. Plain `pack` archives existing files without building or executing them.
 
 ## 3. Try it in an app
 
@@ -78,6 +85,9 @@ The apps read the normal store. To use the development install, start the app or
 CRAFT_EXT_DIR="<development_store>" effectcraft-cli plugin setup <id> --all --grant document.read:selection
 CRAFT_EXT_DIR="<development_store>" effectcraft
 ```
+
+`CRAFT_EXT_DIR` isolates plugin state only. For disposable app preferences and launcher
+settings, follow [isolated beta installation](installation-and-testing.md#2-configure-an-isolated-testing-shell).
 
 ### With a package file
 
@@ -191,7 +201,8 @@ Panels (`ui.panel.set`), notifications, overlays and logging need no permission.
 
 The vocabulary also parses `network:<host>`, `clipboard.read` and `clipboard.write`, and the setup
 sheet can show them, but **no operation in any app uses them**. Do not request them: a plugin
-cannot reach the network or the clipboard in this beta.
+cannot reach the network or the clipboard through these host APIs in this beta.
+A separately consented native helper has full OS access outside those APIs.
 
 When an operation needs a permission that is not granted, `craft_guest::call` returns
 `CallError::PermissionNeeded`. Handle it, for example by showing a hint in your panel, instead of
@@ -444,7 +455,9 @@ again.
 executables = { "linux-x86_64" = "bin/helper-linux-x86_64", "macos-aarch64" = "bin/helper-macos-aarch64" }
 ```
 
-- Keys are `<os>-<arch>` as Rust names them: `linux-x86_64`, `macos-aarch64`, `windows-x86_64`.
+- Keys use Rust OS and architecture names: `linux-x86_64`, `macos-aarch64`, `windows-x86_64`.
+  `ext-host::native::platform()` joins those names. The macOS arm64 beta artifact therefore
+  selects `macos-aarch64`, not `macos-arm64` or `darwin-arm64`.
 - With a distinct path for each platform, one universal archive carries every helper. If several
   platforms share one path, publish one archive per platform.
 - An app shows the package as unavailable when there is no helper for its platform.

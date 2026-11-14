@@ -76,8 +76,11 @@ dist/
 | `craft-ext catalogue build --local-assets <dir> --out <dir>` | Builds an unsigned test catalogue from local `.craftplugin` files (see [Local test catalogues](#local-test-catalogues-implemented)). |
 | `craft-ext catalogue sign --repo <dir> --key <file>` | Checks that `index.json` parses and is fresh, then writes `index.json.sig`. Signs `<dir>/index.json` if present, else `<dir>/dist/index.json`. |
 
-All accept `--json`. `keygen` requires `--repo` even though it does not use it
-(`crates/ext-cli/src/catalogue.rs`); `craft-plugins/MAINTAINERS.md` shows it without `--repo`.
+All accept `--json`. `keygen` requires `--repo` even though it does not read that directory.
+`catalogue::run` validates this option before dispatching `keygen`; omitting it produces
+`--repo is required`. Use the command above if an older maintainer instruction omits
+`--repo`. The current `craft-plugins/MAINTAINERS.md` includes it.
+These are source-backed parser facts, not evidence of a local key-generation run.
 
 Key handling: the secret seed is never committed (the maintainer keeps it at
 `~/.config/craft/catalogue.key`). Rotation or a leaked key means shipping an app update with the new
@@ -153,7 +156,8 @@ id. Stars are fetched by `catalogue build` and shown with their date.
 
 ## Anonymous installs (implemented)
 
-There are no accounts. Browsing, searching and installing need only the public signed catalogue and
+There are no app/store accounts. Vendor registration uses a GitHub identity, and filing a
+report uses the reporter's GitHub account; neither is app sign-in. Browsing, searching and installing need only the public signed catalogue and
 the author's public release asset. The app sends no identity to the catalogue.
 
 ## Reviews and ratings (not implemented)
@@ -200,7 +204,7 @@ craft-ext catalogue sign --repo ./catalogue --key /tmp/test.key
 
 export CRAFT_CATALOGUE_URL="file://$PWD/catalogue/"
 export CRAFT_CATALOGUE_ALLOW_FILE=1
-export CRAFT_CATALOGUE_TEST_KEY=<public_key>
+export CRAFT_CATALOGUE_TEST_KEY="PUBLIC_KEY_FROM_KEYGEN" # replace with printed public key
 export CRAFT_EXT_DIR="$(mktemp -d)"                               # throwaway store
 ```
 
@@ -224,8 +228,12 @@ Rules (`crates/ext-store/src/catalogue.rs`):
 - Local builds give every package a community vendor derived from its `io.github.<login>` id and
   delete any stale signature, so you must sign after each build.
 
-The `plugin-beta` workflow builds such a catalogue with all 15 examples; it installs every package in
-every app it declares (verified). See [TESTING.md](../../TESTING.md).
+[Run #20](https://github.com/arnav-hiwarkar/craft-extensions-plugin-beta/actions/runs/43551011455),
+commit `909897f`, records catalogue installation in every declared app on Linux x86_64
+and macOS arm64. This is CI evidence, not a full GUI check. See [TESTING.md](../../TESTING.md)
+and [isolated beta installation](installation-and-testing.md).
+The [formats reference](formats-and-versioning.md) owns format details; [workflow maps](maps.md)
+trace installation, setup and updates.
 
 ## Planned or deferred
 

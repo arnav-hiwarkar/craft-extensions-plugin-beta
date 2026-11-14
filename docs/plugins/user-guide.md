@@ -3,6 +3,11 @@
 Plugins add features to EffectCraft, PhotoCraft and FigCraft. Other people make them. This guide
 shows how to find, install, set up and control them.
 
+This guide describes implemented behavior from the app adapters and shared store.
+[Recorded CI evidence](../../STATUS.md#latest-green-run) covers specific automated paths;
+it does not verify every GUI step below. Use [isolated beta installation](installation-and-testing.md)
+to try the beta, and [workflow maps](maps.md) to trace each flow.
+
 ## 1. What a plugin can add
 
 | Kind | What you get | EffectCraft | PhotoCraft | FigCraft |
@@ -17,11 +22,14 @@ shows how to find, install, set up and control them.
 Fonts and themes can be installed but are not used by any app yet.
 
 Most plugins run in a **sandbox**. A sandboxed plugin can only use what the app offers it, and only
-with the permissions you grant. It cannot run programs, use the network or the clipboard, or read
+with permissions the contribution declares and you grant in this app. Document scopes
+use the selection and document captured for the action; live grants still apply during the action. It cannot run programs, use the network or the clipboard, or read
 files you did not pick.
 
 Some plugins are **native**. A native plugin runs a program on your computer. It can do anything you
 can do. The app labels it **"Native: full access to your computer"** and asks for separate consent.
+
+The host draws plugin controls and chooses the UI backend. Plugins do not choose or detect it.
 
 ## 2. Finding plugins
 
@@ -238,8 +246,10 @@ figcraft-cli plugin project board.figcraft
 
 ## 12. Reporting a plugin
 
-Press **Report plugin** in the Installed tab, or run `effectcraft-cli plugin report <id>`. Both
-open or print a pre-filled issue in the catalogue repository with the plugin id and version.
+Press **Report plugin** in the Installed tab, or run `effectcraft-cli plugin report <id>`. The manager link
+opens a pre-filled GitHub issue form; the CLI prints its URL. Neither files a report automatically.
+Submitting needs your GitHub account. Browsing and installing need no app account.
+Vendor identity checks and GitHub stars are separate from user reviews and ratings, which are deferred.
 
 ## 13. The kill list
 
