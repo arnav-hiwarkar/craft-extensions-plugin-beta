@@ -36,12 +36,29 @@ const EVENT_TIMEOUT: Duration = Duration::from_secs(60);
 const QUEUE_LINES: usize = 64;
 
 /// The current platform key used in `native.executables` (`linux-x86_64`, `macos-aarch64`, …).
+/// Stops every process in the helper's group (the helper started it with `process_group(0)`, so
+/// the group id is its pid). Std has no killpg; the system `kill` does it without unsafe code.
+/// Best effort: a process that left the group on purpose is not covered (native is not a sandbox).
+#[cfg(unix)]
+fn kill_group(pid: u32) {
+    for kill in ["/bin/kill", "/usr/bin/kill"] {
+        if Path::new(kill).exists() {
+            let _ = Command::new(kill).args(["-KILL", "--", &format!("-{pid}")]).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).status();
+            return;
+        }
+    }
+}
+#[cfg(not(unix))]
+fn kill_group(_pid: u32) {}
+
 pub fn platform() -> String {
     format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH)
 }
 
 pub struct Helper {
     child: Child,
+    /// The helper was reaped; its pid (and so its group id) must not be signalled again.
+    ended: bool,
     stdin: ChildStdin,
     lines: Receiver<Option<Value>>,
     api: Arc<dyn AppApi>,
@@ -67,7 +84,11 @@ impl Helper {
         if !grants.full_access(plugin) || grants.stopped(plugin, version) {
             return Err(PluginError::Stopped("full access has not been allowed for this plugin".into()));
         }
-        let mut child = Command::new(exe)
+        let mut command = Command::new(exe);
+        // Its own process group, so stopping the helper also stops processes it started.
+        #[cfg(unix)]
+        std::os::unix::process::CommandExt::process_group(&mut command, 0);
+        let mut child = command
             .current_dir(work)
             .env_clear()
             .env("CRAFT_PLUGIN_PROTOCOL", PROTOCOL.to_string())
@@ -97,7 +118,7 @@ impl Helper {
                 }
             }
         });
-        let mut h = Helper { child, stdin, lines: rx, api, grants, log, next_id: 1, plugin: plugin.clone(), version };
+        let mut h = Helper { child, ended: false, stdin, lines: rx, api, grants, log, next_id: 1, plugin: plugin.clone(), version };
         let contracts: Vec<(String, String)> =
             h.api.contract().provided.contracts.iter().map(|(n, l)| (n.to_string(), l.to_string())).collect();
         h.send(&json!({"type":"hello","protocol":PROTOCOL,"app":h.api.contract().app.as_str(),"contracts":contracts}))?;
@@ -117,8 +138,14 @@ impl Helper {
     }
 
     pub fn kill(&mut self) {
+        if self.ended {
+            return;
+        }
+        // Before reaping: an unreaped helper keeps its pid, so the group id cannot be reused.
+        kill_group(self.child.id());
         let _ = self.child.kill();
         let _ = self.child.wait();
+        self.ended = true;
     }
 
     /// Supervision: call periodically (the adapter does on its tick). Kills the helper as soon as
@@ -129,7 +156,18 @@ impl Helper {
             self.kill();
             return false;
         }
-        matches!(self.child.try_wait(), Ok(None))
+        match self.child.try_wait() {
+            Ok(None) => true,
+            _ => {
+                // It exited on its own: stop what it left running. Surviving members keep the
+                // group id reserved, so this cannot reach an unrelated process group.
+                if !self.ended {
+                    kill_group(self.child.id());
+                    self.ended = true;
+                }
+                false
+            }
+        }
     }
 
     fn check(&self, inv: &Invocation) -> Result<(), OpError> {
@@ -269,11 +307,50 @@ mod final_validation_tests {
         // Prequeue the protocol result so the test has no response timing dependency.
         tx.send(Some(json!({"type":"done", "id":1, "code":0}))).unwrap();
         let mut helper = Helper {
-            child, stdin, lines, api: app.clone(), grants: Arc::new(RevokedAtFinish(AtomicU64::new(0))),
+            child, ended: false, stdin, lines, api: app.clone(), grants: Arc::new(RevokedAtFinish(AtomicU64::new(0))),
             log: Arc::new(|_, _, _| {}), next_id: 1, plugin: inv.plugin.clone(), version: inv.version,
         };
         assert!(matches!(helper.dispatch(inv, &json!({})), Err(PluginError::Stopped(_))));
         assert_eq!(*app.commits.lock().unwrap(), vec![false]);
         assert!(helper.child.try_wait().unwrap().is_some());
+    }
+
+    #[test]
+    fn killing_a_helper_stops_the_processes_it_started() {
+        let dir = tempfile::tempdir().unwrap();
+        let pidfile = dir.path().join("child.pid");
+        let script = format!("sleep 30 & echo $! > '{}'; while read line; do :; done", pidfile.display());
+        let mut command = Command::new("sh");
+        std::os::unix::process::CommandExt::process_group(&mut command, 0);
+        let mut child = command.args(["-c", &script]).stdin(Stdio::piped()).stdout(Stdio::null()).stderr(Stdio::null()).spawn().unwrap();
+        let stdin = child.stdin.take().unwrap();
+        let (_tx, lines) = sync_channel(1);
+        let app = Arc::new(App {
+            contract: AppContract {
+                app: AppId::new("testcraft").unwrap(), display_name: "Test",
+                provided: Provided::new(&[]), ops: vec![], events: vec![], slots: vec![], notes: "",
+            },
+            commits: Mutex::new(vec![]),
+        });
+        let mut helper = Helper {
+            child, ended: false, stdin, lines, api: app, grants: Arc::new(RevokedAtFinish(AtomicU64::new(0))),
+            log: Arc::new(|_, _, _| {}), next_id: 1, plugin: ExtensionId::new("org.example.test").unwrap(), version: Version::new(1, 0, 0),
+        };
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        let pid = loop {
+            if let Some(pid) = std::fs::read_to_string(&pidfile).ok().and_then(|s| s.trim().parse::<u32>().ok()) {
+                break pid;
+            }
+            assert!(std::time::Instant::now() < deadline, "the helper never started its child");
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        };
+        helper.kill();
+        helper.kill(); // a second kill (Drop) must not signal anything again
+        let alive = |pid: u32| Command::new("kill").args(["-0", &pid.to_string()]).stderr(Stdio::null()).status().is_ok_and(|s| s.success());
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        while alive(pid) && std::time::Instant::now() < deadline {
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+        assert!(!alive(pid), "the helper's child process survived");
     }
 }
