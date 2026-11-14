@@ -46,7 +46,7 @@ impl Manager {
         self.store.root().join("catalogue")
     }
     fn index(&self) -> Result<Index> {
-        Catalogue::cached(&self.cache())
+        Catalogue::cached_for(&self.cache(), &self.catalogue_base)
     }
     fn app(&self) -> Result<&AppId> {
         self.app.as_ref().ok_or_else(|| error("choose an app for this operation"))
@@ -402,8 +402,11 @@ impl Manager {
     }
     #[cfg(feature = "net")]
     pub fn refresh(&self, now: u64) -> Result<()> {
-        let i = Catalogue::fetch(&self.catalogue_base, &self.cache(), now, self.store.state()?.catalogue_serial)?;
-        self.store.publish_catalogue(i.serial, now, i.revocations)
+        let (i, bytes, sig) = Catalogue::fetch_verified(&self.catalogue_base, now, self.store.state()?.catalogue_serial)?;
+        let cache = self.cache();
+        // Under the store lock and after the serial check: a slower, older refresh can never
+        // replace a newer cache, and the cache matches the published serial and kill list.
+        self.store.publish_catalogue_with(i.serial, now, i.revocations, || crate::catalogue::write_cache(&cache, &bytes, &sig))
     }
     #[cfg(not(feature = "net"))]
     pub fn refresh(&self, _now: u64) -> Result<()> {

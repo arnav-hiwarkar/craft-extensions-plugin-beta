@@ -59,17 +59,44 @@ pub fn resolve_asset_url(url: &str, base: &str) -> Result<String> {
     }
     Ok(format!("{}/{}", base.trim_end_matches('/'), url))
 }
+/// The cached catalogue: the signature line, a newline, then the exact signed index bytes, in one
+/// file replaced atomically, so a reader never pairs one index with another's signature.
+pub const SNAPSHOT: &str = "index.signed";
+/// Write the cache for a verified index. Callers hold the store lock and have checked the serial.
+pub fn write_cache(cache: &Path, index: &[u8], sig: &[u8]) -> Result<()> {
+    std::fs::create_dir_all(cache).map_err(error)?;
+    let mut b = sig.trim_ascii().to_vec();
+    b.push(b'\n');
+    b.extend_from_slice(index);
+    craft_atomic::atomic_write(&cache.join(SNAPSHOT), &b).map_err(error)?;
+    // The older two-file layout is no longer read once a snapshot exists.
+    let _ = std::fs::remove_file(cache.join("index.json"));
+    let _ = std::fs::remove_file(cache.join("index.json.sig"));
+    Ok(())
+}
 impl Catalogue {
+    /// The cached index, verified with the keys trusted for the configured catalogue.
     pub fn cached(dir: &Path) -> Result<Index> {
-        let b = crate::state_read(dir.join("index.json"), MAX_INDEX_BYTES)?;
-        let sig = crate::state_read(dir.join("index.json.sig"), 1024)?;
-        if !verify_for(&b, &sig, &configured_base())? {
+        Self::cached_for(dir, &configured_base())
+    }
+    /// The cached index, verified with the keys trusted for `base` (the manager's catalogue).
+    pub fn cached_for(dir: &Path, base: &str) -> Result<Index> {
+        let (b, sig) = match crate::state_read(dir.join(SNAPSHOT), MAX_INDEX_BYTES + 1024) {
+            Ok(snapshot) => {
+                let split = snapshot.iter().position(|&c| c == b'\n').ok_or_else(|| error("the cached catalogue is damaged"))?;
+                let (sig, rest) = snapshot.split_at(split);
+                (rest.get(1..).unwrap_or_default().to_vec(), sig.to_vec())
+            }
+            Err(_) => (crate::state_read(dir.join("index.json"), MAX_INDEX_BYTES)?, crate::state_read(dir.join("index.json.sig"), 1024)?),
+        };
+        if !verify_for(&b, &sig, base)? {
             return Err(error("the cached catalogue signature is invalid"));
         }
         Index::parse_cached(&b).map_err(error)
     }
+    /// Download and verify the index (signature, schema, expiry, serial, clock). Nothing is written.
     #[cfg(feature = "net")]
-    pub fn fetch(base: &str, cache: &Path, now: u64, high_water: u64) -> Result<Index> {
+    pub fn fetch_verified(base: &str, now: u64, high_water: u64) -> Result<(Index, Vec<u8>, Vec<u8>)> {
         let b = get(&format!("{}/index.json", base.trim_end_matches('/')), MAX_INDEX_BYTES as u64)?;
         let sig = get(&format!("{}/index.json.sig", base.trim_end_matches('/')), 1024)?;
         if !verify_for(&b, &sig, base)? {
@@ -79,10 +106,7 @@ impl Catalogue {
         if now < i.issued {
             return Err(error("the clock is earlier than the catalogue"));
         }
-        std::fs::create_dir_all(cache).map_err(error)?;
-        craft_atomic::atomic_write(&cache.join("index.json.sig"), &sig).map_err(error)?;
-        craft_atomic::atomic_write(&cache.join("index.json"), &b).map_err(error)?;
-        Ok(i)
+        Ok((i, b, sig))
     }
     #[cfg(feature = "net")]
     pub fn package_file(base: &str, row: &PackageSummary) -> Result<PackageFile> {
@@ -161,6 +185,16 @@ mod local_tests {
 #[cfg(test)]
 mod trust_tests {
     use super::*;
+    #[test]
+    fn cache_snapshot_round_trips_and_rejects_a_mismatched_signature() {
+        let t = tempfile::tempdir().unwrap();
+        write_cache(t.path(), b"{}", b"00").unwrap();
+        // A bad signature over the stored bytes is refused, never trusted.
+        assert!(Catalogue::cached_for(t.path(), "https://example.com/").is_err());
+        let raw = std::fs::read(t.path().join(SNAPSHOT)).unwrap();
+        assert_eq!(raw, b"00\n{}");
+        assert!(!t.path().join("index.json").exists());
+    }
     const KEY: &str = "d49ebfdf63910eafaaba1cf72ee2dd43f1e82b4cf8cea8c5a0ce93021c99323b";
     #[test]
     fn test_key_needs_debug_file_base_and_allow_flag() {

@@ -371,8 +371,14 @@ impl Store {
         })
     }
     pub fn publish_catalogue(&self, serial: u64, now: u64, revocations: Vec<Revocation>) -> Result<()> {
+        self.publish_catalogue_with(serial, now, revocations, || Ok(()))
+    }
+    /// [`Store::publish_catalogue`], running `write_cache` under the store lock after the serial
+    /// check and before the state is saved.
+    pub fn publish_catalogue_with(&self, serial: u64, now: u64, revocations: Vec<Revocation>, write_cache: impl FnOnce() -> Result<()>) -> Result<()> {
         self.update(|s| {
             if serial < s.catalogue_serial { return Err(error("the catalogue is older than one already seen")); }
+            write_cache()?;
             s.revocations = revocations;
             s.catalogue_serial = serial;
             s.last_refresh = now;
