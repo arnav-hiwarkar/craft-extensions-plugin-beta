@@ -16,13 +16,13 @@ names `--repo arnav-hiwarkar/<name>`. No releases, tags, PRs or issues without a
 
 ## Latest green run
 
-[Run 43528828595](https://github.com/arnav-hiwarkar/craft-extensions-plugin-beta/actions/runs/43528828595)
-(2026-11-14), every job passed on Linux x86_64 and macOS arm64. Unit tests passed:
-shared crates 148 (1 ignored: maintainer publication), EffectCraft plugin and UI host
-78, PhotoCraft 46, FigCraft 39, launcher core and UI 171. 15 examples built, checked,
-tested and packed; the test catalogue holds them all (plus Film looks 1.0.0); 21
-app/package installs passed on each platform; cross-app, EffectCraft session and shared
-e2e smokes passed. The optional Windows compile check was not run.
+[Run #20](https://github.com/arnav-hiwarkar/craft-extensions-plugin-beta/actions/runs/43551011455)
+(2026-11-14, commit `909897f`): every job passed on Linux x86_64 and macOS arm64, and the
+Windows compile check passed for craft-extensions, EffectCraft, PhotoCraft and FigCraft.
+It includes both review rounds. 15 examples built, checked, tested and packed; the signed test
+catalogue (all examples plus Film looks 1.0.0) installed in every declared app on both platforms;
+cross-app, EffectCraft session and shared e2e smokes passed. Windows is compile-only: nothing
+was run there.
 
 ## What CI verifies on every run
 
