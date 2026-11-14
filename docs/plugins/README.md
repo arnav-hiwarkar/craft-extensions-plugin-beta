@@ -7,14 +7,20 @@ one adapter in each app, and the signed catalogue in `craft-plugins`.
 
 | Guide | For |
 |---|---|
+| [Workflow atlas and mind map](maps.md) | Visual map of roles, ownership and every main lifecycle |
+| [Documentation coverage](coverage.md) | Feature-to-guide, source and evidence index |
 | [Author guide](author-guide.md) | Writing, building, testing and packing a plugin |
 | [How it works](how-it-works.md) | Components, lifecycle, sandbox, native helpers, permission checks, undo, safe mode |
 | [Adapter guide](adapter-guide.md) | Connecting an app to the platform |
 | [Capabilities](capabilities.md) | What each app offers: contribution kinds, operations and permissions, what is not available |
 | [UI reference](ui.md) | Panels, windows, forms, canvas, events and UI levels |
+| [Formats and versions](formats-and-versioning.md) | Manifest, ABI, contracts, UI, state and catalogue version domains |
+| [Native helper protocol](native-protocol.md) | JSON-line records, errors, deadlines and process lifecycle |
 | [CLI reference](cli-reference.md) | `<app>-cli plugin …` and `craft-ext` |
 | [Store and distribution](store-and-distribution.md) | Catalogue format, signing, vendors, tiers, reports, kill list, local test catalogues |
+| [Maintainer guide](maintainer-guide.md) | Listing admission, signed publication and incident response |
 | [User guide](user-guide.md) | Finding, installing, setting up and removing plugins |
+| [Testing beside normal Mac apps](installation-and-testing.md) | Separate catalogue trust, stores, preferences and launch methods |
 | [Testing the beta](../../TESTING.md) | Downloading CI builds and testing them against the test catalogue |
 
 Reference pages generated from the adapters: [EffectCraft contract](contracts/effectcraft.md),
@@ -33,7 +39,6 @@ Everything below is history and evidence. Where it disagrees with the current gu
 |---|---|
 | [Beta design](beta-design.md) | The specification the beta source follows; supersedes older proposals |
 | [Beta implementation map](beta-implementation.md) | Where each beta part lives in code (dated checklist) |
-| [Maintainer guide](maintainer-guide.md) | Short pointer to `craft-plugins/MAINTAINERS.md` |
 | [Shared beta tests](testing.md) | The `scripts/e2e.sh` flow |
 | [Architecture](architecture.md) | The long-term architecture proposal |
 | [System guide](system-guide.md) | Plain-language walkthrough of every part, with 2026-11-12 review findings |

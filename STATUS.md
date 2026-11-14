@@ -2,10 +2,10 @@
 
 2026-11-14. Source for the shared platform (this repository), the three app adapters
 (EffectCraft, PhotoCraft, FigCraft), the launcher integration and 15 examples is in place
-on the `plugin-beta` branches. Everything is built and tested by the `plugin-beta`
-workflow in this repository (GitHub Actions, Linux x86_64 and macOS arm64). Nothing is
-built on a developer machine. See [TESTING.md](TESTING.md) to download the artifacts and
-test on a Mac.
+on the `plugin-beta` branches. The latest recorded build and automated verification
+is run #20 below. It does not establish GUI or GPU behavior. See
+[TESTING.md](TESTING.md) to download the artifacts and test on a Mac, or use the
+[isolated installation guide](docs/plugins/installation-and-testing.md) beside normal apps.
 
 ## Repository rule
 
@@ -24,7 +24,7 @@ catalogue (all examples plus Film looks 1.0.0) installed in every declared app o
 cross-app, EffectCraft session and shared e2e smokes passed. Windows is compile-only: nothing
 was run there.
 
-## What CI verifies on every run
+## Automated coverage recorded in run #20
 
 - Shared crates (`ext-core`, `ext-store`, `ext-host`, `ext-ui`, `ext-cli`, `guest`): debug
   build with all features and every unit test.
@@ -43,6 +43,22 @@ was run there.
 
 Not verified by CI: GUI clicks, GPU paths, Windows (optional compile check only),
 release or notarised builds.
+
+## Documentation and workflow maps
+
+The [plugin handbook](docs/plugins/README.md) links user, author, app-adapter and
+maintainer procedures, plus CLI, capability, UI, native-protocol and versioning
+references. The [workflow maps](docs/plugins/maps.md) include a mind map and ten
+workflow diagrams across that page and the native protocol reference. An offline
+[interactive atlas](docs/plugins/maps/overview.html) provides role navigation and
+five workflow tabs. The [coverage index](docs/plugins/coverage.md) maps guides to
+source owners and separates implemented behavior from verification evidence.
+
+This documentation pass checked local links and heading anchors, fenced JSON,
+diagram headers/fences, and atlas controls and mobile overflow. Run
+`python3 scripts/check-plugin-docs.py` to repeat the structural checks without
+building or executing plugins. The checker does not fully parse/render Mermaid.
+No new app, guest, build, suite or GUI workflow verification accompanied these edits.
 
 ## Fixed in this phase
 
