@@ -9,6 +9,7 @@ one adapter in each app, and the signed catalogue in `craft-plugins`.
 |---|---|
 | [Workflow atlas and mind map](maps.md) | Visual map of roles, ownership and every main lifecycle |
 | [Documentation coverage](coverage.md) | Feature-to-guide, source and evidence index |
+| [Community comparison and follow-up backlog](community-comparison-and-backlog.md) | Existing community workflows, capability gaps and proposed priorities |
 | [Author guide](author-guide.md) | Writing, building, testing and packing a plugin |
 | [How it works](how-it-works.md) | Components, lifecycle, sandbox, native helpers, permission checks, undo, safe mode |
 | [Adapter guide](adapter-guide.md) | Connecting an app to the platform |
@@ -58,6 +59,8 @@ Everything below is history and evidence. Where it disagrees with the current gu
 | Document | Purpose |
 |---|---|
 | [Source and verification record](source-and-verification-record.md) | Inspected revisions and limits of evidence |
+| [NZO community review](community-nzo-review.md), [EC Scripts review](community-ecscripts-review.md) | Source-backed community research, with inaccessible evidence kept explicit |
+| [BOUNCraft source and release](community-bouncraft-review.md) | Inspected motion-tool workflow, legacy Wasm builder and migration gaps |
 | [Resource register](../plugin-resources.md) | Supplied links, retrieval limits and research history |
 | [Jeremy's handoff summary](../jeremy-extensions-handoff-summary.md) | Structured summary of the supplied handoff text |
 | [Complete supplied handoff](sources/jeremy-extensions-todo.txt) | Verbatim handoff text |

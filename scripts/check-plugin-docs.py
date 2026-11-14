@@ -15,6 +15,8 @@ names = [
     "how-it-works.md", "adapter-guide.md", "capabilities.md", "cli-reference.md",
     "store-and-distribution.md", "user-guide.md", "ui.md", "framework-integration.md",
     "maintainer-guide.md",
+    "community-comparison-and-backlog.md", "community-nzo-review.md", "community-ecscripts-review.md",
+    "community-bouncraft-review.md",
 ]
 files = [guide_root / name for name in names] + [root / "STATUS.md", root / "TESTING.md"]
 errors = []

@@ -60,6 +60,12 @@ diagram headers/fences, and atlas controls and mobile overflow. Run
 building or executing plugins. The checker does not fully parse/render Mermaid.
 No new app, guest, build, suite or GUI workflow verification accompanied these edits.
 
+The [community comparison and follow-up backlog](docs/plugins/community-comparison-and-backlog.md)
+records docking gaps, source-backed BOUNCraft/Anonymizer migration needs and registry
+tradeoffs. Pinned revisions and release digests identify the inspected evidence.
+The original NZO store remains inaccessible; EC Scripts' server enforcement is unknown.
+These research notes propose follow-up work and do not claim the features are implemented.
+
 ## Fixed in this phase
 
 From CI: `setup --all` and `craft-ext dev` tried to enable other apps' contracts;
