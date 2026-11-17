@@ -230,7 +230,7 @@ differences are in behaviour and slot descriptions:
 | FigCraft | `dispose`: "The worker is stopping" | `dispose` is never sent; workers are dropped. |
 | FigCraft | Overlays "cleared when a tool gesture ends" | An overlay set outside a gesture stays until the next gesture ends, a resume or a reload. |
 | FigCraft | "Coordinates are document units" | Tool and overlay coordinates are page units. |
-| FigCraft | (not stated) | A fifth window is silently dropped, and the call still succeeds. |
+| FigCraft | (not stated) | A fifth window is refused with `-6` when it is asked for, as in EffectCraft; redrawing an open window is not a new one. Source-complete, not yet compiled. |
 
 Source comment that is out of date: `crates/ext-host/src/native.rs` says permissions are "moot" for
 native helpers. In all three apps each native call still passes through `authorize`, so declared and

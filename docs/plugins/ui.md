@@ -38,7 +38,7 @@ Where panels appear and how many windows a plugin may open is up to the app:
 |---|---|---|
 | EffectCraft | Floating panel opened from the Plugins menu | 4 windows per plugin; a fifth `ui.window.open` returns `-6` ("At most four windows per plugin") |
 | PhotoCraft | Floating panel, starts closed, opened from the Plugins menu; tree updates never reopen a panel the user closed | No per-plugin window limit; at most 32 surfaces (panels and windows) per app and 4 MiB of trees in total |
-| FigCraft | Docked panel toggled from the Plugins menu | 4 windows per plugin; a fifth is silently dropped while the call still succeeds |
+| FigCraft | Docked panel toggled from the Plugins menu | 4 windows per plugin; a fifth `ui.window.open` returns `-6` ("At most four windows per plugin") before it is acknowledged (source-complete, awaiting a compiled check) |
 
 UI changes made during an event are published only when that event commits; a rolled-back event
 leaves the panels as they were.
