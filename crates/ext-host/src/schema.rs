@@ -77,6 +77,27 @@ pub static SHARED: &[OpSchema] = &[
         one_of: &[],
         result: "null",
     },
+    OpSchema {
+        op: "project.data.get",
+        version: 1,
+        fields: &[
+            Field { name: "key", ty: Ty::Text { min: 1, max: 64 }, required: true, doc: "One of the plugin's own keys" },
+            Field { name: "target", ty: Ty::Object { what: "a layer or node: {\"layer\": id} or {\"node\": id}; absent means the document" }, required: false, doc: "Where the data lives" },
+        ],
+        one_of: &[],
+        result: "the stored JSON value, or null",
+    },
+    OpSchema {
+        op: "project.data.set",
+        version: 1,
+        fields: &[
+            Field { name: "key", ty: Ty::Text { min: 1, max: 64 }, required: true, doc: "One of the plugin's own keys" },
+            Field { name: "value", ty: Ty::Json { what: "any JSON; null deletes the key" }, required: true, doc: "Saved with the document, even when this plugin is not installed" },
+            Field { name: "target", ty: Ty::Object { what: "a layer or node: {\"layer\": id} or {\"node\": id}; absent means the document" }, required: false, doc: "Where the data lives" },
+        ],
+        one_of: &[],
+        result: "null",
+    },
 ];
 
 pub fn shared(op: &str) -> Option<&'static OpSchema> {

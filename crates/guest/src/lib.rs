@@ -84,6 +84,7 @@ mod entry;
 mod filter;
 mod form;
 pub use form::*;
+pub mod data;
 mod host;
 pub mod job;
 pub mod kernel;
