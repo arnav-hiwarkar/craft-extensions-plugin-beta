@@ -364,11 +364,13 @@ fn check_wasm(bytes: &[u8], effect: bool) -> Result<()> {
         ("craft_event", vec![I32; 2], vec![I32]),
         ("craft_describe", vec![], vec![I32]),
         ("craft_update", vec![I32; 2], vec![I32]),
+        ("craft_job", vec![I32; 2], vec![I32]),
     ] {
         let export = match module.exports().find(|e| e.name() == name) {
             Some(e) => e,
             None if name == "craft_describe"
                 || name == "craft_update"
+                || name == "craft_job"
                 || (name == "craft_filter" && !effect)
                 || (name == "craft_event" && effect) =>
             {

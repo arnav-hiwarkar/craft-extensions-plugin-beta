@@ -10,6 +10,7 @@ README build and smoke commands describe later workflows, not completed checks.
 | EffectCraft | `effectcraft-cue-board`: composition markers and layer notes; `effectcraft-point-tool`: pointer-driven point editing; `effectcraft-channel-tint`: raster channel tint; `color-notes`: selection notes and optional edits |
 | PhotoCraft | `photocraft-gradient-tool`: gradient tool and options; `photocraft-levels-scope`: histogram and levels; `photocraft-layer-export`: picked-location layer export |
 | FigCraft | `figcraft-grid`: editable card grids; `figcraft-placeholder`: placeholder content; `figcraft-shapes`: shape creation and rectangle tool |
+| Flagship | `lightwell`: multi-scale glow and light rays built only from host kernels (1080p in about 0.5 s through the sandbox, `craft-ext test --size 1920x1080`) |
 | Cross-app | `cross-review`: canonical layer/node rename commands and shared-vocabulary panels in all three apps; `cross-vignette`: raster effect for EffectCraft and PhotoCraft; `halftone`: raster effect; `film-looks`: LUT and preset resources |
 
 Read each `craft-plugin.toml` for the actual supported apps, contribution IDs,

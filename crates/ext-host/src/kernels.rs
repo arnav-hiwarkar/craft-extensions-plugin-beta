@@ -159,16 +159,76 @@ pub fn blur(img: &mut Image, radius: f32, kind: &str) -> Result<(), String> {
     if radius < 0.5 {
         return Ok(());
     }
-    let weights = match kind {
-        "gaussian" => gaussian_weights(radius),
-        "box" => {
-            let n = 2 * radius.round() as usize + 1;
-            vec![1.0 / n as f32; n]
+    match kind {
+        "gaussian" if radius <= 8.0 => separable(img, &gaussian_weights(radius)),
+        "gaussian" => {
+            for r in box_radii_for_gaussian(radius / 3.0, 3) {
+                box_blur(img, r);
+            }
         }
+        "box" => box_blur(img, radius.round() as usize),
         _ => return Err("kind must be gaussian or box".into()),
-    };
-    separable(img, &weights);
+    }
     Ok(())
+}
+
+fn box_radii_for_gaussian(sigma: f32, passes: usize) -> Vec<usize> {
+    let n = passes as f32;
+    let ideal = (12.0 * sigma * sigma / n + 1.0).sqrt();
+    let mut lower = ideal.floor() as i64;
+    if lower % 2 == 0 {
+        lower -= 1;
+    }
+    let lower = lower.max(1) as f32;
+    let m = ((12.0 * sigma * sigma - n * lower * lower - 4.0 * n * lower - 3.0 * n) / (-4.0 * lower - 4.0)).round();
+    (0..passes).map(|i| if (i as f32) < m { lower } else { lower + 2.0 }).map(|w| ((w - 1.0) / 2.0) as usize).collect()
+}
+
+fn box_rows(img: &mut Image, r: usize) {
+    let width = img.width;
+    let inv = 1.0 / (2 * r + 1) as f32;
+    rows(&mut img.px, width, |_, row| {
+        let src = row.to_vec();
+        let last = width as isize - 1;
+        let at = |x: isize| x.clamp(0, last) as usize * 4;
+        let mut sum = [0.0f32; 4];
+        for i in -(r as isize)..=(r as isize) {
+            for c in 0..4 {
+                sum[c] += src[at(i) + c];
+            }
+        }
+        for x in 0..width {
+            for c in 0..4 {
+                row[x * 4 + c] = sum[c] * inv;
+            }
+            let (add, sub) = (at(x as isize + r as isize + 1), at(x as isize - r as isize));
+            for c in 0..4 {
+                sum[c] += src[add + c] - src[sub + c];
+            }
+        }
+    });
+}
+
+fn transpose(img: &Image) -> Image {
+    let mut out = Image::new(img.height, img.width);
+    let (w, h) = (img.width, img.height);
+    rows(&mut out.px, h, |x, row| {
+        for y in 0..h {
+            let i = (y * w + x) * 4;
+            row[y * 4..y * 4 + 4].copy_from_slice(&img.px[i..i + 4]);
+        }
+    });
+    out
+}
+
+fn box_blur(img: &mut Image, r: usize) {
+    if r == 0 {
+        return;
+    }
+    box_rows(img, r);
+    let mut t = transpose(img);
+    box_rows(&mut t, r);
+    *img = transpose(&t);
 }
 
 pub fn directional_blur(img: &mut Image, angle_deg: f32, length: f32) -> Result<(), String> {
@@ -630,6 +690,20 @@ mod tests {
         let alpha: f32 = dot.px.chunks_exact(4).map(|p| p[3]).sum();
         assert!((alpha - 1.0).abs() < 1e-4, "box blur keeps energy, got {alpha}");
         assert!((dot.px[(4 * 9 + 4) * 4 + 3] - 1.0 / 25.0).abs() < 1e-5);
+    }
+
+    #[test]
+    fn a_large_gaussian_stays_within_ten_percent_of_the_exact_peak_and_keeps_energy() {
+        let mut fast = Image::new(121, 121);
+        fast.px[(60 * 121 + 60) * 4 + 3] = 1.0;
+        let mut exact = fast.clone();
+        blur(&mut fast, 30.0, "gaussian").unwrap();
+        separable(&mut exact, &gaussian_weights(30.0));
+        let energy: f32 = fast.px.chunks_exact(4).map(|p| p[3]).sum();
+        assert!((energy - 1.0).abs() < 1e-3, "{energy}");
+        let worst = fast.px.iter().zip(&exact.px).map(|(a, b)| (a - b).abs()).fold(0.0f32, f32::max);
+        let peak = exact.px.iter().copied().fold(0.0f32, f32::max);
+        assert!(worst < 0.1 * peak, "worst {worst} vs peak {peak}");
     }
 
     #[test]

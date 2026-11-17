@@ -8,6 +8,11 @@ use crate::filter::Image;
 use crate::host::{CallError, call};
 use serde_json::{Value, json};
 
+/// Largest blur, morphology and splat radius in pixels; larger values are refused.
+pub const MAX_RADIUS: f32 = 512.0;
+/// Longest directional blur in pixels; longer values are refused.
+pub const MAX_LENGTH: f32 = 2048.0;
+
 /// An image your code owns, for intermediate results (a mask, a glow pass, a downscaled copy).
 #[derive(Clone, Debug, PartialEq)]
 pub struct Buffer {

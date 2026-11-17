@@ -1,0 +1,16 @@
+[package]
+name = "lightwell"
+version = "1.0.0"
+description = "Glow and light rays from an image's highlights, for EffectCraft and PhotoCraft (example plugin)."
+edition = "2024"
+rust-version = "1.90"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+craft-guest = { path = "../../crates/guest" }
+
+[workspace]

@@ -1,0 +1,88 @@
+schema = 2
+id = "io.github.arnav-hiwarkar.lightwell"
+name = "Lightwell"
+version = "1.0.0"
+license = "MIT OR Apache-2.0"
+source = "https://github.com/arnav-hiwarkar/lightwell"
+summary = "Soft multi-scale glow and light rays from the brightest parts of an image"
+tags = ["glow", "light", "rays", "bloom"]
+apps = ["effectcraft", "photocraft"]
+
+[[contribution]]
+id = "lightwell"
+kind = "effect"
+contract = "raster.filter@1.0"
+label = "Lightwell"
+category = "Light"
+module = "lightwell.wasm"
+permissions = []
+
+[contribution.form]
+schema = 1
+key = "lightwell"
+title = "Lightwell"
+
+[contribution.form.preview]
+enabled = true
+compare = true
+
+[[contribution.form.params]]
+key = "threshold"
+label = "Threshold"
+[contribution.form.params.kind]
+type = "range"
+default = 0.6
+min = 0
+max = 1
+
+[[contribution.form.params]]
+key = "radius"
+label = "Radius"
+unit = "pixels"
+[contribution.form.params.kind]
+type = "range"
+default = 24
+min = 1
+max = 160
+
+[[contribution.form.params]]
+key = "intensity"
+label = "Intensity"
+[contribution.form.params.kind]
+type = "range"
+default = 1.2
+min = 0
+max = 4
+
+[[contribution.form.params]]
+key = "tint"
+label = "Tint"
+[contribution.form.params.kind]
+type = "color"
+default = [1.0, 0.85, 0.6, 1.0]
+alpha = false
+
+[[contribution.form.params]]
+key = "rays"
+label = "Light rays"
+[contribution.form.params.kind]
+type = "bool"
+default = false
+
+[[contribution.form.params]]
+key = "ray_angle"
+label = "Ray angle"
+unit = "degrees"
+[contribution.form.params.kind]
+type = "angle"
+default = 90
+
+[[contribution.form.params]]
+key = "ray_length"
+label = "Ray length"
+unit = "pixels"
+[contribution.form.params.kind]
+type = "range"
+default = 200
+min = 10
+max = 1200

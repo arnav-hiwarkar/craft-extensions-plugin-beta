@@ -5,3 +5,7 @@ date	unit	decision_or_change	evidence	verdict
 2026-11-17	P2	Kernels and jobs route through craft.call as host-handled kernel.*/job.* ops (ABI v1 unchanged; old hosts answer -3)	compute-and-jobs.md	decided
 2026-11-17	P2	Host work beyond the fuel slice is carried as debt; kernels larger than the remaining budget refused up front	ext-host wasm.rs run_sliced	verified: cargo test -p craft-ext-host (31 passed)
 2026-11-17	P2	Guest SDK kernel and job modules, job! macro, Event::Job	craft-guest	verified: clippy native+wasm32, cargo test -p craft-guest
+2026-11-17	P7	Lightwell flagship (glow + rays) built only from kernels	examples/lightwell; craft-ext test --size 1920x1080	verified: deterministic, 1343 ms
+2026-11-17	P2	Gaussian above 8 px runs as three running-sum box passes (within 10% of exact peak, energy kept)	kernels.rs test	verified: Lightwell 1343 -> 478 ms at 1080p
+2026-11-17	P2	Manifest::runtime is the one Wasm/native/data decision; hybrid packages; native.mode restricted	d144096	verified: cargo test -p craft-ext-core
+2026-11-17	P1	Restricted native confinement (Seatbelt/bwrap), native jobs, comment ratchet	e34bf4f	verified on macOS: data-only writes, no network, no exec
