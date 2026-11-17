@@ -53,6 +53,15 @@ dist/
   (`platform` for native packages, `url`, `sha256`, `size`) and the exact `manifest` inside the
   archive. The download is refused unless its size and SHA-256 match; install also refuses an archive
   whose manifest differs from the record. One id+version maps to one digest forever.
+- **Asset URLs, checked by the installing app.** Before anything is fetched,
+  `catalogue::check_asset_url` requires a remote asset to be
+  `https://github.com/<owner>/<repo>/releases/download/<tag>/<file>` of the package row's own
+  `repo` (owner and repository compared case-insensitively, plain segments only: no `http://`,
+  query, fragment, backslash, white space, percent escape or dot segment). A relative asset is plain
+  segments under the catalogue base. A `file://` asset is an absolute local path, never a network
+  share (`file:////host/…`), and still needs a `file://` catalogue or `CRAFT_CATALOGUE_ALLOW_FILE=1`.
+  Admission checks the tag as well; the client check is defence in depth, carried over from the
+  rules EffectCraft's retired Plug-in Library enforced.
 - **Freshness.** `Index::parse` refuses a different schema, a `serial` lower than the highest the
   store has seen (rollback or replay), and an index past `expires`. `catalogue build` sets `expires`
   to 30 days after `issued`. A clock earlier than `issued` is refused too. An expired cache can still

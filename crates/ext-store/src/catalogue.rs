@@ -59,6 +59,58 @@ pub fn resolve_asset_url(url: &str, base: &str) -> Result<String> {
     }
     Ok(format!("{}/{}", base.trim_end_matches('/'), url))
 }
+/// A segment of a release URL: ASCII letters, digits, `.`, `_` and `-`, never `.` or `..`.
+fn plain_segment(segment: &str) -> bool {
+    !segment.is_empty() && segment != "." && segment != ".." && segment.chars().all(|c| c.is_ascii_alphanumeric() || "._-".contains(c))
+}
+/// `owner/name` of a package `repo`, `https://github.com/<owner>/<name>` with an optional `/`.
+fn github_slug(repo: &str) -> Option<(&str, &str)> {
+    let slug = repo.strip_prefix("https://github.com/")?;
+    let mut parts = slug.strip_suffix('/').unwrap_or(slug).split('/');
+    let (owner, name) = (parts.next()?, parts.next()?);
+    (parts.next().is_none() && plain_segment(owner) && plain_segment(name)).then_some((owner, name))
+}
+/// Check a release asset URL exactly as the signed package record names it, before anything is
+/// fetched. Admission (`craft-ext-cli`) checks listings too; the client keeps its own check so a
+/// mistaken or hand-built catalogue cannot send a download elsewhere. EffectCraft's retired
+/// Plug-in Library enforced the same rules, and decision D4 says assets come from the author's
+/// GitHub Releases:
+/// - a relative URL is plain path segments under the catalogue base ([`resolve_asset_url`]);
+/// - a remote URL is `https://github.com/<owner>/<name>/releases/download/<tag>/<file>` of the
+///   package's own `repo` (owner and name compared case-insensitively; a tag may hold `/`), with
+///   plain segments only, so no query, fragment, backslash, white space, percent escape or dot
+///   segment; plain `http://` and every other scheme are refused;
+/// - a `file://` URL names an absolute local path, never a network share (`file:////host/…`),
+///   and holds no backslash, query, fragment, percent-encoded separator or dot segment. Whether
+///   file assets are allowed at all is decided by [`Catalogue::download_release_from`].
+pub fn check_asset_url(url: &str, repo: &str) -> Result<()> {
+    if let Some(path) = url.strip_prefix("file://") {
+        let lower = path.to_ascii_lowercase();
+        let local = path.starts_with('/')
+            && !path.starts_with("//")
+            && !path.contains(['\\', '?', '#'])
+            && !["%2f", "%5c", "%2e"].iter().any(|e| lower.contains(e))
+            && path.split('/').skip(1).all(|s| !s.is_empty() && s != "." && s != "..");
+        return if local { Ok(()) } else { Err(error("a file asset must name an absolute local path")) };
+    }
+    if !url.contains("://") {
+        return resolve_asset_url(url, "file:///").map(|_| ());
+    }
+    let Some((owner, name)) = github_slug(repo) else {
+        return Err(error("the package repository is not a GitHub repository, so its remote assets are refused"));
+    };
+    let rest = url.strip_prefix("https://github.com/").ok_or_else(|| error("a remote asset must be a GitHub release asset over https"))?;
+    let mut parts = rest.split('/');
+    let same_repo = parts.next().is_some_and(|o| o.eq_ignore_ascii_case(owner)) && parts.next().is_some_and(|n| n.eq_ignore_ascii_case(name));
+    if !same_repo {
+        return Err(error("a remote asset must be a release asset of the package's own repository"));
+    }
+    let tail: Vec<&str> = parts.collect();
+    if tail.len() < 4 || tail[0] != "releases" || tail[1] != "download" || !tail[2..].iter().all(|s| plain_segment(s)) {
+        return Err(error("a remote asset URL must name one release file: releases/download/<tag>/<file>"));
+    }
+    Ok(())
+}
 /// The cached catalogue: the signature line, a newline, then the exact signed index bytes, in one
 /// file replaced atomically, so a reader never pairs one index with another's signature.
 pub const SNAPSHOT: &str = "index.signed";
@@ -117,11 +169,14 @@ impl Catalogue {
         PackageFile::parse(&b, &row.id).map_err(error)
     }
     #[cfg(feature = "net")]
-    pub fn download_release(asset: &Asset, max: u64) -> Result<Vec<u8>> {
-        Self::download_release_from(asset, max, "https://catalogue.invalid")
+    pub fn download_release(asset: &Asset, repo: &str, max: u64) -> Result<Vec<u8>> {
+        Self::download_release_from(asset, repo, max, "https://catalogue.invalid")
     }
+    /// Download one asset of a release of the package whose `repo` the signed index names. The
+    /// URL is checked with [`check_asset_url`] before anything is fetched.
     #[cfg(feature = "net")]
-    pub fn download_release_from(asset: &Asset, max: u64, base: &str) -> Result<Vec<u8>> {
+    pub fn download_release_from(asset: &Asset, repo: &str, max: u64, base: &str) -> Result<Vec<u8>> {
+        check_asset_url(&asset.url, repo)?;
         let url = resolve_asset_url(&asset.url, base)?;
         if url.starts_with("file:") && !file_allowed(base) {
             return Err(error("file assets require a file catalogue or CRAFT_CATALOGUE_ALLOW_FILE=1"));
@@ -138,7 +193,8 @@ fn get(url: &str, max: u64) -> Result<Vec<u8>> {
     use std::io::Read;
     let mut b = vec![];
     if let Some(path) = url.strip_prefix("file://") {
-        if !path.starts_with('/') || path.contains(['?', '#']) {
+        // `file:////host/share/…` would reach a network share on Windows: local paths only.
+        if !path.starts_with('/') || path.starts_with("//") || path.contains(['?', '#', '\\']) {
             return Err(error("file URL must be an absolute local path"));
         }
         std::fs::File::open(path).map_err(error)?.take(max.saturating_add(1)).read_to_end(&mut b).map_err(error)?;
@@ -163,21 +219,22 @@ fn file_allowed(base: &str) -> bool {
 #[cfg(all(test, feature = "net"))]
 mod local_tests {
     use super::*;
+    const REPO: &str = "https://github.com/alice/test";
     #[test]
     fn local_asset_policy_size_and_digest() {
         let t = tempfile::tempdir().unwrap();
         let path = t.path().join("archive.craftplugin");
         std::fs::write(&path, b"archive").unwrap();
         let mut asset = Asset { platform: None, url: format!("file://{}", path.display()), sha256: digest(b"archive"), size: 7 };
-        assert_eq!(Catalogue::download_release_from(&asset, 100, "file:///catalogue").unwrap(), b"archive");
+        assert_eq!(Catalogue::download_release_from(&asset, REPO, 100, "file:///catalogue").unwrap(), b"archive");
         if std::env::var("CRAFT_CATALOGUE_ALLOW_FILE").as_deref() == Ok("1") {
-            assert_eq!(Catalogue::download_release_from(&asset, 100, "https://example.com").unwrap(), b"archive");
+            assert_eq!(Catalogue::download_release_from(&asset, REPO, 100, "https://example.com").unwrap(), b"archive");
         } else {
-            assert!(Catalogue::download_release_from(&asset, 100, "https://example.com").is_err());
+            assert!(Catalogue::download_release_from(&asset, REPO, 100, "https://example.com").is_err());
         }
-        assert!(Catalogue::download_release_from(&asset, 3, "file:///catalogue").is_err());
+        assert!(Catalogue::download_release_from(&asset, REPO, 3, "file:///catalogue").is_err());
         asset.sha256 = "a".repeat(64);
-        assert!(Catalogue::download_release_from(&asset, 100, "file:///catalogue").is_err());
+        assert!(Catalogue::download_release_from(&asset, REPO, 100, "file:///catalogue").is_err());
         assert!(!verify_index(b"{}", &"0".repeat(128), TRUSTED_KEYS));
     }
 }
@@ -207,6 +264,49 @@ mod trust_tests {
         assert!(test_key("file:///c/", None, one.clone()).is_none());
         assert!(test_key("file:///c/", Some("zz".repeat(32)), one.clone()).is_none());
         assert!(test_key("file:///c/", Some("ab".into()), one).is_none());
+    }
+    #[test]
+    fn asset_urls_stay_in_the_package_repository_or_on_this_computer() {
+        let repo = "https://github.com/Alice/test";
+        for ok in [
+            "https://github.com/alice/test/releases/download/v1/a.craftplugin",
+            "https://github.com/ALICE/Test/releases/download/v1.2.0/a-b_c.craftplugin",
+            "https://github.com/alice/test/releases/download/group/v1/a.craftplugin",
+            "assets/a.craftplugin",
+            "file:///home/me/my plugins/a.craftplugin",
+        ] {
+            assert!(check_asset_url(ok, repo).is_ok(), "{ok}");
+        }
+        assert!(check_asset_url("https://github.com/alice/test/releases/download/v1/a.zip", "https://github.com/alice/test/").is_ok());
+        for bad in [
+            "http://github.com/alice/test/releases/download/v1/a.zip",
+            "https://github.com/bob/test/releases/download/v1/a.zip",
+            "https://github.com/alice/test2/releases/download/v1/a.zip",
+            "https://github.com/alice/test/archive/v1.zip",
+            "https://github.com/alice/test/releases/download/v1",
+            "https://github.com/alice/test/releases/download/v1/../a.zip",
+            "https://github.com/alice/test/releases/download/v1/%2e%2e/a.zip",
+            "https://github.com/alice/test/releases/download/v1/a.zip?x=1",
+            "https://github.com/alice/test/releases/download/v1/a.zip#x",
+            "https://github.com/alice/test/releases/download/v1/a b.zip",
+            "https://github.com/alice/test/releases/download//a.zip",
+            "https://github.com.evil.example/alice/test/releases/download/v1/a.zip",
+            "https://objects.githubusercontent.com/alice/test/a.zip",
+            "ftp://github.com/alice/test/releases/download/v1/a.zip",
+            "file:////server/share/a.craftplugin",
+            "file://server/share/a.craftplugin",
+            "file:///C:\\a.craftplugin",
+            "file:///a/../b.craftplugin",
+            "file:///a/%2F/b.craftplugin",
+            "../a.craftplugin",
+        ] {
+            assert!(check_asset_url(bad, repo).is_err(), "{bad}");
+        }
+        for bad_repo in ["https://gitlab.com/alice/test", "https://github.com/alice", "https://github.com/alice/test/tree/main", "http://github.com/alice/test", ""] {
+            assert!(check_asset_url("https://github.com/alice/test/releases/download/v1/a.zip", bad_repo).is_err(), "{bad_repo}");
+        }
+        // Relative and local assets don't depend on the repository.
+        assert!(check_asset_url("assets/a.craftplugin", "").is_ok());
     }
     #[test]
     fn relative_assets_resolve_inside_the_catalogue() {

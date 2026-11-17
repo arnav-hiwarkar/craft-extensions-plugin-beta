@@ -257,7 +257,8 @@ impl Manager {
         let mut archives = Vec::new();
         for release in plan {
             let asset = release.asset_for(&self.platform).ok_or_else(|| error("no release for this platform"))?;
-            let bytes = Catalogue::download_release_from(asset, 300 * 1024 * 1024, &self.catalogue_base)?;
+            let row = index.package(&release.manifest.id).ok_or_else(|| error("this plugin is not listed"))?;
+            let bytes = Catalogue::download_release_from(asset, &row.repo, 300 * 1024 * 1024, &self.catalogue_base)?;
             if temp_validation(&bytes)? != release.manifest {
                 return Err(error("the archive manifest differs from the catalogue"));
             }

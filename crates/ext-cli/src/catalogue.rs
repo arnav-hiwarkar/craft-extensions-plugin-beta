@@ -120,7 +120,7 @@ fn check_online(l: &Listing, v: &VendorRecord, r: &Release, _warnings: &mut Vec<
         return Err("release tag does not resolve to recorded commit".into());
     }
     for asset in &r.assets {
-        let bytes = craft_ext_store::catalogue::Catalogue::download_release(asset, 300 * 1024 * 1024)?;
+        let bytes = craft_ext_store::catalogue::Catalogue::download_release(asset, &l.repo, 300 * 1024 * 1024)?;
         let dir = temp_dir()?;
         let result = craft_ext_store::unpack::unpack_into(&bytes, &dir, craft_ext_store::unpack::Caps::default());
         let _ = fs::remove_dir_all(&dir);
