@@ -11,6 +11,7 @@ pub fn cost(op: &str, args: &Value, pixels: u64) -> u64 {
     let radius = args.get("radius").and_then(Value::as_f64).unwrap_or(1.0).clamp(1.0, MAX_RADIUS as f64) as u64;
     let per_pixel = match op {
         "kernel.blur" | "kernel.morphology" => 4 * radius,
+        "kernel.bilateral" => (2 * radius + 1).pow(2) * 4,
         "kernel.directional_blur" => args.get("length").and_then(Value::as_f64).unwrap_or(1.0).clamp(1.0, 2048.0) as u64,
         "kernel.convolve" => args.get("size").and_then(Value::as_u64).unwrap_or(3).min(MAX_CONVOLVE as u64).pow(2),
         "kernel.noise" => 8 * args.get("octaves").and_then(Value::as_u64).unwrap_or(1).clamp(1, 12),
@@ -340,7 +341,7 @@ pub fn color_matrix(img: &mut Image, m: &[f32]) -> Result<(), String> {
     Ok(())
 }
 
-fn lookup(curve: &[f32], v: f32) -> f32 {
+fn sample_curve(curve: &[f32], v: f32) -> f32 {
     let n = curve.len();
     if n < 2 {
         return v;
@@ -365,12 +366,12 @@ pub fn curves(img: &mut Image, args: &Value) -> Result<(), String> {
         let mut o = p;
         if let Some(c) = &rgb {
             for v in o.iter_mut().take(3) {
-                *v = lookup(c, *v);
+                *v = sample_curve(c, *v);
             }
         }
         for (i, c) in [&r, &g, &b, &a].into_iter().enumerate() {
             if let Some(c) = c {
-                o[i] = lookup(c, o[i]);
+                o[i] = sample_curve(c, o[i]);
             }
         }
         o
@@ -589,56 +590,117 @@ fn clamp_premultiplied(img: &mut Image) {
     }
 }
 
-pub fn inputs(op: &str) -> &'static [&'static str] {
-    match op {
-        "kernel.blend" => &["image", "src"],
-        "kernel.resample" | "kernel.warp_affine" => &["src", "image"],
-        _ => &["image"],
-    }
+pub struct Spec {
+    pub op: &'static str,
+    pub reads: &'static [&'static str],
+    pub writes: bool,
 }
 
-pub fn writes(op: &str) -> bool {
-    op != "kernel.histogram"
+const fn spec(op: &'static str, reads: &'static [&'static str], writes: bool) -> Spec {
+    Spec { op, reads, writes }
 }
 
-pub const OPS: &[&str] = &[
-    "kernel.blur",
-    "kernel.directional_blur",
-    "kernel.convolve",
-    "kernel.morphology",
-    "kernel.color_matrix",
-    "kernel.curves",
-    "kernel.blend",
-    "kernel.noise",
-    "kernel.resample",
-    "kernel.warp_affine",
-    "kernel.splat",
-    "kernel.histogram",
+pub const KERNELS: &[Spec] = &[
+    spec("kernel.blur", &["image"], true),
+    spec("kernel.directional_blur", &["image"], true),
+    spec("kernel.convolve", &["image"], true),
+    spec("kernel.morphology", &["image"], true),
+    spec("kernel.bilateral", &["image"], true),
+    spec("kernel.color_matrix", &["image"], true),
+    spec("kernel.curves", &["image"], true),
+    spec("kernel.blend", &["image", "src"], true),
+    spec("kernel.mix", &["image", "src"], true),
+    spec("kernel.mix_masked", &["image", "src", "mask"], true),
+    spec("kernel.noise", &["image"], true),
+    spec("kernel.resample", &["image", "src"], true),
+    spec("kernel.warp_affine", &["image", "src"], true),
+    spec("kernel.splat", &["image"], true),
+    spec("kernel.histogram", &["image"], false),
 ];
 
-pub fn run(op: &str, args: &Value, images: &mut [Image], splats: &[f32]) -> Result<Value, String> {
-    let (image, rest) = match op {
-        "kernel.resample" | "kernel.warp_affine" | "kernel.blend" => {
-            let [a, b] = images else { return Err("two images are required".into()) };
-            if op == "kernel.blend" {
-                (a, Some(&*b))
-            } else {
-                (b, Some(&*a))
+pub fn lookup(op: &str) -> Option<&'static Spec> {
+    KERNELS.iter().find(|k| k.op == op)
+}
+
+pub const MAX_BILATERAL: f32 = 32.0;
+
+pub fn bilateral(img: &mut Image, radius: f32, tolerance: f32) -> Result<(), String> {
+    if !(0.0..=MAX_BILATERAL).contains(&radius) || !(tolerance.is_finite() && tolerance > 0.0) {
+        return Err(format!("radius must be 0..={MAX_BILATERAL} and tolerance positive"));
+    }
+    let r = radius.round() as isize;
+    if r == 0 {
+        return Ok(());
+    }
+    let sigma_space = (radius / 2.0).max(0.5);
+    let space: Vec<f32> = (-r..=r).flat_map(|dy| (-r..=r).map(move |dx| (-((dx * dx + dy * dy) as f32) / (2.0 * sigma_space * sigma_space)).exp())).collect();
+    let range = 1.0 / (2.0 * tolerance * tolerance);
+    let src = img.clone();
+    rows(&mut img.px, img.width, |y, row| {
+        for x in 0..src.width {
+            let centre = src.at(x as isize, y as isize);
+            let (mut acc, mut total) = ([0.0f32; 4], 0.0f32);
+            for (k, w_space) in space.iter().enumerate() {
+                let (dx, dy) = ((k as isize % (2 * r + 1)) - r, (k as isize / (2 * r + 1)) - r);
+                let p = src.at(x as isize + dx, y as isize + dy);
+                let d = (0..3).map(|c| (p[c] - centre[c]).powi(2)).sum::<f32>();
+                let w = w_space * (-d * range).exp();
+                for c in 0..4 {
+                    acc[c] += p[c] * w;
+                }
+                total += w;
+            }
+            for c in 0..4 {
+                row[x * 4 + c] = acc[c] / total.max(f32::MIN_POSITIVE);
             }
         }
-        _ => {
-            let [a] = images else { return Err("one image is required".into()) };
-            (a, None)
+    });
+    Ok(())
+}
+
+fn luminance(p: &[f32]) -> f32 {
+    let a = p[3];
+    if a <= 0.0 {
+        return 0.0;
+    }
+    ((0.2126 * p[0] + 0.7152 * p[1] + 0.0722 * p[2]) / a).clamp(0.0, 1.0) * a
+}
+
+pub fn mix(img: &mut Image, src: &Image, amount: f32, mask: Option<&Image>) -> Result<(), String> {
+    if !(0.0..=1.0).contains(&amount) {
+        return Err("amount must be 0..=1".into());
+    }
+    if src.width != img.width || src.height != img.height || mask.is_some_and(|m| m.width != img.width || m.height != img.height) {
+        return Err("src and mask must be the same size as image".into());
+    }
+    let width = img.width;
+    rows(&mut img.px, width, |y, row| {
+        for x in 0..width {
+            let i = (y * width + x) * 4;
+            let t = amount * mask.map_or(1.0, |m| luminance(&m.px[i..i + 4]));
+            for c in 0..4 {
+                row[x * 4 + c] += (src.px[i + c] - row[x * 4 + c]) * t;
+            }
         }
-    };
+    });
+    Ok(())
+}
+
+pub fn run(op: &str, args: &Value, images: &mut [Image], splats: &[f32]) -> Result<Value, String> {
+    let spec = lookup(op).ok_or_else(|| format!("unknown kernel {op}"))?;
+    if images.len() != spec.reads.len() {
+        return Err(format!("{op} reads {} images", spec.reads.len()));
+    }
+    let (target, others) = images.split_first_mut().ok_or("an image is required")?;
+    let other = |i: usize| others.get(i).ok_or_else(|| format!("{} is required", spec.reads.get(i + 1).copied().unwrap_or("an image")));
     let s = |k: &str, d: &'static str| args.get(k).and_then(Value::as_str).unwrap_or(d).to_owned();
     match op {
-        "kernel.blur" => blur(image, num(args, "radius", 0.0), &s("kind", "gaussian"))?,
-        "kernel.directional_blur" => directional_blur(image, num(args, "angle", 0.0), num(args, "length", 0.0))?,
+        "kernel.blur" => blur(target, num(args, "radius", 0.0), &s("kind", "gaussian"))?,
+        "kernel.directional_blur" => directional_blur(target, num(args, "angle", 0.0), num(args, "length", 0.0))?,
         "kernel.convolve" => {
             let w = floats(args, "weights", MAX_CONVOLVE * MAX_CONVOLVE)?.ok_or("weights are required")?;
             let size = args.get("size").and_then(Value::as_u64).unwrap_or(3) as usize;
-            convolve(image, size, &w, num(args, "divisor", 1.0), num(args, "bias", 0.0))?;
+            convolve(target, size, &w, num(args, "divisor", 1.0), num(args, "bias", 0.0))?;
         }
         "kernel.morphology" => {
             let dilate = match s("op", "dilate").as_str() {
@@ -646,11 +708,14 @@ pub fn run(op: &str, args: &Value, images: &mut [Image], splats: &[f32]) -> Resu
                 "erode" => false,
                 _ => return Err("op must be dilate or erode".into()),
             };
-            morphology(image, num(args, "radius", 0.0), dilate)?;
+            morphology(target, num(args, "radius", 0.0), dilate)?;
         }
-        "kernel.color_matrix" => color_matrix(image, &floats(args, "matrix", 20)?.ok_or("matrix is required")?)?,
-        "kernel.curves" => curves(image, args)?,
-        "kernel.blend" => blend(image, rest.ok_or("src is required")?, &s("mode", "normal"), num(args, "opacity", 1.0))?,
+        "kernel.bilateral" => bilateral(target, num(args, "radius", 0.0), num(args, "tolerance", 0.1))?,
+        "kernel.color_matrix" => color_matrix(target, &floats(args, "matrix", 20)?.ok_or("matrix is required")?)?,
+        "kernel.curves" => curves(target, args)?,
+        "kernel.blend" => blend(target, other(0)?, &s("mode", "normal"), num(args, "opacity", 1.0))?,
+        "kernel.mix" => mix(target, other(0)?, num(args, "amount", 1.0), None)?,
+        "kernel.mix_masked" => mix(target, other(0)?, num(args, "amount", 1.0), Some(other(1)?))?,
         "kernel.noise" => {
             let multiply = match s("mode", "fill").as_str() {
                 "fill" => false,
@@ -659,12 +724,12 @@ pub fn run(op: &str, args: &Value, images: &mut [Image], splats: &[f32]) -> Resu
             };
             let octaves = args.get("octaves").and_then(Value::as_u64).unwrap_or(4) as u32;
             let seed = args.get("seed").and_then(Value::as_u64).unwrap_or(0) as u32;
-            noise(image, num(args, "scale", 32.0), octaves, seed, num(args, "z", 0.0), multiply)?;
+            noise(target, num(args, "scale", 32.0), octaves, seed, num(args, "z", 0.0), multiply)?;
         }
-        "kernel.resample" => resample(rest.ok_or("src is required")?, image),
-        "kernel.warp_affine" => warp_affine(rest.ok_or("src is required")?, image, &floats(args, "matrix", 6)?.ok_or("matrix is required")?)?,
-        "kernel.splat" => splat(image, splats)?,
-        "kernel.histogram" => return Ok(histogram(image)),
+        "kernel.resample" => resample(other(0)?, target),
+        "kernel.warp_affine" => warp_affine(other(0)?, target, &floats(args, "matrix", 6)?.ok_or("matrix is required")?)?,
+        "kernel.splat" => splat(target, splats)?,
+        "kernel.histogram" => return Ok(histogram(target)),
         _ => return Err(format!("unknown kernel {op}")),
     }
     Ok(Value::Null)
@@ -714,6 +779,8 @@ mod tests {
         assert!(color_matrix(&mut img, &[1.0; 19]).is_err());
         assert!(blend(&mut img, &Image::new(3, 2), "multiply", 1.0).is_err());
         assert!(run("kernel.nope", &json!({}), &mut [img], &[]).is_err());
+        assert_eq!(bilateral(&mut Image::new(1, 1), 40.0, 0.1).unwrap_err(), "radius must be 0..=32 and tolerance positive");
+        assert_eq!(mix(&mut Image::new(1, 1), &Image::new(1, 1), 1.5, None).unwrap_err(), "amount must be 0..=1");
     }
 
     #[test]
@@ -770,6 +837,27 @@ mod tests {
         noise(&mut b, 4.0, 3, 7, 0.0, false).unwrap();
         assert_eq!(a, b);
         assert!(a.px.chunks_exact(4).all(|p| (0.0..=1.0).contains(&p[0]) && p[3] == 1.0));
+    }
+
+    #[test]
+    fn bilateral_smooths_noise_but_keeps_a_hard_edge() {
+        let mut img = Image::new(8, 1);
+        for (x, v) in [0.10, 0.12, 0.09, 0.11, 0.90, 0.88, 0.91, 0.89].iter().enumerate() {
+            img.px[x * 4..x * 4 + 4].copy_from_slice(&[*v, *v, *v, 1.0]);
+        }
+        bilateral(&mut img, 3.0, 0.05).unwrap();
+        assert!((img.px[4] - 0.105).abs() < 0.01, "dark side smoothed: {}", img.px[4]);
+        assert!(img.px[3 * 4] < 0.2 && img.px[4 * 4] > 0.8, "edge kept: {} {}", img.px[12], img.px[16]);
+    }
+
+    #[test]
+    fn mix_moves_toward_src_by_amount_and_mask_luminance() {
+        let mut img = solid(2, 1, [0.0, 0.0, 0.0, 1.0]);
+        let src = solid(2, 1, [1.0, 1.0, 1.0, 1.0]);
+        let mut mask = solid(2, 1, [1.0, 1.0, 1.0, 1.0]);
+        mask.px[4..8].copy_from_slice(&[0.0, 0.0, 0.0, 1.0]);
+        mix(&mut img, &src, 0.5, Some(&mask)).unwrap();
+        assert_eq!(&img.px[..8], &[0.5, 0.5, 0.5, 1.0, 0.0, 0.0, 0.0, 1.0]);
     }
 
     #[test]

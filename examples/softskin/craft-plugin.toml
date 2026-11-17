@@ -1,0 +1,62 @@
+schema = 2
+id = "io.github.arnav-hiwarkar.softskin"
+name = "Softskin"
+version = "1.0.0"
+license = "MIT OR Apache-2.0"
+source = "https://github.com/arnav-hiwarkar/softskin"
+summary = "Smooths skin while keeping edges, eyes and hair sharp, with an automatic skin mask"
+tags = ["portrait", "retouch", "skin", "smoothing"]
+apps = ["photocraft", "effectcraft"]
+
+[[contribution]]
+id = "softskin"
+kind = "effect"
+contract = "raster.filter@1.0"
+label = "Softskin"
+category = "Retouch"
+module = "softskin.wasm"
+permissions = []
+
+[contribution.form]
+schema = 1
+key = "softskin"
+title = "Softskin"
+
+[contribution.form.preview]
+enabled = true
+compare = true
+
+[[contribution.form.params]]
+key = "amount"
+label = "Amount"
+[contribution.form.params.kind]
+type = "range"
+default = 0.7
+min = 0
+max = 1
+
+[[contribution.form.params]]
+key = "radius"
+label = "Smoothing radius"
+unit = "pixels"
+[contribution.form.params.kind]
+type = "range"
+default = 8
+min = 1
+max = 32
+
+[[contribution.form.params]]
+key = "detail"
+label = "Keep detail"
+[contribution.form.params.kind]
+type = "range"
+default = 0.08
+min = 0.01
+max = 0.4
+
+[[contribution.form.params]]
+key = "skin_only"
+label = "Skin only"
+[contribution.form.params.kind]
+type = "bool"
+default = true

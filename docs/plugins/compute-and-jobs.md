@@ -25,6 +25,9 @@ does this for you.
 | `kernel.directional_blur` | Motion blur | `angle` degrees, `length` 0..=2048 |
 | `kernel.convolve` | Odd `size`×`size` convolution, size ≤ 15 | `size`, `weights`, `divisor`, `bias` |
 | `kernel.morphology` | Dilate or erode | `radius`, `op` |
+| `kernel.bilateral` | Edge-preserving smoothing | `radius` 0..=32, `tolerance` (straight colour distance) |
+| `kernel.mix` | Move `image` toward `src` | `src`, `amount` 0..=1 |
+| `kernel.mix_masked` | `kernel.mix` weighted by `mask` luminance | `src`, `mask`, `amount` |
 | `kernel.color_matrix` | 4×5 matrix on straight colour | `matrix` (20 values) |
 | `kernel.curves` | Sampled curves on straight colour | `rgb`, `r`, `g`, `b`, `a` (2..=4096 values each) |
 | `kernel.blend` | Blend `src` over `image` | `src`, `mode`, `opacity` |

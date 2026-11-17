@@ -80,6 +80,25 @@ pub fn erode(img: &mut Image<'_>, radius: f32) -> Result<(), CallError> {
     run("kernel.morphology", json!({ "radius": radius, "op": "erode" }), img).map(drop)
 }
 
+/// Largest bilateral radius in pixels.
+pub const MAX_BILATERAL: f32 = 32.0;
+
+/// Edge-preserving smoothing: neighbours whose colour differs by more than about `tolerance`
+/// (0..1 straight colour) barely count, so edges stay sharp. Skin smoothing, denoise, cartoon looks.
+pub fn bilateral(img: &mut Image<'_>, radius: f32, tolerance: f32) -> Result<(), CallError> {
+    run("kernel.bilateral", json!({ "radius": radius, "tolerance": tolerance }), img).map(drop)
+}
+
+/// Moves `img` toward `src` (same size) by `amount` 0..=1.
+pub fn mix(img: &mut Image<'_>, src: &Image<'_>, amount: f32) -> Result<(), CallError> {
+    run("kernel.mix", json!({ "src": at(src), "amount": amount }), img).map(drop)
+}
+
+/// Like [`mix`], weighted per pixel by `mask`'s luminance: white applies `amount`, black keeps `img`.
+pub fn mix_masked(img: &mut Image<'_>, src: &Image<'_>, mask: &Image<'_>, amount: f32) -> Result<(), CallError> {
+    run("kernel.mix_masked", json!({ "src": at(src), "mask": at(mask), "amount": amount }), img).map(drop)
+}
+
 /// A 4×5 colour matrix on straight (unpremultiplied) RGBA: rows r, g, b, a of `[r, g, b, a, offset]`.
 pub fn color_matrix(img: &mut Image<'_>, matrix: [f32; 20]) -> Result<(), CallError> {
     run("kernel.color_matrix", json!({ "matrix": matrix }), img).map(drop)

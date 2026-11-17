@@ -217,10 +217,10 @@ fn charge(caller: &mut Caller<'_, HostData>, cost: u64) {
 }
 
 fn kernel_call(caller: &mut Caller<'_, HostData>, mem: &Memory, op: &str, args: &Value) -> Result<Value, OpError> {
-    if !kernels::OPS.contains(&op) {
+    let Some(spec) = kernels::lookup(op) else {
         return Err(OpError::new(Code::NotFound, format!("this app has no kernel {op}")));
-    }
-    let names = kernels::inputs(op);
+    };
+    let names = spec.reads;
     let refs = names.iter().map(|n| kernels::ImageRef::parse(args.get(*n), n)).collect::<Result<Vec<_>, _>>().map_err(OpError::invalid)?;
     let pixels = refs.iter().map(|r| (r.width * r.height) as u64).max().unwrap_or(0);
     let cost = kernels::cost(op, args, pixels);
@@ -247,9 +247,8 @@ fn kernel_call(caller: &mut Caller<'_, HostData>, mem: &Memory, op: &str, args: 
         _ => Vec::new(),
     };
     let out = kernels::run(op, args, &mut images, &splats).map_err(|why| OpError::invalid(format!("{op}: {why}")))?;
-    if kernels::writes(op) {
-        let at = names.iter().position(|n| *n == "image").unwrap_or(0);
-        let (Some(r), Some(img)) = (refs.get(at), images.get(at)) else { return Err(OpError::new(Code::Internal, "kernel image missing")) };
+    if spec.writes {
+        let (Some(r), Some(img)) = (refs.first(), images.first()) else { return Err(OpError::new(Code::Internal, "kernel image missing")) };
         let mut bytes = Vec::with_capacity(img.px.len() * 4);
         for v in &img.px {
             bytes.extend_from_slice(&(if v.is_finite() { *v } else { 0.0 }).to_le_bytes());
