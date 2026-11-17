@@ -72,8 +72,12 @@ fn draw_panel() -> Result<(), String> {
             ui::slider("out", "Leave (influence %)", s.curve.out_influence, 0.1, 100.0),
             ui::slider("in", "Arrive (influence %)", s.curve.in_influence, 0.1, 100.0),
             ui::select("property", "Property", &names, s.property as u32),
-            ui::button("apply", "Apply to selected layers"),
-            ui::label(s.note.as_str()).style(ui::TextStyle::Small),
+            ui::button("apply", "Apply to selected layers").variant(ui::Variant::Primary),
+            match s.note.as_str() {
+                "" => ui::label("Eases every key of the property on each selected layer.").style(ui::TextStyle::Small),
+                note if note.starts_with("Eased") => ui::notice(None, note, ui::Tone::Good),
+                note => ui::notice(None, note, ui::Tone::Warn),
+            },
         ]);
         ui::set_panel("glide", tree).map(drop).map_err(|e| e.to_string())
     })
