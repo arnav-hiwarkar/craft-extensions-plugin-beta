@@ -13,6 +13,7 @@ use std::{
     fs,
     path::Path,
 };
+mod submission;
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct VendorRecord {
@@ -127,7 +128,44 @@ fn validate_asset_url(repo: &str, tag: &str, url: &str) -> Result<()> {
     }
     Ok(())
 }
-fn check_online(l: &Listing, v: &VendorRecord, r: &Release, _warnings: &mut Vec<String>) -> Result<()> {
+#[derive(Debug)]
+pub struct OnlineFacts {
+    pub immutable: bool,
+    pub downloads: listing::Downloads,
+    pub attestation: std::result::Result<Option<listing::Attestation>, String>,
+}
+fn find_text<'v>(v: &'v Value, key: &str) -> Option<&'v str> {
+    match v {
+        Value::Object(map) => map.get(key).and_then(Value::as_str).or_else(|| map.values().find_map(|x| find_text(x, key))),
+        Value::Array(items) => items.iter().find_map(|x| find_text(x, key)),
+        _ => None,
+    }
+}
+fn attest(bytes: &[u8], repo: &str, workflow: &str, commit: &str) -> std::result::Result<listing::Attestation, String> {
+    let slug = repo.strip_prefix("https://github.com/").ok_or("the repository is not on GitHub")?.trim_end_matches('/');
+    let dir = temp_dir().map_err(|e| e.to_string())?;
+    let file = dir.join("asset");
+    let output = fs::write(&file, bytes).map_err(|e| e.to_string()).and_then(|()| {
+        std::process::Command::new("gh")
+            .args(["attestation", "verify"])
+            .arg(&file)
+            .args(["--repo", slug, "--signer-workflow", &format!("{slug}/{workflow}"), "--format", "json"])
+            .output()
+            .map_err(|e| format!("gh is not available, so the attestation cannot be checked: {e}"))
+    });
+    let _ = fs::remove_dir_all(&dir);
+    let output = output?;
+    if !output.status.success() {
+        return Err(format!("gh attestation verify refused the asset: {}", String::from_utf8_lossy(&output.stderr).trim()));
+    }
+    let report: Value = serde_json::from_slice(&output.stdout).map_err(|e| format!("gh printed unreadable JSON: {e}"))?;
+    let source = find_text(&report, "sourceRepositoryDigest").ok_or("the attestation names no source commit")?;
+    if source != commit {
+        return Err(format!("the attestation was built from commit {source}, not the release commit {commit}"));
+    }
+    Ok(listing::Attestation { verified: true, signer_workflow: workflow.into(), source_commit: source.into() })
+}
+fn check_online(l: &Listing, v: &VendorRecord, r: &Release) -> Result<OnlineFacts> {
     let repo = github(&l.repo, "")?;
     if repo["private"].as_bool() != Some(false) {
         return Err("repository must be public".into());
@@ -161,6 +199,9 @@ fn check_online(l: &Listing, v: &VendorRecord, r: &Release, _warnings: &mut Vec<
     if commit["sha"].as_str() != Some(&r.commit) {
         return Err("release tag does not resolve to recorded commit".into());
     }
+    let release = github(&l.repo, &format!("/releases/tags/{}", r.tag))?;
+    let count = release["assets"].as_array().map(|a| a.iter().filter_map(|x| x["download_count"].as_u64()).sum()).unwrap_or(0);
+    let mut attestation = Ok(None);
     for asset in &r.assets {
         let bytes = craft_ext_store::catalogue::Catalogue::download_release(asset, &l.repo, 300 * 1024 * 1024)?;
         let dir = temp_dir()?;
@@ -170,8 +211,15 @@ fn check_online(l: &Listing, v: &VendorRecord, r: &Release, _warnings: &mut Vec<
         if m != r.manifest {
             return Err("downloaded manifest differs from release record".into());
         }
+        if let (Some(workflow), Ok(_)) = (&l.signer_workflow, &attestation) {
+            attestation = attest(&bytes, &l.repo, workflow, &r.commit).map(Some);
+        }
     }
-    Ok(())
+    Ok(OnlineFacts {
+        immutable: release["immutable"].as_bool() == Some(true),
+        downloads: listing::Downloads { count, date: crate::author::date(craft_ext_store::store::now()) },
+        attestation,
+    })
 }
 fn temp_dir() -> Result<std::path::PathBuf> {
     let mut seed = [0; 16];
@@ -250,7 +298,7 @@ pub fn assemble(repo: &Path, offline: bool, only: Option<&str>) -> Result<Assemb
                     }
                 }
             }
-            let r: Release = raw.try_into()?;
+            let mut r: Release = raw.try_into()?;
             r.manifest.validate()?;
             r.check_listing().map_err(|e| format!("{} {}: {e}", l.id, r.version))?;
             if r.manifest.id != l.id || r.version != r.manifest.version || r.manifest.source != l.repo {
@@ -279,7 +327,9 @@ pub fn assemble(repo: &Path, offline: bool, only: Option<&str>) -> Result<Assemb
                 }
             }
             if !offline {
-                check_online(&l, v, &r, &mut warnings)?
+                let facts = check_online(&l, v, &r)?;
+                r.downloads = Some(facts.downloads);
+                r.attestation = facts.attestation.map_err(|e| format!("{} {}: {e}", l.id, r.version))?;
             }
             releases.push(r);
         }
@@ -293,8 +343,12 @@ pub fn assemble(repo: &Path, offline: bool, only: Option<&str>) -> Result<Assemb
                     if digests(&old) != digests(new) {
                         return Err("published asset digests changed or were removed".into());
                     }
-                    new.attestation = old.attestation;
-                    new.downloads = old.downloads;
+                    if new.attestation.is_none() {
+                        new.attestation = old.attestation;
+                    }
+                    if new.downloads.is_none() {
+                        new.downloads = old.downloads;
+                    }
                 }
             }
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
@@ -512,10 +566,10 @@ fn asset_url(path: &Path, out: &Path) -> Result<String> {
     Ok(format!("file://{}", path.display()))
 }
 pub fn run(args: &[String]) -> Result<Value> {
-    let a = Args::parse(args, &["repo", "only", "key", "out", "local-assets"], &["offline"])?;
+    let a = Args::parse(args, &["repo", "only", "key", "out", "local-assets", "id"], &["offline"])?;
     if a.pos.is_empty() || a.has("help") {
         return Ok(json!(
-            "catalogue check --repo <dir> [--offline] [--only id] | build --repo <dir> [--offline] | build --local-assets <dir> --out <dir> | sign --repo <dir> --key <32-byte-hex-seed-file> | keygen --repo <dir> --out <file>. All accept --json. Review source/build provenance, free behaviour and permissions manually."
+            "catalogue check --repo <dir> [--offline] [--only id] | check-submission --repo <dir> --id <id> [--offline] | build --repo <dir> [--offline] | build --local-assets <dir> --out <dir> | sign --repo <dir> --key <32-byte-hex-seed-file> | keygen --repo <dir> --out <file>. All accept --json. Review source/build provenance, free behaviour and permissions manually."
         ));
     }
     a.arity(1)?;
@@ -531,6 +585,15 @@ pub fn run(args: &[String]) -> Result<Value> {
             )
         }
         "build" => build(repo, a.has("offline")),
+        "check-submission" => {
+            let id = a.opt("id").ok_or_else(|| Usage("--id is required".into()))?;
+            let report = submission::run(repo, id, a.has("offline"));
+            let value = serde_json::to_value(&report)?;
+            if report.verdict == submission::Status::Fail {
+                return Err(format!("submission refused: {}", serde_json::to_string_pretty(&value)?).into());
+            }
+            Ok(value)
+        }
         "keygen" => {
             let path = a.opt("out").ok_or_else(|| Usage("--out is required".into()))?;
             let mut seed = [0; 32];
@@ -719,7 +782,7 @@ mod listing_tests {
     #[test]
     fn build_refuses_bad_listing_values_with_the_field_named() {
         let cases = [
-            ("categories=['3d-particles']\n", "io.github.alice.test: categories: 3d-particles does not apply to any app this plugin supports"),
+            ("homepage='http://alice.example'\n", "io.github.alice.test: homepage: must start with https://"),
             ("summary='Fine'\ntags=['a']\n", "duplicate key"),
             ("icon={path='media/missing.png',sha256='aa',size=1,width=1,height=1}\n", "No such file"),
             ("categories=['sparkles']\n", "unknown variant"),

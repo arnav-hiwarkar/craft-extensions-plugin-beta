@@ -21,6 +21,7 @@ pub mod manifest;
 pub mod path;
 pub mod permission;
 pub mod project;
+pub mod review;
 pub mod text;
 pub mod tier;
 pub mod ui;
