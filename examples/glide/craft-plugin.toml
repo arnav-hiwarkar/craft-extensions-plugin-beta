@@ -1,0 +1,22 @@
+schema = 2
+id = "io.github.arnav-hiwarkar.glide"
+name = "Glide"
+version = "1.0.0"
+license = "MIT OR Apache-2.0"
+source = "https://github.com/arnav-hiwarkar/glide"
+summary = "See and apply easing curves to keyframes in one click"
+tags = ["easing", "keyframes", "motion", "animation"]
+apps = ["effectcraft"]
+
+[why]
+"document.read:selection" = "Finds the layers you selected"
+"document.read:document" = "Reads the keyframes of the property you choose"
+"document.edit:document" = "Eases those keyframes when you press Apply"
+
+[[contribution]]
+id = "glide"
+kind = "panel"
+contract = "effectcraft.session@1.2"
+label = "Glide"
+module = "glide.wasm"
+permissions = ["document.read:selection", "document.read:document", "document.edit:document"]

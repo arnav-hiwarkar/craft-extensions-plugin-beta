@@ -7,7 +7,7 @@ Generated from the `effectcraft` adapter by `<app>-cli plugin contract`. Do not 
 | Contract | Version |
 |---|---|
 | `raster.filter` | 1.0 |
-| `effectcraft.session` | 1.1 |
+| `effectcraft.session` | 1.2 |
 | `resource.preset` | 1.0 |
 | `resource.lut` | 1.0 |
 | `craft-theme` | 1.0 |
