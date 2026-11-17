@@ -1,12 +1,8 @@
-//! Maintainer repository layout: vendors/<login>.toml (Vendor plus verified_how),
-//! plugins/<id>/listing.toml (id, vendor, repo, repo_id, tags), and
-//! plugins/<id>/releases/<version>.toml (core Release). revocations.toml contains
-//! [[revocation]] core Revocation records. Generated metadata lives in dist/index.json,
-//! dist/index.json.sig and dist/packages/<id>.json. Trust tier belongs only to vendors.
 use crate::{Args, Result, Usage};
 use craft_ext_core::{
     catalogue::*,
     id::ExtensionId,
+    listing::{self, Category, Image, ImageRole},
     tier::{self, VendorTier},
 };
 use ed25519_dalek::{Signer, SigningKey};
@@ -43,7 +39,53 @@ struct Listing {
     tags: Vec<String>,
     licence_reviewed: Option<String>,
     monetisation_reviewed: Option<String>,
+    summary: Option<String>,
+    description: Option<String>,
+    #[serde(default)]
+    categories: Vec<Category>,
+    icon: Option<MediaRecord>,
+    #[serde(default)]
+    screenshots: Vec<MediaRecord>,
+    homepage: Option<String>,
+    signer_workflow: Option<String>,
 }
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct MediaRecord {
+    path: Option<String>,
+    url: Option<String>,
+    sha256: String,
+    size: u64,
+    width: u32,
+    height: u32,
+}
+#[derive(Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Featured {
+    #[serde(default)]
+    ids: Vec<ExtensionId>,
+}
+pub(crate) const RELEASE_FIELDS: &[&str] = &["version", "tag", "commit", "published", "assets", "manifest", "changelog"];
+fn media(dir: &Path, id: &ExtensionId, record: &MediaRecord, role: ImageRole, repo: &str) -> Result<(Image, Option<Vec<u8>>)> {
+    let (url, bytes) = match (&record.path, &record.url) {
+        (Some(path), None) => {
+            if path.contains("://") || !listing::media_url_ok(path, repo) {
+                return Err(format!("{id}: media path {path} must be a .png file inside the plugin directory").into());
+            }
+            let name = path.rsplit('/').next().unwrap_or(path);
+            (format!("media/{id}/{name}"), Some(fs::read(dir.join(path))?))
+        }
+        (None, Some(url)) if url.starts_with("https://") => (url.clone(), None),
+        _ => return Err(format!("{id}: each image needs exactly one of path or an https release-asset url").into()),
+    };
+    let image = Image { url, sha256: record.sha256.clone(), size: record.size, width: record.width, height: record.height };
+    image.check(role, repo).map_err(|e| format!("{id}: {e}"))?;
+    if let Some(b) = &bytes {
+        image.check_bytes(role, b, &craft_ext_store::store::digest(b)).map_err(|e| format!("{id}: {e}"))?;
+    }
+    Ok((image, bytes))
+}
+pub(crate) type MediaFiles = Vec<(String, Vec<u8>)>;
 #[derive(Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Revocations {
@@ -138,7 +180,14 @@ fn temp_dir() -> Result<std::path::PathBuf> {
     fs::create_dir(&p)?;
     Ok(p)
 }
-pub fn assemble(repo: &Path, offline: bool, only: Option<&str>) -> Result<(Index, Vec<PackageFile>, Vec<String>)> {
+#[derive(Debug)]
+pub struct Assembled {
+    pub index: Index,
+    pub packages: Vec<PackageFile>,
+    pub media: MediaFiles,
+    pub warnings: Vec<String>,
+}
+pub fn assemble(repo: &Path, offline: bool, only: Option<&str>) -> Result<Assembled> {
     let old = match fs::read(repo.join("dist/index.json")) {
         Ok(b) => Some(Index::parse_cached(&b)?),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
@@ -159,6 +208,7 @@ pub fn assemble(repo: &Path, offline: bool, only: Option<&str>) -> Result<(Index
     }
     let mut packages = vec![];
     let mut summaries = vec![];
+    let mut media_files = vec![];
     let mut warnings = vec![];
     for dir in entries(&repo.join("plugins"))? {
         if !dir.is_dir() {
@@ -190,7 +240,7 @@ pub fn assemble(repo: &Path, offline: bool, only: Option<&str>) -> Result<(Index
                 continue;
             }
             let raw: toml::Table = read(&p)?;
-            if raw.keys().any(|k| !["version", "tag", "commit", "published", "assets", "manifest"].contains(&k.as_str())) {
+            if raw.keys().any(|k| !RELEASE_FIELDS.contains(&k.as_str())) {
                 return Err("unknown field in release record (trust and payment fields are not allowed)".into());
             }
             if let Some(assets) = raw.get("assets").and_then(|v| v.as_array()) {
@@ -202,6 +252,7 @@ pub fn assemble(repo: &Path, offline: bool, only: Option<&str>) -> Result<(Index
             }
             let r: Release = raw.try_into()?;
             r.manifest.validate()?;
+            r.check_listing().map_err(|e| format!("{} {}: {e}", l.id, r.version))?;
             if r.manifest.id != l.id || r.version != r.manifest.version || r.manifest.source != l.repo {
                 return Err("release identity, version or source differs from listing".into());
             }
@@ -237,11 +288,13 @@ pub fn assemble(repo: &Path, offline: bool, only: Option<&str>) -> Result<(Index
             Ok(bytes) => {
                 let previous = PackageFile::parse(&bytes, &l.id)?;
                 for old in previous.releases {
-                    let new = releases.iter().find(|r| r.version == old.version).ok_or("published version was removed")?;
+                    let new = releases.iter_mut().find(|r| r.version == old.version).ok_or("published version was removed")?;
                     let digests = |r: &Release| r.assets.iter().map(|a| (a.platform.clone(), a.sha256.clone())).collect::<BTreeMap<_, _>>();
                     if digests(&old) != digests(new) {
                         return Err("published asset digests changed or were removed".into());
                     }
+                    new.attestation = old.attestation;
+                    new.downloads = old.downloads;
                 }
             }
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
@@ -260,10 +313,24 @@ pub fn assemble(repo: &Path, offline: bool, only: Option<&str>) -> Result<(Index
         let package = PackageFile { schema: SCHEMA, id: l.id.clone(), vendor: l.vendor.clone(), releases: releases.clone() };
         let bytes = serde_json::to_vec_pretty(&package)?;
         PackageFile::parse(&bytes, &l.id)?;
-        summaries.push(PackageSummary {
+        let mut image = |record: &MediaRecord, role: ImageRole| -> Result<Image> {
+            let (image, bytes) = media(&dir, &l.id, record, role, &l.repo)?;
+            if let Some(b) = bytes {
+                media_files.push((image.url.clone(), b));
+            }
+            Ok(image)
+        };
+        let icon = l.icon.as_ref().map(|r| image(r, ImageRole::Icon)).transpose()?;
+        let screenshots = l.screenshots.iter().map(|r| image(r, ImageRole::Screenshot)).collect::<Result<Vec<_>>>()?;
+        if let Some(w) = &l.signer_workflow {
+            listing::check_signer_workflow(w).map_err(|e| format!("{}: {e}", l.id))?;
+        }
+        let total: u64 = releases.iter().filter_map(|r| r.downloads.as_ref()).map(|d| d.count).sum();
+        let downloads = releases.iter().filter_map(|r| r.downloads.as_ref()).map(|d| d.date.clone()).max().map(|date| listing::Downloads { count: total, date });
+        let row = PackageSummary {
             id: l.id,
             name: m.name.clone(),
-            summary: m.summary.clone(),
+            summary: l.summary.unwrap_or_else(|| m.summary.clone()),
             vendor: l.vendor,
             repo: l.repo,
             stars,
@@ -277,7 +344,15 @@ pub fn assemble(repo: &Path, offline: bool, only: Option<&str>) -> Result<(Index
             file_sha256: craft_ext_store::store::digest(&bytes),
             file_size: bytes.len() as u64,
             stars_date,
-        });
+            description: l.description.unwrap_or_else(|| m.description.clone()),
+            categories: l.categories,
+            icon,
+            screenshots,
+            homepage: l.homepage,
+            downloads,
+        };
+        row.check_listing().map_err(|e| format!("{}: {e}", row.id))?;
+        summaries.push(row);
         packages.push(package);
     }
     if only.is_some() && packages.is_empty() {
@@ -285,6 +360,7 @@ pub fn assemble(repo: &Path, offline: bool, only: Option<&str>) -> Result<(Index
     }
     let revocations: Revocations =
         if repo.join("revocations.toml").exists() { read(&repo.join("revocations.toml"))? } else { Revocations::default() };
+    let featured: Featured = if repo.join("featured.toml").exists() { read(&repo.join("featured.toml"))? } else { Featured::default() };
     let now = craft_ext_store::store::now();
     let index = Index {
         schema: SCHEMA,
@@ -294,24 +370,30 @@ pub fn assemble(repo: &Path, offline: bool, only: Option<&str>) -> Result<(Index
         vendors: vendors.values().map(VendorRecord::vendor).collect(),
         packages: summaries,
         revocations: revocations.revocation,
+        schema_minor: listing::SCHEMA_MINOR,
+        featured: if only.is_some() { vec![] } else { featured.ids },
     };
+    index.check_listing()?;
     Index::parse(&serde_json::to_vec(&index)?, now, 0)?;
-    Ok((index, packages, warnings))
+    Ok(Assembled { index, packages, media: media_files, warnings })
 }
 pub fn build(repo: &Path, offline: bool) -> Result<Value> {
-    let (i, packages, warnings) = assemble(repo, offline, None)?;
+    let Assembled { index: i, packages, media, warnings } = assemble(repo, offline, None)?;
     fs::create_dir_all(repo.join("dist/packages"))?;
     for p in packages {
         fs::write(repo.join(format!("dist/packages/{}.json", p.id)), serde_json::to_vec_pretty(&p)?)?;
+    }
+    for (url, bytes) in media {
+        let path = repo.join("dist").join(&url);
+        fs::create_dir_all(path.parent().ok_or("media path has no folder")?)?;
+        fs::write(path, bytes)?;
     }
     fs::write(repo.join("dist/index.json"), serde_json::to_vec_pretty(&i)?)?;
     let _ = fs::remove_file(repo.join("dist/index.json.sig"));
     Ok(json!({"serial":i.serial,"packages":i.packages.len(),"warnings":warnings,"next":"catalogue sign --repo <repo> --key <file>"}))
 }
-/// Build development metadata from real archives; signing remains a separate explicit step.
 pub fn build_local(assets: &Path, out: &Path) -> Result<Value> {
     fs::create_dir_all(out)?;
-    // Archives inside the catalogue directory get relative URLs, so the directory stays portable.
     let out_abs = out.canonicalize()?;
     let mut grouped: BTreeMap<ExtensionId, Vec<Release>> = BTreeMap::new();
     for path in entries(assets)? {
@@ -338,6 +420,9 @@ pub fn build_local(assets: &Path, out: &Path) -> Result<Value> {
                 size: bytes.len() as u64,
             }],
             manifest: m,
+            changelog: String::new(),
+            attestation: None,
+            downloads: None,
         });
     }
     fs::create_dir_all(out.join("packages"))?;
@@ -373,6 +458,12 @@ pub fn build_local(assets: &Path, out: &Path) -> Result<Value> {
             updated: newest.published.clone(),
             file_sha256: craft_ext_store::store::digest(&bytes),
             file_size: bytes.len() as u64,
+            description: m.description.clone(),
+            categories: vec![],
+            icon: None,
+            screenshots: vec![],
+            homepage: None,
+            downloads: None,
         });
     }
     let now = craft_ext_store::store::now();
@@ -391,6 +482,8 @@ pub fn build_local(assets: &Path, out: &Path) -> Result<Value> {
         vendors: vendors.into_values().collect(),
         packages: rows,
         revocations: revocations.revocation,
+        schema_minor: listing::SCHEMA_MINOR,
+        featured: vec![],
     };
     let bytes = serde_json::to_vec_pretty(&index)?;
     Index::parse(&bytes, now, 0)?;
@@ -398,8 +491,6 @@ pub fn build_local(assets: &Path, out: &Path) -> Result<Value> {
     let _ = fs::remove_file(out.join("index.json.sig"));
     Ok(json!({"packages":index.packages.len(),"next":"catalogue sign --repo <out> --key <file>"}))
 }
-/// Which platform a local native archive serves. Distinct paths per platform make one universal
-/// archive (every helper is inside); one shared path means one archive per platform, built here.
 fn asset_platform(executables: &BTreeMap<String, String>) -> Option<String> {
     let distinct = executables.values().collect::<BTreeSet<_>>().len() == executables.len();
     match (distinct, executables.len()) {
@@ -434,7 +525,7 @@ pub fn run(args: &[String]) -> Result<Value> {
     let repo = Path::new(a.opt("repo").ok_or_else(|| Usage("--repo is required".into()))?);
     match a.at(0)? {
         "check" => {
-            let (i, _, warnings) = assemble(repo, a.has("offline"), a.opt("only"))?;
+            let Assembled { index: i, warnings, .. } = assemble(repo, a.has("offline"), a.opt("only"))?;
             Ok(
                 json!({"packages":i.packages.len(),"warnings":warnings,"checklist":["Schema, vendor, namespace, OSI licence, source identity and assets checked",if a.has("offline"){"Online repository, tag and archive checks skipped"}else{"Public repository, numeric id, licence, tag, size, digest and unpacked manifest checked"},"MANUAL: confirm source-to-build provenance","MANUAL: review free behaviour, monetisation wording and permission reasons"]}),
             )
@@ -473,9 +564,9 @@ pub fn run(args: &[String]) -> Result<Value> {
     }
 }
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
-    fn fixture() -> Release {
+    pub(crate) fn fixture() -> Release {
         let manifest = craft_ext_core::manifest::Manifest::parse(
             br#"schema=2
 id="io.github.alice.test"
@@ -506,6 +597,9 @@ files=["data.json"]
                 size: 100,
             }],
             manifest,
+            changelog: String::new(),
+            attestation: None,
+            downloads: None,
         }
     }
     #[test]
@@ -561,6 +655,95 @@ files=["data.json"]
 }
 
 #[cfg(test)]
+mod listing_tests {
+    use super::*;
+    pub(crate) fn png(width: u32, height: u32) -> Vec<u8> {
+        let mut b = b"\x89PNG\r\n\x1a\n\0\0\0\x0dIHDR".to_vec();
+        b.extend_from_slice(&width.to_be_bytes());
+        b.extend_from_slice(&height.to_be_bytes());
+        b
+    }
+    pub(crate) fn repository(listing_extra: &str) -> tempfile::TempDir {
+        let d = tempfile::tempdir().unwrap();
+        let p = d.path();
+        let plugin = p.join("plugins/io.github.alice.test");
+        fs::create_dir_all(p.join("vendors")).unwrap();
+        fs::create_dir_all(plugin.join("releases")).unwrap();
+        fs::create_dir_all(plugin.join("media")).unwrap();
+        fs::write(p.join("vendors/alice.toml"), "login='alice'\ngithub_id=1\nname='Alice'\ntier='community'\n").unwrap();
+        fs::write(
+            plugin.join("listing.toml"),
+            format!("id='io.github.alice.test'\nvendor='alice'\nrepo='https://github.com/alice/test'\nrepo_id=2\ntags=['grain']\n{listing_extra}"),
+        )
+        .unwrap();
+        let mut release = tests::fixture();
+        release.changelog = "First release".into();
+        fs::write(plugin.join("releases/1.0.0.toml"), toml::to_string_pretty(&release).unwrap()).unwrap();
+        d
+    }
+    fn icon_record(dir: &Path) -> String {
+        let icon = png(128, 128);
+        fs::write(dir.join("plugins/io.github.alice.test/media/icon.png"), &icon).unwrap();
+        format!(
+            "icon={{path='media/icon.png',sha256='{}',size={},width=128,height=128}}\n",
+            craft_ext_store::store::digest(&icon),
+            icon.len()
+        )
+    }
+    #[test]
+    fn build_publishes_listing_1_1_fields_and_media() {
+        let d = repository("");
+        let p = d.path();
+        let extra = format!(
+            "{}summary='Film grain in one click'\ncategories=['color-looks']\nhomepage='https://alice.example'\nscreenshots=[{{url='https://github.com/alice/test/releases/download/v1.0.0/shot.png',sha256='{}',size=900,width=1280,height=720}}]\n",
+            icon_record(p),
+            "b".repeat(64)
+        );
+        let listing = p.join("plugins/io.github.alice.test/listing.toml");
+        fs::write(&listing, format!("{}{extra}", fs::read_to_string(&listing).unwrap())).unwrap();
+        fs::write(p.join("featured.toml"), "ids=['io.github.alice.test']\n").unwrap();
+        build(p, true).unwrap();
+        let index = Index::parse(&fs::read(p.join("dist/index.json")).unwrap(), craft_ext_store::store::now(), 0).unwrap();
+        let row = &index.packages[0];
+        assert_eq!(index.schema_minor, 1);
+        assert_eq!(index.featured, vec![row.id.clone()]);
+        assert_eq!(row.summary, "Film grain in one click");
+        assert_eq!(row.categories, vec![Category::ColorLooks]);
+        assert_eq!(row.icon.as_ref().unwrap().url, "media/io.github.alice.test/icon.png");
+        assert_eq!(fs::read(p.join("dist/media/io.github.alice.test/icon.png")).unwrap(), png(128, 128));
+        assert_eq!(row.screenshots[0].width, 1280);
+        assert_eq!(row.homepage.as_deref(), Some("https://alice.example"));
+        let package = PackageFile::parse(&fs::read(p.join("dist/packages/io.github.alice.test.json")).unwrap(), &row.id).unwrap();
+        assert_eq!(package.releases[0].changelog, "First release");
+    }
+    #[test]
+    fn build_refuses_bad_listing_values_with_the_field_named() {
+        let cases = [
+            ("categories=['3d-particles']\n", "io.github.alice.test: categories: 3d-particles does not apply to any app this plugin supports"),
+            ("summary='Fine'\ntags=['a']\n", "duplicate key"),
+            ("icon={path='media/missing.png',sha256='aa',size=1,width=1,height=1}\n", "No such file"),
+            ("categories=['sparkles']\n", "unknown variant"),
+            ("signer_workflow='release.yml'\n", "io.github.alice.test: signer_workflow: must be a workflow file such as .github/workflows/release.yml"),
+        ];
+        for (extra, expected) in cases {
+            let d = repository(extra);
+            let e = assemble(d.path(), true, None).unwrap_err().to_string();
+            assert!(e.contains(expected), "{extra}: {e}");
+        }
+        let d = repository("");
+        let icon = png(64, 32);
+        fs::write(d.path().join("plugins/io.github.alice.test/media/icon.png"), &icon).unwrap();
+        let listing = d.path().join("plugins/io.github.alice.test/listing.toml");
+        let record = format!("icon={{path='media/icon.png',sha256='{}',size={},width=64,height=64}}\n", craft_ext_store::store::digest(&icon), icon.len());
+        fs::write(&listing, format!("{}{record}", fs::read_to_string(&listing).unwrap())).unwrap();
+        assert_eq!(assemble(d.path(), true, None).unwrap_err().to_string(), "io.github.alice.test: icon: the PNG is 64x32, not the recorded 64x64");
+        fs::write(d.path().join("featured.toml"), "ids=['io.github.alice.gone']\n").unwrap();
+        fs::write(&listing, fs::read_to_string(&listing).unwrap().replace(&record, "")).unwrap();
+        assert_eq!(assemble(d.path(), true, None).unwrap_err().to_string(), "featured: io.github.alice.gone is not a listed package");
+    }
+}
+
+#[cfg(test)]
 mod beta_tests {
     use super::*;
     #[test]
@@ -582,7 +765,6 @@ mod beta_tests {
         run(&["sign".into(), "--repo".into(), repo.clone(), "--key".into(), key.clone()]).unwrap();
         let seed: [u8; 32] = hex::decode(fs::read_to_string(keypath).unwrap().trim()).unwrap().try_into().unwrap();
         let public = hex::encode(SigningKey::from_bytes(&seed).verifying_key().as_bytes());
-        // Only the public key is printed, never the secret seed.
         println!("public_key={public}");
     }
     #[test]
@@ -601,9 +783,7 @@ mod beta_tests {
                 }
             }
         }
-        // Film looks has both 1.0.0 and 1.1.0; halftone, color notes and figcraft-shapes have one each.
         assert_eq!(count, 5);
-        // Test the current source records, independently of previously generated/signed dist files.
         let fresh = tempfile::tempdir().unwrap();
         fn copy_source(from: &Path, to: &Path) {
             fs::create_dir_all(to).unwrap();
@@ -619,7 +799,7 @@ mod beta_tests {
         for dir in ["plugins", "vendors"] {
             copy_source(&repo.join(dir), &fresh.path().join(dir));
         }
-        let (_, packages, _) = assemble(fresh.path(), true, None).unwrap();
+        let packages = assemble(fresh.path(), true, None).unwrap().packages;
         assert_eq!(packages.len(), 1);
         assert_eq!(packages[0].id.as_str(), "io.github.arnav-hiwarkar.film-looks");
     }
@@ -662,7 +842,6 @@ mod local_tests {
         assert_eq!(i.packages.len(), 1);
         let p = PackageFile::parse(&fs::read(out.join("packages/io.github.alice.local.json")).unwrap(), &i.packages[0].id).unwrap();
         assert!(p.releases[0].assets[0].url.starts_with("file:///"));
-        // Archives inside the catalogue directory are referenced relatively.
         let inside = out.join("assets");
         fs::create_dir(&inside).unwrap();
         fs::copy(assets.join("one.craftplugin"), inside.join("one.craftplugin")).unwrap();

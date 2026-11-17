@@ -1,9 +1,7 @@
 {
   "crates/ext-cli/src/author.rs": 4,
-  "crates/ext-cli/src/catalogue.rs": 13,
   "crates/ext-cli/src/known_apps.rs": 2,
   "crates/ext-cli/src/lib.rs": 5,
-  "crates/ext-core/src/catalogue.rs": 42,
   "crates/ext-core/src/contract.rs": 29,
   "crates/ext-core/src/form.rs": 4,
   "crates/ext-core/src/id.rs": 10,

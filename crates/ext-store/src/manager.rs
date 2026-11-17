@@ -529,7 +529,7 @@ mod dependency_tests {
         let half = ExtensionId::new("io.github.arnav-hiwarkar.halftone").unwrap();
         std::fs::create_dir(temp.path().join("packages")).unwrap();
         let mut packages = Vec::new();
-        let mut index = Index { schema: 1, serial: 1, issued: 0, expires: u64::MAX, vendors: vec![], packages: vec![], revocations: vec![] };
+        let mut index = Index { schema: 1, serial: 1, issued: 0, expires: u64::MAX, vendors: vec![], packages: vec![], revocations: vec![], schema_minor: 1, featured: vec![] };
         for text in [include_str!("../../../examples/film-looks/craft-plugin.toml"), include_str!("../../../examples/halftone/craft-plugin.toml")] {
             let manifest = Manifest::parse(text.as_bytes()).unwrap();
             let id = manifest.id.clone();
@@ -549,6 +549,9 @@ mod dependency_tests {
                     size: 1,
                 }],
                 manifest: manifest.clone(),
+                changelog: String::new(),
+                attestation: None,
+                downloads: None,
             };
             let repo = if id == film { "film-looks" } else { "halftone" };
             packages.push(

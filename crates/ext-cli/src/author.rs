@@ -320,6 +320,9 @@ pub fn run(args: &[String]) -> Result<Value> {
                         size: bytes.len() as u64,
                     }],
                     manifest: m.clone(),
+                    changelog: String::new(),
+                    attestation: None,
+                    downloads: None,
                 };
                 fs::write(dir.join(format!("{}.toml", m.version)), toml::to_string_pretty(&r)?)?;
             }
