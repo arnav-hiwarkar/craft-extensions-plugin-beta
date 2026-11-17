@@ -12,3 +12,4 @@ date	unit	decision_or_change	evidence	verdict
 2026-11-18	P6	Kernels crate shared by host and guest native tests	98d37d7	verified: craft-guest tests run kernels natively
 2026-11-18	P6	craft-native SDK for native helpers (protocol loop, calls, jobs, cancels)	f0b49a5	verified: craft-native test; native-system-stamp scripted run
 2026-11-18	P7	Quietgrain restricted native denoiser	examples/quietgrain	verified under Seatbelt: command -> job -> new layer, variance 259 -> 29.5
+2026-11-18	P8	Independent review: 9 findings (kernel cost/memory, job results, poisoned commit, cancel in kernels, native authorization, strict catalogue structs, dropped native jobs, manager flows/consent)	7f92176, 2a9472a	all fixed; tests added; lessons in AGENTS.md

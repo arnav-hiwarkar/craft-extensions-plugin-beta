@@ -24,8 +24,17 @@ These come from building this platform; each is backed by a check where one exis
   a clear error rather than clamping it silently.
 - **Host-handled operations keep the ABI stable.** New sandbox capabilities are `craft.call` operations the
   host answers itself (`kernel.*`, `job.*`), so ABI v1 modules keep loading and older apps answer `-3`.
-- **Every expensive host action is budgeted.** Work done for a plugin is charged as fuel; work beyond the
-  current slice is carried as debt and counts against the call's total.
+- **Every expensive host action is budgeted by its real work.** Charge fuel for what the host actually
+  does (pixels × taps, points × area), not a flat rate; cap any single call so cancel stays responsive;
+  reserve host memory against an app-wide budget before copying plugin data; check the cancel flag
+  inside long loops. Work beyond the current slice is carried as debt and counts against the total.
+- **A failure while serving a plugin poisons its transaction.** `api::contain` turns an adapter panic into
+  an error and marks the event, which then rolls back even if the plugin ignores the error.
+- **One authorization path.** Wasm and native calls both go through `api::authorize_call`.
+- **Hand results over once.** Lists show metadata; payloads move to their consumer and are dropped.
+- **Serve forward-compatible data.** Structs read from the catalogue or other signed data accept unknown
+  fields; strictness belongs in the authoring checks (`craft-ext check`, `check-submission`).
+- **Multi-step writes either finish or restore.** Snapshot the prior state and put it back on failure.
 - **Fail closed.** A check that cannot run (confinement, signature, attestation) refuses; it never runs the
   unprotected path quietly.
 - **Tests call the code as its users do** and assert literal results. A test that would pass if the code
