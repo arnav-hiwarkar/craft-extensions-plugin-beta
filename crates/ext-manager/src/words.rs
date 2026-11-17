@@ -24,6 +24,7 @@ macro_rules! words {
 }
 
 words! {
+    Sections "plugins.manager.sections" "Plugin sections",
     TabDiscover "plugins.manager.tab.discover" "Discover",
     TabInstalled "plugins.manager.tab.installed" "Installed",
     TabUpdates "plugins.manager.tab.updates" "Updates",
@@ -35,6 +36,7 @@ words! {
     FilterKind "plugins.manager.filter.kind" "Kind",
     FilterInstalled "plugins.manager.filter.installed" "Installed",
     FilterHasUpdate "plugins.manager.filter.has-update" "Has update",
+    SortLabel "plugins.manager.sort.label" "Sort by",
     SortRelevance "plugins.manager.sort.relevance" "Relevance",
     SortPopular "plugins.manager.sort.popular" "Popular",
     SortRecentlyUpdated "plugins.manager.sort.recently-updated" "Recently updated",

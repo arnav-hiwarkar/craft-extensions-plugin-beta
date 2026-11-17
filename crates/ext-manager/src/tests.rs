@@ -461,6 +461,8 @@ fn install_asks_which_app_only_when_several_managed_apps_support_the_plugin() {
     assert_eq!(launcher.press(&row_named(&launcher, "Both")), Press::ChooseApp(vec![app(), photocraft.clone()]));
     let one = row_named(&launcher, "One");
     assert_eq!(launcher.press(&one), Press::Do(vec![Action::Install { id: one.id.clone(), app: Some(app()) }]));
+    assert_eq!(launcher.name_of(&id("io.github.alice.both")), "Both");
+    assert_eq!(launcher.name_of(&id("io.github.alice.gone")), "io.github.alice.gone");
     let single = f.model();
     let both = row_named(&single, "Both");
     assert_eq!(single.press(&both), Press::Do(vec![Action::Install { id: both.id.clone(), app: Some(app()) }]));

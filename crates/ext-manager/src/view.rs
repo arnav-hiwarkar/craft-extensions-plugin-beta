@@ -134,6 +134,10 @@ impl Model {
         CATEGORIES.iter().filter(|r| self.config().apps.iter().any(|t| r.apps.contains(&t.app.as_str()))).map(|r| r.category).collect()
     }
 
+    pub fn name_of(&self, id: &craft_ext_core::id::ExtensionId) -> String {
+        self.view().entry(id).map_or_else(|| id.to_string(), |e| e.name.to_string())
+    }
+
     pub fn install_targets(&self, row: &Row) -> Vec<AppId> {
         let supported = self.view().entry(&row.id).map(|e| e.apps.to_vec()).unwrap_or_default();
         self.config().apps.iter().map(|t| &t.app).filter(|a| supported.contains(a)).cloned().collect()
