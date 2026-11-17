@@ -8,6 +8,7 @@ rust-version.workspace = true
 workspace = true
 [dependencies]
 craft-ext-core.workspace = true
+craft-ext-manager = { path = "../ext-manager" }
 craft-ext-store = { path = "../ext-store", features = ["net"] }
 egui = { version = "0.37", default-features = false }
 serde_json.workspace = true
