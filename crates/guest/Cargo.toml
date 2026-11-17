@@ -20,3 +20,4 @@ todo = "warn"
 serde.workspace = true
 serde_json.workspace = true
 craft-ext-core = { path = "../ext-core" }
+craft-ext-kernels = { path = "../ext-kernels" }

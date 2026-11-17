@@ -5,7 +5,9 @@
 //! Every image is premultiplied RGBA `f32`. A kernel that writes changes the image in place.
 
 use crate::filter::Image;
-use crate::host::{CallError, call};
+use crate::host::CallError;
+#[cfg(target_arch = "wasm32")]
+use crate::host::call;
 use serde_json::{Value, json};
 
 /// Largest blur, morphology and splat radius in pixels; larger values are refused.
@@ -39,15 +41,45 @@ impl Buffer {
     }
 }
 
+#[cfg(target_arch = "wasm32")]
 fn at(img: &Image<'_>) -> Value {
     json!({ "ptr": img.pixels.as_ptr() as usize, "width": img.width, "height": img.height })
 }
 
-fn run(op: &str, mut args: Value, img: &mut Image<'_>) -> Result<Value, CallError> {
+#[cfg(target_arch = "wasm32")]
+fn dispatch(op: &str, mut args: Value, img: &mut Image<'_>, others: &[&Image<'_>], splats: &[f32]) -> Result<Value, CallError> {
+    let names = craft_ext_kernels::lookup(op).map_or(&[][..], |s| s.reads);
     args["image"] = at(img);
+    for (name, other) in names.iter().skip(1).zip(others) {
+        args[*name] = at(other);
+    }
+    if op == "kernel.splat" {
+        args["points"] = json!({ "ptr": splats.as_ptr() as usize, "count": splats.len() / 8 });
+    }
     let out = call(op, args);
-    std::hint::black_box(&mut img.pixels);
+    std::hint::black_box((&mut img.pixels, splats));
     out
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn dispatch(op: &str, args: Value, img: &mut Image<'_>, others: &[&Image<'_>], splats: &[f32]) -> Result<Value, CallError> {
+    let copy = |i: &Image<'_>| craft_ext_kernels::Image { width: i.width as usize, height: i.height as usize, px: i.pixels.to_vec() };
+    let mut images: Vec<_> = std::iter::once(copy(img)).chain(others.iter().map(|o| copy(o))).collect();
+    let out = craft_ext_kernels::run(op, &args, &mut images, splats).map_err(|why| CallError::Invalid(format!("{op}: {why}")))?;
+    if craft_ext_kernels::lookup(op).is_some_and(|s| s.writes) {
+        for (dst, src) in img.pixels.iter_mut().zip(&images[0].px) {
+            *dst = if src.is_finite() { *src } else { 0.0 };
+        }
+    }
+    Ok(out)
+}
+
+fn run(op: &str, args: Value, img: &mut Image<'_>) -> Result<Value, CallError> {
+    dispatch(op, args, img, &[], &[])
+}
+
+fn run_with(op: &str, args: Value, img: &mut Image<'_>, others: &[&Image<'_>]) -> Result<Value, CallError> {
+    dispatch(op, args, img, others, &[])
 }
 
 /// Gaussian blur; `radius` is about three standard deviations, 0..=512 pixels.
@@ -91,12 +123,12 @@ pub fn bilateral(img: &mut Image<'_>, radius: f32, tolerance: f32) -> Result<(),
 
 /// Moves `img` toward `src` (same size) by `amount` 0..=1.
 pub fn mix(img: &mut Image<'_>, src: &Image<'_>, amount: f32) -> Result<(), CallError> {
-    run("kernel.mix", json!({ "src": at(src), "amount": amount }), img).map(drop)
+    run_with("kernel.mix", json!({ "amount": amount }), img, &[src]).map(drop)
 }
 
 /// Like [`mix`], weighted per pixel by `mask`'s luminance: white applies `amount`, black keeps `img`.
 pub fn mix_masked(img: &mut Image<'_>, src: &Image<'_>, mask: &Image<'_>, amount: f32) -> Result<(), CallError> {
-    run("kernel.mix_masked", json!({ "src": at(src), "mask": at(mask), "amount": amount }), img).map(drop)
+    run_with("kernel.mix_masked", json!({ "amount": amount }), img, &[src, mask]).map(drop)
 }
 
 /// A 4×5 colour matrix on straight (unpremultiplied) RGBA: rows r, g, b, a of `[r, g, b, a, offset]`.
@@ -172,7 +204,7 @@ impl Blend {
 
 /// Composites `src` (same size) over `img` with `mode` at `opacity` 0..=1.
 pub fn blend(img: &mut Image<'_>, src: &Image<'_>, mode: Blend, opacity: f32) -> Result<(), CallError> {
-    run("kernel.blend", json!({ "src": at(src), "mode": mode.name(), "opacity": opacity }), img).map(drop)
+    run_with("kernel.blend", json!({ "mode": mode.name(), "opacity": opacity }), img, &[src]).map(drop)
 }
 
 /// Fractal value noise settings for [`noise`].
@@ -198,12 +230,12 @@ pub fn noise(img: &mut Image<'_>, n: Noise) -> Result<(), CallError> {
 
 /// Resamples `src` into `dst` (any sizes), averaging when shrinking.
 pub fn resample(src: &Image<'_>, dst: &mut Image<'_>) -> Result<(), CallError> {
-    run("kernel.resample", json!({ "src": at(src) }), dst).map(drop)
+    run_with("kernel.resample", json!({}), dst, &[src]).map(drop)
 }
 
 /// Fills `dst` with `src` moved by the affine `[a, b, c, d, e, f]` (x' = a·x + b·y + c, y' = d·x + e·y + f).
 pub fn warp_affine(src: &Image<'_>, dst: &mut Image<'_>, matrix: [f32; 6]) -> Result<(), CallError> {
-    run("kernel.warp_affine", json!({ "src": at(src), "matrix": matrix }), dst).map(drop)
+    run_with("kernel.warp_affine", json!({ "matrix": matrix }), dst, &[src]).map(drop)
 }
 
 /// One soft disc for [`splat`]: particles, sparks, bokeh, light leaks.
@@ -224,10 +256,7 @@ pub struct Splat {
 /// Adds up to a million soft discs to `img` as light (premultiplied add).
 pub fn splat(img: &mut Image<'_>, splats: &[Splat]) -> Result<(), CallError> {
     let flat: Vec<f32> = splats.iter().flat_map(|s| [s.x, s.y, s.radius, s.color[0], s.color[1], s.color[2], s.color[3], s.hardness]).collect();
-    let points = json!({ "ptr": flat.as_ptr() as usize, "count": splats.len() });
-    let out = run("kernel.splat", json!({ "points": points }), img);
-    std::hint::black_box(&flat);
-    out.map(drop)
+    dispatch("kernel.splat", json!({}), img, &[], &flat).map(drop)
 }
 
 /// 256-bin histograms of straight colour and alpha.
@@ -247,4 +276,22 @@ pub struct Histogram {
 pub fn histogram(img: &mut Image<'_>) -> Result<Histogram, CallError> {
     let v = run("kernel.histogram", json!({}), img)?;
     serde_json::from_value(v).map_err(|e| CallError::Invalid(e.to_string()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn kernels_run_natively_in_author_tests() {
+        let mut base = Buffer::new(2, 1);
+        base.pixels.copy_from_slice(&[0.2, 0.4, 0.6, 1.0, 0.2, 0.4, 0.6, 1.0]);
+        let mut white = Buffer::new(2, 1);
+        white.pixels.fill(1.0);
+        let expected = base.pixels.clone();
+        blend(&mut base.image(), &white.image(), Blend::Multiply, 1.0).unwrap();
+        assert_eq!(base.pixels, expected);
+        splat(&mut base.image(), &[Splat { x: 0.5, y: 0.5, radius: 0.0, color: [1.0; 4], hardness: 1.0 }]).unwrap();
+        assert!(matches!(blur(&mut base.image(), 900.0), Err(CallError::Invalid(m)) if m == "kernel.blur: radius must be 0..=512"));
+    }
 }

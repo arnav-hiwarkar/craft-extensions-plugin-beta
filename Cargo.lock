@@ -238,11 +238,32 @@ name = "craft-ext-host"
 version = "0.1.0"
 dependencies = [
  "craft-ext-core",
+ "craft-ext-kernels",
  "serde",
  "serde_json",
  "tempfile",
  "wasmi",
  "wat",
+]
+
+[[package]]
+name = "craft-ext-kernels"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+]
+
+[[package]]
+name = "craft-ext-manager"
+version = "0.1.0"
+dependencies = [
+ "craft-ext-core",
+ "craft-ext-store",
+ "ed25519-dalek",
+ "hex",
+ "serde_json",
+ "tempfile",
+ "zip",
 ]
 
 [[package]]
@@ -276,6 +297,7 @@ name = "craft-guest"
 version = "0.1.0"
 dependencies = [
  "craft-ext-core",
+ "craft-ext-kernels",
  "serde",
  "serde_json",
 ]

@@ -68,6 +68,27 @@ mod tests {
         assert_eq!(highlight_curve(0.5, 5), vec![0.0, 0.0, 0.0, 0.5, 1.0]);
     }
 
+    fn ctx() -> FilterCtx {
+        craft_guest::serde_json::from_value(craft_guest::json!({
+            "params": {"threshold": 0.5, "radius": 3, "intensity": 1.0, "tint": [1, 1, 1, 1], "rays": false, "ray_angle": 90, "ray_length": 10},
+            "time": 0, "scale": 1, "origin": [0, 0], "full": [9, 9], "quality": "final", "seed": 0, "color": "linear-srgb"
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn a_bright_point_glows_into_its_neighbours_and_dark_pixels_stay_dark() {
+        let mut px = vec![0.0f32; 9 * 9 * 4];
+        px.chunks_exact_mut(4).for_each(|p| p[3] = 1.0);
+        px[(4 * 9 + 4) * 4..(4 * 9 + 4) * 4 + 3].copy_from_slice(&[1.0, 1.0, 1.0]);
+        let mut img = Image { width: 9, height: 9, pixels: &mut px };
+        lightwell(&ctx(), &mut img).unwrap();
+        let red = |x: usize, y: usize| px[(y * 9 + x) * 4];
+        assert!(red(5, 4) > 0.0 && red(5, 4) < red(4, 4));
+        assert!(red(4, 4) > 1.0, "the source brightens: {}", red(4, 4));
+        assert_eq!(px[3], 1.0);
+    }
+
     #[test]
     fn the_gain_matrix_tints_colour_and_keeps_alpha() {
         let m = gain_matrix([1.0, 0.5, 0.25, 1.0], 2.0);

@@ -2,7 +2,7 @@
 
 pub mod api;
 pub mod jobs;
-pub mod kernels;
+pub use craft_ext_kernels as kernels;
 pub mod native;
 pub mod schema;
 pub mod wasm;

@@ -12,6 +12,7 @@ workspace = true
 
 [dependencies]
 craft-ext-core.workspace = true
+craft-ext-kernels.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 wasmi = { version = "2", default-features = false, features = ["std", "validate", "deterministic", "portable-dispatch"] }
