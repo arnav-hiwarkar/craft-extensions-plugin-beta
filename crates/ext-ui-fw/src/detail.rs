@@ -146,6 +146,12 @@ fn app_panel(ui: &mut Ui, d: &Detail, panel: &AppPanel, names: &dyn Fn(&AppId) -
                 Badge::new(label(Word::LabelPinned)).show(ui);
             }
         });
+        if panel.full_access {
+            Notice::new(FwTone::Bad, label(Word::ConsentFullAccess)).show(ui);
+            if Button::new(label(Word::ActionRemoveFullAccess)).id_salt("full-access-off").show(ui).clicked() {
+                pending.borrow_mut().actions.push(Action::RemoveFullAccess { id: id.clone(), app: app.clone() });
+            }
+        }
         if let Some(q) = &panel.quarantine {
             Notice::new(FwTone::Warn, label(Word::ProblemQuarantined)).lines([Label::from(q.reason.clone())]).show(ui);
             if Button::new(label(Word::ActionTurnBackOn)).id_salt("turn-back-on").show(ui).clicked() {

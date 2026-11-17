@@ -3,10 +3,13 @@
 mod detail;
 mod look;
 mod manager;
+mod prompt;
 mod setup;
 
 pub use look::{badge_variant, button_variant, label, notice_tone, tone};
+pub use craft_ext_manager::PromptOutcome;
 pub use manager::{PluginManager, PluginManagerOutput};
+pub use prompt::{ProjectPrompt, PromptState};
 
 use craft_ext_core::id::{AppId, ExtensionId};
 use craft_ext_manager::{Action, Config, Effect, Model, Notice};
@@ -30,6 +33,11 @@ impl ManagerState {
 
     pub fn apply(&mut self, action: Action) {
         let effects = self.model.apply(action);
+        self.take(effects);
+    }
+
+    pub fn set_unclean_exit(&mut self, app: AppId, ids: Vec<ExtensionId>) {
+        let effects = self.model.set_unclean_exit(app, ids);
         self.take(effects);
     }
 

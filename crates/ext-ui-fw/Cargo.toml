@@ -19,7 +19,6 @@ craft-ext-core = { path = "../ext-core" }
 craft-ext-manager = { path = "../ext-manager" }
 craft = { git = "https://github.com/storytold/craft-libs", rev = "a6b9d9c986f7c4c399632d72d9a4a8c8ea0b86e9", default-features = false, features = ["ui"] }
 egui = { version = "0.37", default-features = false }
-image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 
 # Its own workspace, so the craft-extensions build never pulls the framework or its egui fork into
 # EffectCraft, FigCraft or the launcher. Apps that depend on it use their own [patch].

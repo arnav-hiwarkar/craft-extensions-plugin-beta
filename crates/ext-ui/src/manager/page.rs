@@ -14,22 +14,28 @@ pub(crate) const GAP: f32 = 16.0;
 pub(crate) const ROW_ICON: f32 = 40.0;
 pub(crate) const SKELETON_ROWS: usize = 6;
 
-type FilePicker = Box<dyn FnMut() -> Option<std::path::PathBuf>>;
-
 pub struct PluginManager {
     session: Session,
     search: String,
-    pick_file: Option<FilePicker>,
+    install_file: Option<bool>,
 }
 
 impl PluginManager {
     pub fn new(config: Config) -> Self {
-        PluginManager { session: Session::new(config), search: String::new(), pick_file: None }
+        PluginManager { session: Session::new(config), search: String::new(), install_file: None }
     }
 
-    pub fn with_file_picker(mut self, pick: impl FnMut() -> Option<std::path::PathBuf> + 'static) -> Self {
-        self.pick_file = Some(Box::new(pick));
+    pub fn with_install_file(mut self) -> Self {
+        self.install_file = Some(false);
         self
+    }
+
+    pub fn take_install_file_request(&mut self) -> bool {
+        self.install_file.as_mut().is_some_and(std::mem::take)
+    }
+
+    pub fn install_file(&mut self, path: std::path::PathBuf) {
+        self.session.model.apply(Action::InstallFile { path, app: None });
     }
 
     pub fn model(&self) -> &Model {
@@ -49,7 +55,6 @@ impl PluginManager {
         self.session.poll(&ctx, words);
         let mut actions = vec![];
         let mut hook = Some(app_problems);
-        let mut install_file = self.pick_file.as_ref().map(|_| false);
         let available = ui.available_rect_before_wrap();
         let bottom = available.bottom().min(ui.clip_rect().bottom());
         let full = Rect::from_min_size(available.min, vec2(available.width(), (bottom - available.top()).max(MIN_HEIGHT)));
@@ -62,7 +67,7 @@ impl PluginManager {
         if rest.width() + SIDEBAR_WIDTH >= SPLIT_FROM {
             let list = rest.with_max_x(rest.right() - DETAIL_WIDTH - GAP);
             let pane = rest.with_min_x(list.right() + GAP);
-            ui.scope_builder(UiBuilder::new().max_rect(list).id_salt("craft-plugin-list"), |ui| main(ui, model, &mut self.search, words, &mut actions, &mut hook, &mut install_file));
+            ui.scope_builder(UiBuilder::new().max_rect(list).id_salt("craft-plugin-list"), |ui| main(ui, model, &mut self.search, words, &mut actions, &mut hook, &mut self.install_file));
             ui.painter().vline(list.right() + GAP / 2.0, full.y_range(), ui.visuals().widgets.noninteractive.bg_stroke);
             ui.scope_builder(UiBuilder::new().max_rect(pane).id_salt("craft-plugin-detail"), |ui| match model.detail() {
                 Some(d) => detail::pane(ui, model, d, words, &mut actions),
@@ -78,14 +83,9 @@ impl PluginManager {
                 }
             });
         } else {
-            ui.scope_builder(UiBuilder::new().max_rect(rest).id_salt("craft-plugin-list"), |ui| main(ui, model, &mut self.search, words, &mut actions, &mut hook, &mut install_file));
+            ui.scope_builder(UiBuilder::new().max_rect(rest).id_salt("craft-plugin-list"), |ui| main(ui, model, &mut self.search, words, &mut actions, &mut hook, &mut self.install_file));
         }
         ui.advance_cursor_after_rect(full);
-        if install_file == Some(true)
-            && let Some(path) = self.pick_file.as_mut().and_then(|pick| pick())
-        {
-            actions.push(Action::InstallFile { path, app: None });
-        }
         self.session.apply(actions, &ctx, words);
         self.session.overlays(&ctx, words);
     }

@@ -32,11 +32,13 @@ pub struct PluginManager<'a> {
     state: &'a mut ManagerState,
     problems: Option<Box<dyn FnMut(&mut Ui) + 'a>>,
     app_name: Box<dyn Fn(&AppId) -> Label + 'a>,
+    install_file: bool,
 }
 
 #[derive(Debug, Default)]
 pub struct PluginManagerOutput {
     pub links: Vec<String>,
+    pub install_file: bool,
 }
 
 #[derive(Default)]
@@ -46,6 +48,7 @@ pub(crate) struct Pending {
     pub search: String,
     pub choose: Option<(ExtensionId, Vec<AppId>)>,
     pub choose_closed: bool,
+    pub install_file: Option<bool>,
 }
 
 impl Pending {
@@ -61,7 +64,12 @@ impl Pending {
 
 impl<'a> PluginManager<'a> {
     pub fn new(state: &'a mut ManagerState) -> Self {
-        PluginManager { state, problems: None, app_name: Box::new(|app| Label::from(app.to_string())) }
+        PluginManager { state, problems: None, app_name: Box::new(|app| Label::from(app.to_string())), install_file: false }
+    }
+
+    pub fn install_file(mut self) -> Self {
+        self.install_file = true;
+        self
     }
 
     pub fn problems(mut self, rows: impl FnMut(&mut Ui) + 'a) -> Self {
@@ -75,14 +83,14 @@ impl<'a> PluginManager<'a> {
     }
 
     pub fn show(self, ui: &mut Ui) -> PluginManagerOutput {
-        let PluginManager { state, mut problems, app_name } = self;
+        let PluginManager { state, mut problems, app_name, install_file } = self;
         state.poll();
         request_images(state);
         post_notices(ui, state);
         if state.model.busy() {
             ui.ctx().request_repaint_after(REPAINT_WHILE_BUSY);
         }
-        let pending = RefCell::new(Pending { search: state.search.clone(), choose: state.choosing.clone(), ..Pending::default() });
+        let pending = RefCell::new(Pending { search: state.search.clone(), choose: state.choosing.clone(), install_file: install_file.then_some(false), ..Pending::default() });
         let model = &state.model;
         let names = &*app_name;
         let body = ui.max_rect();
@@ -117,7 +125,7 @@ impl<'a> PluginManager<'a> {
         for action in pending.actions {
             state.apply(action);
         }
-        PluginManagerOutput { links: std::mem::take(&mut state.links) }
+        PluginManagerOutput { links: std::mem::take(&mut state.links), install_file: pending.install_file == Some(true) }
     }
 }
 
@@ -149,18 +157,8 @@ fn post_notices(ui: &Ui, state: &mut ManagerState) {
 }
 
 pub(crate) fn picture(ctx: &egui::Context, model: &Model, image: &Image) -> Option<TextureId> {
-    let Some(Loadable::Ready(bytes)) = model.image(&image.url) else { return None };
-    Some(TextureCache::texture(ctx, image.url.clone(), || decode(bytes)))
-}
-
-fn decode(bytes: &[u8]) -> egui::ColorImage {
-    match image::load_from_memory(bytes) {
-        Ok(decoded) => {
-            let rgba = decoded.to_rgba8();
-            egui::ColorImage::from_rgba_unmultiplied([rgba.width() as usize, rgba.height() as usize], rgba.as_raw())
-        }
-        Err(_) => egui::ColorImage::filled([1, 1], egui::Color32::TRANSPARENT),
-    }
+    let Some(Loadable::Ready(pixels)) = model.image(&image.url) else { return None };
+    Some(TextureCache::texture(ctx, image.url.clone(), || egui::ColorImage::from_rgba_unmultiplied([pixels.width as usize, pixels.height as usize], &pixels.rgba)))
 }
 
 pub(crate) const WHOLE: Rect = Rect { min: pos2(0.0, 0.0), max: pos2(1.0, 1.0) };
@@ -177,6 +175,10 @@ fn toolbar(ui: &mut Ui, model: &Model, pending: &RefCell<Pending>) {
         }
         if Button::new(label(Word::ActionRefresh)).variant(craft::theme::Variant::GHOST).loading(!model.loaded()).show(ui).clicked() {
             pending.borrow_mut().actions.push(Action::Refresh);
+        }
+        let can_pick = pending.borrow().install_file.is_some();
+        if can_pick && Button::new(label(Word::ActionInstallFile)).variant(craft::theme::Variant::GHOST).id_salt("install-file").show(ui).clicked() {
+            pending.borrow_mut().install_file = Some(true);
         }
     });
     if model.tab() == Tab::Discover {
