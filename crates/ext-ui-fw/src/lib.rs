@@ -43,6 +43,11 @@ impl ManagerState {
         self.take(effects);
     }
 
+    pub fn set_load_problems(&mut self, app: AppId, problems: Vec<(ExtensionId, String)>) {
+        let effects = self.model.set_load_problems(app, problems);
+        self.take(effects);
+    }
+
     fn poll(&mut self) {
         let effects = self.model.poll();
         self.take(effects);
