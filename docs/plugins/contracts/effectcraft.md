@@ -269,6 +269,19 @@ Permission: `document.edit:document`
 object
 ```
 
+### `prop.ease` (Edit)
+
+Ease keyframes, chosen by their layer times: `preset` easy, easy-in or easy-out, or an `interpolation` (linear, bezier, hold, auto, continuous) with in and out speed (units per second) and influence (percent).
+
+Permission: `document.edit:document`
+
+```json
+// args
+{"layer":12,"path":"transform/opacity","times":[1],"interpolation":"bezier","in":{"speed":0,"influence":80},"out":{"speed":0,"influence":20}}
+// result
+null
+```
+
 ### `effect.remove` (Edit)
 
 Remove an effect instance by uid.
