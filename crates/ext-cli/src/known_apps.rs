@@ -1,14 +1,12 @@
-//! This table must mirror the contracts supplied by the application adapters.
 use craft_ext_core::contract::Provided;
-/// Mirrors the `Contracts provided` tables in docs/plugins/contracts/*.md.
 pub fn provided(app: &str) -> Option<Provided> {
-    let names: &[&str] = match app {
-        "effectcraft" => &["raster.filter", "effectcraft.session", "resource.preset", "resource.lut", "craft-theme"],
-        "photocraft" => &["raster.filter", "photocraft.session", "resource.preset", "resource.lut", "craft-theme"],
-        "figcraft" => &["figcraft.session", "resource.font", "craft-theme"],
+    let contracts: &[(&str, u32, u32)] = match app {
+        "effectcraft" => &[("raster.filter", 1, 0), ("effectcraft.session", 1, 3), ("resource.preset", 1, 0), ("resource.lut", 1, 0), ("craft-theme", 1, 0)],
+        "photocraft" => &[("raster.filter", 1, 0), ("photocraft.session", 1, 2), ("resource.preset", 1, 0), ("resource.lut", 1, 0), ("craft-theme", 1, 0)],
+        "figcraft" => &[("figcraft.session", 1, 2), ("resource.font", 1, 0), ("craft-theme", 1, 0)],
         _ => return None,
     };
-    Some(Provided::new(&names.iter().map(|n| (*n, 1, if matches!(*n, "effectcraft.session" | "figcraft.session" | "photocraft.session") { 1 } else { 0 })).collect::<Vec<_>>()))
+    Some(Provided::new(contracts))
 }
 
 #[cfg(test)]

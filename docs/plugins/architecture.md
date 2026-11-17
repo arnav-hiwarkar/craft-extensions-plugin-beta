@@ -282,7 +282,7 @@ Profiles are preview, final render, session command and job, with numbers from b
 | Forbidden call | Structured denial the plugin can handle | Unchanged |
 | Revoked mid-run | Stops at next host call | Rolled back |
 | Failure during final render or export | **The export fails**, naming plugin and frame | — |
-| Repeated failures | Paused for the session with a notice | — |
+| Repeated failures | Three faults in a row quarantine the release until the person turns it back on | — |
 
 The host never panics because of a plugin.
 
@@ -467,7 +467,7 @@ PC09 confirmed on 2026-11-11 that "IGUI" in the call notes meant egui. The manua
 | Install and setup | Cancellable download, then "Set up in <app>": contributions and permissions on one sheet; large resources offered (section 17); other apps show "New plugin ready to set up" |
 | Installed | Per app: contributions, permissions with last use and revoke, version, update, remove, performance (section 19) |
 | Updates | Count badge; notes with more permissions, new owner and native highlighted; always asks |
-| Problems | Failed, paused, incompatible or blocked plugins with reason and fix button; safe mode; "Find the problem plugin"; Report plugin |
+| Problems | Failed, quarantined, incompatible or blocked plugins with reason and fix button; safe mode; "Find the problem plugin"; Report plugin |
 
 **Moving to a new computer.** The manager and CLI export and import a **plugin setup** file: packages, versions, and per-app on/off choices and settings. Import installs everything, but **permissions are asked again** on the new machine, so a copied file never grants access silently.
 

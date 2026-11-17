@@ -122,7 +122,7 @@ Open disposable projects and use the per-app checklist in TESTING:
 5. Disable/remove a required contribution and check missing-plugin behavior where
    the app records such requirements. PhotoCraft's baked filter pixels need no plugin.
 6. Test compatible updates, a version pin, unpin and rollback with Film looks.
-7. Test safe mode and Resume after a controlled failure.
+7. Test safe mode, and Turn back on after three controlled crashes quarantine a plugin.
 8. Test native consent separately, including withdrawal while the helper is idle.
 
 In the launcher, use the **Plugins** header button and choose an app. The plugin

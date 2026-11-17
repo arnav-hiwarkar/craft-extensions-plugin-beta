@@ -198,6 +198,7 @@ after this table. `<id>` is a plugin id such as `io.github.arnav-hiwarkar.cross-
 | `plugin rollback <id> <version>` | | Downloads the version if needed and makes it active. Warns about saved data from newer versions. |
 | `plugin pin <id> <req>` / `plugin unpin <id>` | | Holds updates to a version requirement, or removes the hold. |
 | `plugin remove <id>` | `--force` | Removes the plugin. Refuses while another installed package requires it, unless `--force`. |
+| `plugin resume <id>` | | Turns a plugin quarantined after three faults in a row back on (`Store::clear_quarantine`), as **Turn back on** in the manager does. A plugin that is not turned off: exit 1. |
 | `plugin project <references.json>` | | Prints the status of each plugin reference in a JSON array of references, with `install` and `setup` hints. |
 
 Grant and revoke apply to the package in this app. A contribution can still use only the
@@ -219,7 +220,6 @@ figcraft-cli plugin setup io.github.arnav-hiwarkar.native-system-stamp \
 |---|---|---|---|
 | `plugin contract` | Prints the contract reference (Markdown). | Same. | Same. |
 | `plugin project <file>` | Reads an `.ecproj` (JSON or XML) and prints each plugin's status. Exit 1 on errors. | Not app-specific: the shared command, which reads a references JSON array. | Reads a FigCraft file and prints each plugin's status. Without a file: usage error. |
-| `plugin resume <id>` | Prints where pauses live. Pauses last one session; use `plugin.resume` in a running session or **Resume** in the app. Without `<id>`: exit 2. | Checks a fresh session; prints `Resumed <id>.` or explains that pauses last one process and names `plugin.resume`. | Prints that pauses last one session and names the `plugins.resume` script step. Without a valid `<id>`: exit 2. |
 
 ```sh
 effectcraft-cli plugin project film.ecproj --json
@@ -240,7 +240,6 @@ figcraft-cli plugin project board.figcraft
 | `plugin.showPanel` | `{"surface": "<plugin id>/<panel>", "open"?: bool}` | Opens or closes a panel. |
 | `plugin.uiEvent` | `{"surface", "rev", "widget", "value"?}` | Sends a widget event. A stale `rev` is dropped. |
 | `plugin.toolEvent` | `{"phase": "begin"\|"update"\|"commit"\|"cancel", "at": [x, y], "modifiers"?}` | Sends a pointer event to the selected plugin tool. |
-| `plugin.resume` | `{"id": "<plugin id>"}` | Clears a pause and sends `init` again. |
 | `plugin.resources` | `{}` | Presets and LUTs from enabled plugins. |
 | `plugin.missing` | `{}` | Plugin effects used by the project that are not loaded. |
 
@@ -260,7 +259,6 @@ effectcraft-cli run --project shot.ecproj --save \
 | `plugin.session.<plugin id>/<contribution>` | Runs a command (`--params` arrive as the event's `params`). For a panel, opens it. For a tool, `{"points": [[x, y], ...]}` runs a whole gesture (begin at the first point, commit at the last; `"cancel": true` cancels; optional `modifiers` and `zoom`). Without `points` it selects the tool. |
 | `plugin.<plugin id>/<contribution>` | Runs a plugin filter (effect) on the active layer with the given form values. |
 | `plugin.uiEvent` | `{"surface", "rev", "widget", "value"}` to an open panel. |
-| `plugin.paused` / `plugin.resume` | Lists pauses; `{"plugin": "<id>"}` clears one. |
 
 `--pick <path>` answers one `files.pick` question with that file or folder, in order. Without it,
 plugins that ask for a file get "cancelled".
@@ -284,8 +282,6 @@ the whole script back and exits 1.
 | Command id | What it does |
 |---|---|
 | `plugin.<plugin id>.<contribution>` | Runs a command (with `params`), or selects a tool. |
-| `plugins.paused` | Lists plugins paused this session. |
-| `plugins.resume` | `{"id": "<plugin id>"}` clears a pause and starts fresh instances. |
 
 ```sh
 echo '[{"command":"plugin.io.github.arnav-hiwarkar.cross-review.figcraft-apply","params":{}}]' > review.json

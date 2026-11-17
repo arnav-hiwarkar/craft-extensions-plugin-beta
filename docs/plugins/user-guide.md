@@ -197,20 +197,20 @@ effectcraft-cli plugin pin <id> "^1.0"
 effectcraft-cli plugin unpin <id>
 ```
 
-## 9. Problems and Resume
+## 9. Problems and Turn back on
 
 The **Problems** tab lists plugins that do not fit this app, plugins named in the kill list with the
-reason, and plugins that failed to load.
+reason, and each part of a plugin that could not load, with the reason. The rest of that plugin, and
+every other plugin, still loads.
 
-If a plugin fails three times in a row, the app pauses it for the rest of the session:
+If a plugin crashes, runs too long or uses too much memory three times in a row, the app turns that
+version off. Errors the plugin reports itself, changes that were undone and a document that changed
+under it never count. A native helper that stops counts as a crash. This works the same way in
+EffectCraft, PhotoCraft and FigCraft.
 
-- EffectCraft shows "{plugin}: paused after repeated failures" with **Resume** at the top of
-  Settings ▸ Plugins.
-- PhotoCraft shows **Paused** at the top of the Plugins window ("These plugins failed three times
-  in a row and are paused until PhotoCraft restarts.") with **Resume**.
-- FigCraft shows **Problems this session** in the Problems tab with **Resume**.
-
-Resume starts the plugin again from a clean state. A paused plugin is not paused after a restart.
+The plugin stays off after you quit and reopen the app. It shows as **Turned off after a crash** in
+**Problems**, with its reason and one **Turn back on** button. From the command line,
+`<app>-cli plugin resume <id>` does the same.
 
 If the app quit unexpectedly while plugins were running, the next start opens the Plugin Manager on
 **Problems** with each of them: "Was running when the app last quit unexpectedly". **Turn off**

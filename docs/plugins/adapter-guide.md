@@ -207,10 +207,10 @@ PhotoCraft does not record references yet.
 ### 10. Management UI and CLI
 
 - Embed `craft_ext_ui::ManagerView` (Browse, Installed, Updates, Problems). Use
-  `show_with_app_problems` to add paused plugins with a **Resume** button to the Problems tab, as
-  FigCraft does. Pauses happen after three failed events in a row and last for the session.
+  `model.set_load_problems` to list what failed to load. Count faults with `policy::Strikes` and
+  call `Store::quarantine` on the third; the manager's Quarantined row turns it back on.
 - Add `<app>-cli plugin ...` by passing arguments to `craft_ext_cli::run_plugin` with a `Manager`
-  for this app. Handle `plugin contract`, `plugin project <file>` and `plugin resume <id>` in the
+  for this app. Handle `plugin contract` and `plugin project <file>` in the
   app. See the [CLI reference](cli-reference.md).
 - Start one background catalogue refresh per process (every six hours).
 
@@ -257,7 +257,7 @@ Name each test after the behaviour it proves. The existing adapters have one of 
 | Gesture events record nothing until commit | PhotoCraft `gesture_events_record_nothing_until_the_gesture_commits` |
 | Stale surface revisions are dropped | EffectCraft `queued_surface_revision_is_rechecked_at_service`; FigCraft `canvas_widget_pointer_events_reach_the_plugin_and_stale_revisions_are_dropped` |
 | Closed panels stay closed | PhotoCraft `panel_updates_never_reopen_a_closed_panel` |
-| Three failures pause; Resume starts a fresh instance | EffectCraft `three_traps_pause_and_resume_reinstantiates`; PhotoCraft `three_failures_pause_and_resume_clears_the_pause` |
+| Three faults in a row quarantine; own errors never count | EffectCraft `three_traps_in_a_row_turn_the_release_off_across_restarts`; PhotoCraft `the_third_fault_in_a_row_quarantines_the_release`; FigCraft `only_faults_count_and_three_in_a_row_turn_the_release_off` |
 | Store changes unload disabled contributions | FigCraft `store_generation_change_removes_disabled_contributions_and_workers` |
 | Project references and saved state survive | EffectCraft `project_refs_include_required_contributions_and_state_versions`, `missing_effects_include_plain_and_unknown_ec_ids_and_preserve_parameters` |
 | External writes roll back the document when they fail | PhotoCraft `failed_file_publication_rolls_back_document_history_and_picks` |

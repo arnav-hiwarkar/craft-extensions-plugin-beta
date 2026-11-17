@@ -1,4 +1,4 @@
-# Plugin UI reference (UI level 1.1)
+# Plugin UI reference (UI level 1.2)
 
 Plugins **describe** their panels and windows as data; the app **draws** them. A plugin never runs
 code on the UI thread, never sees pixels of the interface, and cannot tell how it is drawn. This page
@@ -62,14 +62,21 @@ revisions so in-progress edits survive a redraw.
 
 The vocabulary has a level (`UI_LEVEL` = 1.2 in `tree.rs`). **ui 1.0** is the original set (marked
 1.0 below; `KINDS_1_0`). **ui 1.1** adds everything else on this page (`KINDS_1_1` plus new fields and
-draw ops). A level-1.0 tree is valid, unchanged, at 1.1.
+draw ops). **ui 1.2** adds the meaning-without-colour fields below. A tree valid at a level is valid,
+unchanged, at every later one.
 
-- **Declare it.** The session contract minor carries the UI level: `<app>.session@1.0` carries
-  ui 1.0, and `@1.1` or later carries ui 1.1 (`ui_level_for_session`). If your tree uses anything from
-  1.1, declare `contract = "effectcraft.session@1.1"` (likewise `photocraft.session`,
-  `figcraft.session`). All three apps provide session 1.1. An app that provided only 1.0 would report
-  *"needs effectcraft.session 1.1, this app has 1.0 — update the app"* in the manager before your
-  plugin runs.
+- **Declare it.** The session contract minor carries the UI level (`ui_level_for_session`):
+  `<app>.session@1.0` carries ui 1.0, `@1.1` carries ui 1.1, and `@1.2` or later carries ui 1.2. If
+  your tree uses anything from 1.2, declare at least `@1.2`. An app older than your declared session
+  reports *"needs effectcraft.session 1.2, this app has 1.1 — update the app"* in the manager before
+  your plugin runs.
+
+  | App | Session it provides | UI level that carries |
+  |---|---|---|
+  | EffectCraft | `effectcraft.session@1.3` | 1.2 |
+  | PhotoCraft | `photocraft.session@1.2` | 1.2 |
+  | FigCraft | `figcraft.session@1.2` | 1.2 |
+
 - **Check it.** `craft_guest::ui::level(&tree)` returns the level a tree needs;
   `craft_guest::ui::check(&tree)` runs the host's validation.
 - **Enforced in every app.** EffectCraft, PhotoCraft and FigCraft validate every panel and window
@@ -84,8 +91,8 @@ draw ops). A level-1.0 tree is valid, unchanged, at 1.1.
 
 ### ui 1.2: meaning without colour
 
-`UI_LEVEL` is now 1.2. A session contract at `@1.2` or later carries it. EffectCraft provides
-`effectcraft.session@1.2`. Level 1.2 lets a plugin say what something means; the app chooses how it
+`UI_LEVEL` is now 1.2. A session contract at `@1.2` or later carries it; all three apps provide one
+(EffectCraft 1.3, PhotoCraft and FigCraft 1.2). Level 1.2 lets a plugin say what something means; the app chooses how it
 looks from its own theme, so plugins match light, dark and suite themes without picking colours.
 
 | Addition | Meaning |
@@ -362,7 +369,7 @@ let tree = ui::column(vec![
     ui::number("width", "Width", 64.0).range(1.0, 4096.0).unit("px"),
     ui::button("delete", "Delete").icon("trash").hint("Delete the selected layers"),
 ]);
-debug_assert_eq!(ui::level(&tree), Ok(ui::UI_LEVEL)); // declare <app>.session@1.1
+debug_assert_eq!(ui::level(&tree), Ok(ui::UI_LEVEL)); // declare <app>.session@1.2
 ui::set_panel("layers", tree)?;
 ```
 
@@ -381,7 +388,7 @@ ui::set_panel("layers", tree)?;
 - Validate trees in your `ui.panel.set` / `ui.window.open` handler with
   `craft_ext_core::ui::tree::Node::parse` and
   `validate_at(ui_level_for_session(declared))`. All three adapters enforce this level.
-  Provide `<app>.session@1.1` when supporting UI 1.1.
+  Provide `<app>.session@1.2` or later when supporting UI 1.2.
 - `FormView` holds a form with its own state for dialogs (live edits, `apply_patch`,
   `replace_form`). `paint_ops(painter, Xf::new(offset, zoom), clip, ops, images)` paints draw
   lists such as canvas overlays (`canvas.overlay.set`, checked with `validate_draw_list`).

@@ -80,14 +80,23 @@ exists.
 Jobs have these limits and controls:
 
 - **Concurrency.** At most 4 jobs per plugin and 16 per app run at once; more are refused with `-6`.
-- **Cancel.** The person can cancel a job from the app's jobs list. The plugin can cancel its own
-  jobs with `job.cancel {job}`.
+- **Cancel.** The person can always stop a running job from the app's jobs list, even one the
+  plugin started with `cancellable: false` (`JobBoard::stop`, which is `cancel(id, true)`). The
+  plugin can cancel its own jobs with `job.cancel {job}`, which respects `cancellable`.
+- **Document.** A job belongs to the document its event ran in (`Invocation::document`). Its result
+  goes only to that document: it waits while another document is active, a tool gesture or undo
+  group is open, or its plugin is not loaded. Closing the document cancels its jobs
+  (`JobBoard::cancel_document`).
 - **Stopping.** Turning the plugin off, revoking a permission or kill-listing it stops its jobs
   between fuel slices.
 
 The app owns a [`JobBoard`](../../crates/ext-host/src/jobs.rs) and calls `Session::set_jobs` for
-each session. It shows `JobBoard::list()` in its jobs list and delivers each
-`JobBoard::take_finished()` entry to the owning session as `JobInfo::event()`.
+each session. It fills `Invocation::document` with its document token. Each frame it calls
+`JobBoard::deliver(ready, send)`: `ready` says whether the job's document is the open one, the app
+is not busy and the owning plugin is loaded; `send` dispatches `JobInfo::event()` to the owning
+contribution and returns whether the app accepted it. A refused hand-over stays pending. EffectCraft
+and FigCraft draw the jobs list with `craft_ext_ui::jobs::jobs_window`; PhotoCraft's framework
+popover uses the same `JobInfo::status` and `JobBoard::stop`.
 
 Effects can report progress too. `job.progress` in a filter goes to the progress sink the app set
 with `Filter::set_progress`, which is the app's render progress bar.

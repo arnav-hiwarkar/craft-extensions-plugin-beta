@@ -130,8 +130,8 @@ loosen (`crates/ext-host/src/wasm.rs`):
   plugin instances in the process; over budget the call returns `-6`. Call arguments are at most 1 MiB.
 - **Failures.** A trap, fuel or memory exhaustion, or invalid output never panics the host. The
   instance is discarded and a fresh one is made. Filter output must be finite; alpha is clamped to
-  0–1 and colour is zeroed where alpha is zero. Three consecutive trap, time or memory failures pause
-  a session plugin until the user resumes it.
+  0–1 and colour is zeroed where alpha is zero. Three consecutive trap, time or memory failures (or a
+  stopped native helper) quarantine the release until the person turns it back on.
 - **Determinism.** Filters must not depend on invocation history: the host may re-instantiate at any
   time. `scripts/cross-app-smoke.py` compares two EffectCraft vignette renders byte for byte;
   this is not proof that arbitrary plugins are deterministic.

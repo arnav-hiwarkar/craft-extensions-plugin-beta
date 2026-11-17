@@ -200,23 +200,29 @@ Notes from the code (`figcraft/crates/plugins/src/runtime.rs`):
 - `export.svg` returns an SVG string of at most 4 MiB; it does not touch the file system.
 - During a `document.changed` event, Edit operations are refused to prevent feedback loops.
 - An event may make at most 64 UI changes.
+- `pluginData` in the arguments of any engine command a plugin calls (`node.update`, `node.create`
+  and the rest) is refused with Denied: `project.data.set` is the only way a plugin writes data.
+- The four-window limit counts open windows; a closed one leaves room for another.
 
 ## Plugin data in documents
 
 `project.data.get {key, target?}` and `project.data.set {key, value, target?}` keep a plugin's own
 JSON in the document. Every app answers them with `craft_ext_host::data::handle` over a
 `PluginData` keyed by the calling plugin's id, so a plugin never reaches another plugin's data. A
-place holds at most 64 keys and 256 KiB per plugin; `null` deletes a key. A write is part of the
-event's undo step and rolls back with it. Data of a plugin that is not installed is saved unchanged
+place holds at most 64 keys and 256 KiB per plugin, and one plugin keeps at most 4 MiB in a whole
+document (the app passes the plugin's bytes elsewhere in the document to `handle`); `null` deletes a
+key. A write is part of the event's undo step and rolls back with it. A `target` layer or node that
+does not exist is NotFound in every app. Data of a plugin that is not installed is saved unchanged
 and makes the document reference that plugin, so the project prompt names it.
 
-| App | `target` | Where it is saved | Format rule |
-|---|---|---|---|
-| EffectCraft | none (project) or `{layer: id}` in the captured composition | `Project.plugin_data` and `Layer.plugin_data` in `.ecproj`, one JSON object per plugin id | Optional members, left out when empty; schema 2 unchanged |
-| PhotoCraft | none (document) or `{layer: id}` | `plugin_data` on the `.pcraft` document and layer manifests, one JSON object per plugin id | Optional members, left out when empty; `format_version` 1 unchanged. PSD and flat exports do not carry it |
-| FigCraft | none (document) or `{node: id}` / `{layer: id}` | The node's and the document's `plugin_data` maps in `.figcraft`, under `plugin:<id>` as JSON text | Optional member on the document, left out when empty; synced in collaboration as `pluginData` |
+| App | Session level needed | `target` | Where it is saved | Format rule |
+|---|---|---|---|---|
+| EffectCraft | `effectcraft.session@1.3` | none (project) or `{layer: id}` in the captured composition | `Project.plugin_data` and `Layer.plugin_data` in `.ecproj`, one JSON object per plugin id | Optional members, left out when empty; schema 2 unchanged |
+| PhotoCraft | `photocraft.session@1.2` | none (document) or `{layer: id}` | `plugin_data` on the `.pcraft` document and layer manifests, one JSON object per plugin id | Optional members, left out when empty; `format_version` 1 unchanged. PSD and flat exports do not carry it |
+| FigCraft | `figcraft.session@1.2` | none (document) or `{node: id}` / `{layer: id}`; a node target exists only here | The node's and the document's `plugin_data` maps in `.figcraft`, under `plugin:<id>` as JSON text | Optional member on the document, left out when empty; collaboration (protocol 3) syncs each `plugin:<id>` key on its own, so two plugins writing at once both keep their data |
 
-Layer reads (`node.get`, `layer.get`) never include plugin data.
+EffectCraft and PhotoCraft refuse a `{node: id}` target with Invalid. Layer reads (`node.get`,
+`layer.get`) never include plugin data.
 
 ## Not available
 
@@ -253,7 +259,7 @@ differences are in behaviour and slot descriptions:
 | PhotoCraft | `files.write`: "≤ 1 MiB" | No per-operation size check in `plugin_ops.rs`; the 1 MiB host argument cap and a 512 MiB staging budget apply. |
 | PhotoCraft | (not stated) | No four-window limit; at most 32 surfaces per app and 4 MiB of trees in total. |
 | FigCraft | `dispose`: "The worker is stopping" | `dispose` is never sent; workers are dropped. |
-| FigCraft | Overlays "cleared when a tool gesture ends" | An overlay set outside a gesture stays until the next gesture ends, a resume or a reload. |
+| FigCraft | Overlays "cleared when a tool gesture ends" | An overlay set outside a gesture stays until the next gesture ends or a reload. |
 | FigCraft | "Coordinates are document units" | Tool and overlay coordinates are page units. |
 | FigCraft | (not stated) | A fifth window is refused with `-6` when it is asked for, as in EffectCraft; redrawing an open window is not a new one. Source-complete, not yet compiled. |
 

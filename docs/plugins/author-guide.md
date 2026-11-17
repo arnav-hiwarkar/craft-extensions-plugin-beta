@@ -277,7 +277,7 @@ session!(handle);
 
 | Event | When |
 |---|---|
-| `Event::Init` | After the module loads, after a reload, after Resume. FigCraft also sends it when a document opens. Draw your panels here. |
+| `Event::Init` | After the module loads and after a reload (including Turn back on). FigCraft also sends it when a document opens. Draw your panels here. |
 | `Event::Command { id }` | A command contribution ran. `id` is the contribution id. |
 | `Event::Ui { surface, rev, widget, value }` | A widget in your panel or window changed. Events for an old `rev` are dropped before they reach you. |
 | `Event::Tool { phase, at }` | A pointer gesture of your selected tool: `"begin"`, `"update"`, `"commit"` or `"cancel"`. |

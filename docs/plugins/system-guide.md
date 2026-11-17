@@ -450,7 +450,7 @@ No imports: the plugin cannot call anything. It exports `memory`, `craft_abi` (r
 | Forbidden call | Structured denial the plugin can handle | Unchanged |
 | Permission revoked mid-run | Stops at the next host call | Rolled back |
 | Failure during final render or export | The export fails, naming plugin and frame | — |
-| Repeated failures | Paused for the session with a notice | — |
+| Repeated failures | Three faults in a row quarantine the release until the person turns it back on | — |
 
 **The host never panics because of a plugin.**
 
@@ -802,7 +802,7 @@ The catalogue (P7) is not part of the MVP; the MVP uses manual file import.
 | Install and setup | Cancellable download, then "Set up in <app>": contributions and permissions on one sheet; large resources offered. Other apps show "New plugin ready to set up" |
 | Installed | Per app: contributions, permissions with last use and revoke, version, update, remove, cost and memory |
 | Updates | Badge; notes with more permissions, new owner and native highlighted; always asks |
-| Problems | Failed, paused, incompatible or blocked plugins with reason and fix; safe mode; "Find the problem plugin"; Report plugin |
+| Problems | Failed, quarantined, incompatible or blocked plugins with reason and fix; safe mode; "Find the problem plugin"; Report plugin |
 
 **Built-in search suggestions:** when a built-in search finds nothing, matching plugins from the cached catalogue appear. The query never leaves the machine; a setting turns it off.
 

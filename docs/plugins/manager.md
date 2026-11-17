@@ -138,12 +138,21 @@ uninstall) are jobs too; their result arrives as a notice and the next snapshot.
 | Incompatible | The active release does not work with this app version | Update, when one exists |
 | Consent pending | A pending release waits for approval; `native` when it needs full access | Set up |
 | Unclean exit | The plugin was running when the app last quit unexpectedly | Turn off (`Store::quarantine` with `UNCLEAN_EXIT`); the row gives way to the quarantine problem |
+| Cannot load | A contribution or release failed to load (`Enabled::problems`, or the app's own load error) | Update, when one exists |
 
-The app calls `Store::begin_run(app, running)` once at start and passes the returned list to
-`model.set_unclean_exit(app, list)`. The model never calls `begin_run` itself, because that would
-overwrite the app's running marker. Every app does this when it creates its manager view, and when
-the list is not empty it opens the manager once on Problems at startup; no app has its own
-unexpected-close prompt any more.
+Each runtime calls `Store::begin_run(app, running)` when it starts, after it loads the enabled
+releases and before any plugin's `init` runs, with the plugins about to start. It never calls it in
+safe mode. Reloads call it again so the marker names what runs now; only the first call's answer is
+an unclean exit. The app calls `Store::end_run(app)` when it quits cleanly, and a CLI run does too.
+The app passes the first answer to `model.set_unclean_exit(app, list)`. The model never calls
+`begin_run` itself, because that would overwrite the app's running marker. When the list is not
+empty the app opens the manager once on Problems at startup; no app has its own unexpected-close
+prompt any more.
+
+The app passes what failed to load to `model.set_load_problems(app, list)` (or
+`ManagerState::set_load_problems`) whenever it draws the manager; an unchanged list is not a change.
+The Quarantined row with **Turn back on** is the only way back from a quarantine: no app keeps a
+paused list or a Resume button of its own.
 
 ## Project prompt
 
@@ -197,7 +206,7 @@ Decisions that both views need live in `ext-manager` (`src/view.rs`), never in a
 
 | Host | View | Where |
 |---|---|---|
-| PhotoCraft | `craft_ext_ui_fw::PluginManager` over `ManagerState`, a framework pattern | Its `ViewportWindow` opened by `plugins.manager`; paused and failed-load plugins are app rows on Problems |
+| PhotoCraft | `craft_ext_ui_fw::PluginManager` over `ManagerState`, a framework pattern | Its `ViewportWindow` opened by `plugins.manager` |
 | EffectCraft | `craft_ext_ui::PluginManager` (egui) | Settings ▸ Plugins, with the project prompt and Render without missing effects in the Render Queue |
 | FigCraft | `craft_ext_ui::PluginManager` (egui) | The Plugins window, with the project prompt |
 | Launcher | `craft_ext_ui::PluginManager` (egui) with `Config::new` over every app it knows | Its Plugins page, a header tab beside Apps |
