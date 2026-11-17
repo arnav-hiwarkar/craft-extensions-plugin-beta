@@ -1,11 +1,13 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 #![forbid(unsafe_code)]
 mod detail;
+mod engine;
 mod look;
 mod manager;
 mod prompt;
 mod setup;
 
+pub use engine::FrameworkEngine;
 pub use look::{badge_variant, button_variant, label, notice_tone, tone};
 pub use craft_ext_manager::PromptOutcome;
 pub use manager::{PluginManager, PluginManagerOutput};

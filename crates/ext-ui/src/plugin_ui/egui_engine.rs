@@ -62,8 +62,8 @@ impl Cx<'_> {
     }
 }
 
-impl Engine for EguiEngine {
-    fn draw(&mut self, ui: &mut Ui, surface: Surface<'_>, host: &mut dyn Host) -> Vec<UiEvent> {
+impl EguiEngine {
+    pub fn draw_part(&mut self, ui: &mut Ui, surface: Surface<'_>, part: &Node, host: &mut dyn Host) -> Vec<UiEvent> {
         let textures = self.textures.entry(surface.key.to_string()).or_default();
         if textures.rev != Some(surface.rev) {
             *textures = Textures { rev: Some(surface.rev), ..Textures::default() };
@@ -79,8 +79,14 @@ impl Engine for EguiEngine {
             seq: 0,
             out: Vec::new(),
         };
-        ui.push_id(cx.salt, |ui| node(ui, &mut cx, surface.tree, 0));
+        ui.push_id(cx.salt, |ui| node(ui, &mut cx, part, 0));
         cx.out.into_iter().map(|(widget, value)| UiEvent { surface: surface.key.to_string(), rev: surface.rev, widget, value }).collect()
+    }
+}
+
+impl Engine for EguiEngine {
+    fn draw(&mut self, ui: &mut Ui, surface: Surface<'_>, host: &mut dyn Host) -> Vec<UiEvent> {
+        self.draw_part(ui, surface, surface.tree, host)
     }
 
     fn forget(&mut self, key: &str) {

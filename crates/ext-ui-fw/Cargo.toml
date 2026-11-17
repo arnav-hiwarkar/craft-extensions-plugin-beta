@@ -1,6 +1,6 @@
 [package]
 name = "craft-ext-ui-fw"
-description = "The Plugin Manager and store as a craft framework pattern over craft-ext-manager, for apps on the craft UI framework."
+description = "Plugin panels and windows, the Plugin Manager and store, drawn with craft framework components for apps on the craft UI framework."
 version = "0.1.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
@@ -17,6 +17,7 @@ todo = "warn"
 [dependencies]
 craft-ext-core = { path = "../ext-core" }
 craft-ext-manager = { path = "../ext-manager" }
+craft-ext-ui = { path = "../ext-ui" }
 craft = { git = "https://github.com/storytold/craft-libs", rev = "a6b9d9c986f7c4c399632d72d9a4a8c8ea0b86e9", default-features = false, features = ["ui"] }
 egui = { version = "0.37", default-features = false }
 
