@@ -249,14 +249,14 @@ fn install_from_file_opens_setup_and_confirm_turns_it_on() {
         }]
     );
     assert_eq!(setup.blocker(), Some(Word::SetupGrantRequired));
-    assert_eq!(notices(&m.apply(Action::ConfirmSetup { id: plugin.clone() })), vec![(Word::SetupGrantRequired, plugin.to_string())]);
+    assert_eq!(notices(&m.apply(Action::ConfirmSetup { id: plugin.clone() })), vec![(Word::SetupGrantRequired, "Test 1.0.0".to_string())]);
     m.apply(Action::SetupPermission { id: plugin.clone(), permission: Permission::parse("clipboard.read").unwrap(), on: true });
     assert_eq!(m.setup(&plugin).unwrap().blocker(), None);
     let confirm = m.apply(Action::ConfirmSetup { id: plugin.clone() });
     assert_eq!(confirm, vec![Effect::CloseSetup(plugin.clone()), Effect::Changed]);
     assert_eq!(m.flow(&plugin).map(|f| &f.step), Some(&Step::Working(Word::StateApplying)));
     let effects = settle(&mut m);
-    assert_eq!(notices(&effects), vec![(Word::NoticeSetUp, plugin.to_string())]);
+    assert_eq!(notices(&effects), vec![(Word::NoticeSetUp, "Test 1.0.0".to_string())]);
     assert_eq!(m.flow(&plugin), None);
     let setup = &m.snapshot().state.apps[&app()][&plugin];
     assert_eq!((setup.active, setup.enabled.iter().cloned().collect::<Vec<_>>()), (Some(Version::new(1, 0, 0)), vec!["run".to_string()]));
@@ -291,7 +291,7 @@ fn writes_run_on_the_worker_and_the_view_follows_the_store() {
     let panel = &m.detail().unwrap().apps[0];
     assert_eq!(panel.grants.iter().map(|g| (g.sentence.as_str(), g.granted)).collect::<Vec<_>>(), vec![("Read the clipboard when you use it", true)]);
     m.apply(Action::Revoke { id: plugin.clone(), app: app(), permission: Permission::parse("clipboard.read").unwrap() });
-    assert_eq!(notices(&settle(&mut m)), vec![(Word::NoticeChanged, plugin.to_string())]);
+    assert_eq!(notices(&settle(&mut m)), vec![(Word::NoticeChanged, "Test 1.0.0".to_string())]);
     assert!(!m.detail().unwrap().apps[0].grants[0].granted);
     Store::at(f.store_root()).quarantine(&app(), &plugin, Version::new(1, 0, 0), "panicked in render").unwrap();
     wait_until(&mut m, |m| m.count(Tab::Problems) == 1);
@@ -310,7 +310,7 @@ fn writes_run_on_the_worker_and_the_view_follows_the_store() {
     settle(&mut m);
     assert_eq!(m.problems(), &[]);
     m.apply(Action::Uninstall { id: plugin.clone() });
-    assert_eq!(notices(&settle(&mut m)), vec![(Word::NoticeUninstalled, plugin.to_string())]);
+    assert_eq!(notices(&settle(&mut m)), vec![(Word::NoticeUninstalled, "Test 1.0.0".to_string())]);
     m.apply(Action::SetTab(Tab::Installed));
     assert_eq!(m.rows(), &[]);
 }
@@ -326,11 +326,58 @@ fn unclean_exit_and_pending_consent_are_problems() {
     let mut m = f.model();
     m.set_unclean_exit(app(), vec![plugin.clone()]);
     let kinds: Vec<(ProblemKind, Option<Fix>)> = m.problems().iter().map(|p| (p.kind.clone(), p.fix)).collect();
-    assert_eq!(kinds, vec![(ProblemKind::ConsentPending { native: false }, Some(Fix::SetUp)), (ProblemKind::UncleanExit, Some(Fix::Report))]);
+    assert_eq!(kinds, vec![(ProblemKind::ConsentPending { native: false }, Some(Fix::SetUp)), (ProblemKind::UncleanExit, Some(Fix::TurnOff))]);
+    assert_eq!(m.problems()[1].action(), Some(Action::TurnOffAfterCrash { id: plugin.clone(), app: app() }));
     assert_eq!(m.apply(Action::SetUp { id: plugin.clone(), app: app() })[0], Effect::OpenSetup(plugin.clone()));
     assert_eq!(m.setup(&plugin).unwrap().version, Version::new(2, 0, 0));
     assert_eq!(m.setup(&plugin).unwrap().permissions.iter().map(|p| p.on).collect::<Vec<_>>(), vec![false]);
     assert_eq!(m.apply(Action::Cancel { id: plugin.clone() }), vec![Effect::CloseSetup(plugin.clone()), Effect::Changed]);
+}
+
+#[test]
+fn turning_off_after_a_crash_quarantines_and_replaces_the_unclean_exit_row() {
+    let f = Fixture::new();
+    let plugin = installed(&f, "1.0.0", &[]);
+    let mut m = f.model();
+    m.set_unclean_exit(app(), vec![plugin.clone()]);
+    m.apply(Action::TurnOffAfterCrash { id: plugin.clone(), app: app() });
+    settle(&mut m);
+    wait_until(&mut m, |m| m.problems().iter().all(|p| p.kind != ProblemKind::UncleanExit));
+    assert_eq!(
+        m.problems(),
+        &[Problem {
+            app: app(),
+            id: plugin.clone(),
+            version: Some(Version::new(1, 0, 0)),
+            kind: ProblemKind::Quarantined { reason: UNCLEAN_EXIT.into() },
+            fix: Some(Fix::TurnBackOn)
+        }]
+    );
+}
+
+#[test]
+fn full_access_can_be_turned_off_from_the_detail() {
+    let f = Fixture::new();
+    let plugin = installed(&f, "1.0.0", &[]);
+    Store::at(f.store_root()).set_full_access(&app(), &plugin, true).unwrap();
+    let mut m = f.model();
+    m.apply(Action::Select(Some(plugin.clone())));
+    assert!(m.detail().unwrap().apps[0].full_access);
+    m.apply(Action::RemoveFullAccess { id: plugin.clone(), app: app() });
+    assert_eq!(notices(&settle(&mut m)), vec![(Word::NoticeChanged, "Test 1.0.0".to_string())]);
+    wait_until(&mut m, |m| !m.detail().unwrap().apps[0].full_access);
+    assert!(!Store::at(f.store_root()).state().unwrap().apps[&app()][&plugin].full_access);
+}
+
+#[test]
+fn catalogue_pngs_arrive_as_rgba_pixels() {
+    let mut bytes = vec![];
+    let mut encoder = png::Encoder::new(&mut bytes, 2, 1);
+    encoder.set_color(png::ColorType::Rgb);
+    encoder.set_depth(png::BitDepth::Eight);
+    encoder.write_header().unwrap().write_image_data(&[255, 0, 0, 0, 0, 255]).unwrap();
+    assert_eq!(worker::decode_png(&bytes), Ok(Pixels { width: 2, height: 1, rgba: vec![255, 0, 0, 255, 0, 0, 255, 255].into() }));
+    assert!(worker::decode_png(b"not a png").is_err());
 }
 
 #[test]
@@ -341,7 +388,7 @@ fn rollback_to_an_installed_version_needs_no_new_consent() {
     let mut m = f.model();
     m.apply(Action::Rollback { id: plugin.clone(), app: app(), version: Version::new(1, 0, 0) });
     assert_eq!(m.flow(&plugin).map(|f| f.kind), Some(FlowKind::Rollback));
-    assert_eq!(notices(&settle(&mut m)), vec![(Word::NoticeRolledBack, plugin.to_string())]);
+    assert_eq!(notices(&settle(&mut m)), vec![(Word::NoticeRolledBack, "Test 1.0.0".to_string())]);
     assert_eq!(m.snapshot().state.apps[&app()][&plugin].active, Some(Version::new(1, 0, 0)));
     m.apply(Action::Select(Some(plugin.clone())));
     let versions: Vec<(Version, bool, Vec<AppId>)> = m.detail().unwrap().versions.iter().map(|v| (v.version, v.installed, v.active_in.clone())).collect();
@@ -506,4 +553,29 @@ fn a_project_status_has_one_word_one_tone_and_at_most_one_fix() {
         statuses.each_ref().map(|s| project_fix(&app(), &grain, s)),
         [None, Some((Word::ActionSetUp, Action::SetUp { id: grain.id.clone(), app: app() })), install.clone(), install, None]
     );
+}
+
+#[test]
+fn the_project_prompt_offers_install_all_for_listed_plugins_only() {
+    let f = Fixture::new();
+    f.publish(vec![], json!({}));
+    let m = f.model();
+    let r = |id: &str| -> PluginRef { serde_json::from_value(json!({"id":id,"version":"1.0.0","source":"catalogue","name":id})).unwrap() };
+    let (a, b, gone, ready) = (r("io.github.alice.a"), r("io.github.alice.b"), r("io.github.alice.gone"), r("io.github.alice.ready"));
+    let withdrawn = Status::Unavailable { reason: "release withdrawn".into() };
+    let statuses = vec![
+        (a.clone(), Status::Downloadable),
+        (b.clone(), Status::Downloadable),
+        (gone.clone(), withdrawn.clone()),
+        (ready.clone(), Status::Ready { version: Version::new(1, 0, 0) }),
+    ];
+    let mut p = Prompt::new(m.config(), statuses);
+    assert_eq!(p.install_all(&m), Some(Action::InstallMissing { app: app(), refs: vec![a.clone(), b.clone()] }));
+    assert_eq!(p.fix(&m, &gone, &withdrawn), None);
+    p.record([Notice { word: Word::NoticeInstalled, plugin: Some(a.id.clone()), subject: "A".into(), detail: String::new(), error: false }]);
+    assert_eq!(p.result(&a.id).map(|n| n.word), Some(Word::NoticeInstalled));
+    assert_eq!(p.install_all(&m), None);
+    p.skip(b.id.clone());
+    assert_eq!(p.finish(false), PromptOutcome { skipped: vec![b.id.clone()], open_without: false });
+    assert_eq!(p.finish(true), PromptOutcome { skipped: vec![a.id, b.id, gone.id], open_without: true });
 }

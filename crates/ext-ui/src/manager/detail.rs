@@ -177,7 +177,12 @@ fn app_panel(ui: &mut Ui, d: &Detail, p: &AppPanel, words: &dyn Words, actions: 
             }
         }
         if p.full_access {
-            ui.label(RichText::new(format!("✓ {}", words.word(Word::ConsentFullAccess))).color(tone_color(Tone::Bad, ui.visuals())).small());
+            ui.horizontal_wrapped(|ui| {
+                ui.label(RichText::new(format!("✓ {}", words.word(Word::ConsentFullAccess))).color(tone_color(Tone::Bad, ui.visuals())).small());
+                if ui.small_button(words.word(Word::ActionRemoveFullAccess)).clicked() {
+                    actions.push(Action::RemoveFullAccess { id: id.clone(), app: app.clone() });
+                }
+            });
         }
         ui.add_space(4.0);
         ui.horizontal_wrapped(|ui| {

@@ -9,7 +9,8 @@ mod widgets;
 
 pub use look::Words;
 pub use page::PluginManager;
-pub use prompt::{ProjectPrompt, PromptOutcome};
+pub use craft_ext_manager::PromptOutcome;
+pub use prompt::ProjectPrompt;
 
 use craft_ext_manager::{Action, Config, Effect, Model, Notice};
 use egui::{Align2, Area, Context, CornerRadius, Frame, Id, Order, Stroke, vec2};

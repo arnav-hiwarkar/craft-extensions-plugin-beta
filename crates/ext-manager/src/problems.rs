@@ -34,6 +34,7 @@ impl ProblemKind {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Fix {
     TurnBackOn,
+    TurnOff,
     SetUp,
     Update(Version),
     Uninstall,
@@ -44,6 +45,7 @@ impl Fix {
     pub fn word(self) -> Word {
         match self {
             Fix::TurnBackOn => Word::ActionTurnBackOn,
+            Fix::TurnOff => Word::ActionDisable,
             Fix::SetUp => Word::ActionSetUp,
             Fix::Update(_) => Word::ActionUpdate,
             Fix::Uninstall => Word::ActionUninstall,
@@ -94,7 +96,12 @@ pub(crate) fn find(view: &View<'_>, unclean: &BTreeMap<AppId, Vec<ExtensionId>>)
             }
         }
         for id in unclean.get(app).into_iter().flatten() {
-            out.push(Problem { app: app.clone(), id: id.clone(), version: view.active(app, id), kind: ProblemKind::UncleanExit, fix: Some(Fix::Report) });
+            let setup = state.apps.get(app).and_then(|a| a.get(id));
+            if setup.is_some_and(|s| s.quarantine.as_ref().is_some_and(|q| Some(q.version) == s.active)) {
+                continue;
+            }
+            let version = view.active(app, id);
+            out.push(Problem { app: app.clone(), id: id.clone(), version, kind: ProblemKind::UncleanExit, fix: version.map(|_| Fix::TurnOff) });
         }
     }
     out

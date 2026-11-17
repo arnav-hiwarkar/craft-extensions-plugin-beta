@@ -78,6 +78,7 @@ impl Problem {
         let (id, app) = (self.id.clone(), self.app.clone());
         Some(match self.fix? {
             Fix::TurnBackOn => Action::TurnBackOn { id, app },
+            Fix::TurnOff => Action::TurnOffAfterCrash { id, app },
             Fix::SetUp => Action::SetUp { id, app },
             Fix::Update(_) => Action::Update { id, app },
             Fix::Uninstall => Action::Uninstall { id },

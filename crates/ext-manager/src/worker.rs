@@ -53,6 +53,8 @@ pub enum Write {
     Grant(AppId, ExtensionId, Permission, bool),
     Pin(AppId, ExtensionId, Option<VersionReq>),
     TurnBackOn(AppId, ExtensionId),
+    Quarantine(AppId, ExtensionId, Version),
+    FullAccessOff(AppId, ExtensionId),
     Uninstall(ExtensionId),
 }
 
@@ -74,7 +76,7 @@ pub enum Event {
     Loaded(Arc<Snapshot>),
     Refreshed(Result<(), String>),
     Package(ExtensionId, Result<Arc<PackageFile>, String>),
-    Media(String, Result<Arc<[u8]>, String>),
+    Media(String, Result<Arc<Pixels>, String>),
     Staged { id: ExtensionId, app: AppId, kind: FlowKind, manifest: Box<Manifest>, needs_setup: bool, dependencies: Vec<(ExtensionId, Version)> },
     FileFailed(PathBuf, String),
     Applied { id: ExtensionId, kind: FlowKind },
@@ -82,6 +84,31 @@ pub enum Event {
     Failed(ExtensionId, String),
     Settled(ExtensionId, Word, String),
     Idle,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Pixels {
+    pub width: u32,
+    pub height: u32,
+    pub rgba: Arc<[u8]>,
+}
+
+pub(crate) fn decode_png(bytes: &[u8]) -> Result<Pixels, String> {
+    let mut decoder = png::Decoder::new(std::io::Cursor::new(bytes));
+    decoder.set_transformations(png::Transformations::normalize_to_color8());
+    let mut reader = decoder.read_info().map_err(|e| e.to_string())?;
+    let size = reader.output_buffer_size().ok_or("the image is too large")?;
+    let mut buffer = vec![0; size];
+    let frame = reader.next_frame(&mut buffer).map_err(|e| e.to_string())?;
+    let data = buffer.get(..frame.buffer_size()).ok_or("the image is truncated")?;
+    let rgba: Vec<u8> = match frame.color_type {
+        png::ColorType::Rgba => data.to_vec(),
+        png::ColorType::Rgb => data.chunks_exact(3).flat_map(|p| [p[0], p[1], p[2], 255]).collect(),
+        png::ColorType::GrayscaleAlpha => data.chunks_exact(2).flat_map(|p| [p[0], p[0], p[0], p[1]]).collect(),
+        png::ColorType::Grayscale => data.iter().flat_map(|&g| [g, g, g, 255]).collect(),
+        png::ColorType::Indexed => return Err("the palette was not expanded".into()),
+    };
+    Ok(Pixels { width: frame.width, height: frame.height, rgba: rgba.into() })
 }
 
 pub struct Worker {
@@ -172,7 +199,7 @@ impl Runner {
                 false
             }
             Job::Media(url, repo, image, role) => {
-                let result = Catalogue::media(&self.config.catalogue_base, &repo, &image, role).map(Arc::from).map_err(|e| e.to_string());
+                let result = Catalogue::media(&self.config.catalogue_base, &repo, &image, role).map_err(|e| e.to_string()).and_then(|bytes| decode_png(&bytes)).map(Arc::new);
                 self.send(Event::Media(url, result));
                 false
             }
@@ -293,6 +320,14 @@ impl Runner {
             }
             Write::TurnBackOn(app, id) => {
                 let r = s.clear_quarantine(&app, &id);
+                (Word::NoticeChanged, id, r)
+            }
+            Write::Quarantine(app, id, version) => {
+                let r = s.quarantine(&app, &id, version, crate::UNCLEAN_EXIT);
+                (Word::NoticeChanged, id, r)
+            }
+            Write::FullAccessOff(app, id) => {
+                let r = s.set_full_access(&app, &id, false);
                 (Word::NoticeChanged, id, r)
             }
             Write::Uninstall(id) => {

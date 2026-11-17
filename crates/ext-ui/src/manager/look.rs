@@ -113,7 +113,7 @@ mod tests {
     }
 
     fn notice(word: Word, subject: &str, detail: &str, error: bool) -> Notice {
-        Notice { word, subject: subject.into(), detail: detail.into(), error }
+        Notice { word, plugin: None, subject: subject.into(), detail: detail.into(), error }
     }
 
     #[test]

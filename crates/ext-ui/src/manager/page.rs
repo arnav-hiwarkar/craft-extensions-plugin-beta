@@ -14,14 +14,22 @@ pub(crate) const GAP: f32 = 16.0;
 pub(crate) const ROW_ICON: f32 = 40.0;
 pub(crate) const SKELETON_ROWS: usize = 6;
 
+type FilePicker = Box<dyn FnMut() -> Option<std::path::PathBuf>>;
+
 pub struct PluginManager {
     session: Session,
     search: String,
+    pick_file: Option<FilePicker>,
 }
 
 impl PluginManager {
     pub fn new(config: Config) -> Self {
-        PluginManager { session: Session::new(config), search: String::new() }
+        PluginManager { session: Session::new(config), search: String::new(), pick_file: None }
+    }
+
+    pub fn with_file_picker(mut self, pick: impl FnMut() -> Option<std::path::PathBuf> + 'static) -> Self {
+        self.pick_file = Some(Box::new(pick));
+        self
     }
 
     pub fn model(&self) -> &Model {
@@ -41,6 +49,7 @@ impl PluginManager {
         self.session.poll(&ctx, words);
         let mut actions = vec![];
         let mut hook = Some(app_problems);
+        let mut install_file = self.pick_file.as_ref().map(|_| false);
         let available = ui.available_rect_before_wrap();
         let bottom = available.bottom().min(ui.clip_rect().bottom());
         let full = Rect::from_min_size(available.min, vec2(available.width(), (bottom - available.top()).max(MIN_HEIGHT)));
@@ -53,7 +62,7 @@ impl PluginManager {
         if rest.width() + SIDEBAR_WIDTH >= SPLIT_FROM {
             let list = rest.with_max_x(rest.right() - DETAIL_WIDTH - GAP);
             let pane = rest.with_min_x(list.right() + GAP);
-            ui.scope_builder(UiBuilder::new().max_rect(list).id_salt("craft-plugin-list"), |ui| main(ui, model, &mut self.search, words, &mut actions, &mut hook));
+            ui.scope_builder(UiBuilder::new().max_rect(list).id_salt("craft-plugin-list"), |ui| main(ui, model, &mut self.search, words, &mut actions, &mut hook, &mut install_file));
             ui.painter().vline(list.right() + GAP / 2.0, full.y_range(), ui.visuals().widgets.noninteractive.bg_stroke);
             ui.scope_builder(UiBuilder::new().max_rect(pane).id_salt("craft-plugin-detail"), |ui| match model.detail() {
                 Some(d) => detail::pane(ui, model, d, words, &mut actions),
@@ -69,9 +78,14 @@ impl PluginManager {
                 }
             });
         } else {
-            ui.scope_builder(UiBuilder::new().max_rect(rest).id_salt("craft-plugin-list"), |ui| main(ui, model, &mut self.search, words, &mut actions, &mut hook));
+            ui.scope_builder(UiBuilder::new().max_rect(rest).id_salt("craft-plugin-list"), |ui| main(ui, model, &mut self.search, words, &mut actions, &mut hook, &mut install_file));
         }
         ui.advance_cursor_after_rect(full);
+        if install_file == Some(true)
+            && let Some(path) = self.pick_file.as_mut().and_then(|pick| pick())
+        {
+            actions.push(Action::InstallFile { path, app: None });
+        }
         self.session.apply(actions, &ctx, words);
         self.session.overlays(&ctx, words);
     }
@@ -93,8 +107,8 @@ fn sidebar(ui: &mut Ui, model: &Model, words: &dyn Words, actions: &mut Vec<Acti
     }
 }
 
-fn main<F: FnOnce(&mut Ui) -> bool>(ui: &mut Ui, model: &Model, search: &mut String, words: &dyn Words, actions: &mut Vec<Action>, hook: &mut Option<F>) {
-    toolbar(ui, model, search, words, actions);
+fn main<F: FnOnce(&mut Ui) -> bool>(ui: &mut Ui, model: &Model, search: &mut String, words: &dyn Words, actions: &mut Vec<Action>, hook: &mut Option<F>, install_file: &mut Option<bool>) {
+    toolbar(ui, model, search, words, actions, install_file);
     if let Some(error) = model.catalogue_error() {
         ui.add_space(8.0);
         callout(ui, Tone::Warn, words.word(Word::CatalogueUnavailable), Some(error));
@@ -125,7 +139,7 @@ fn main<F: FnOnce(&mut Ui) -> bool>(ui: &mut Ui, model: &Model, search: &mut Str
     });
 }
 
-fn toolbar(ui: &mut Ui, model: &Model, search: &mut String, words: &dyn Words, actions: &mut Vec<Action>) {
+fn toolbar(ui: &mut Ui, model: &Model, search: &mut String, words: &dyn Words, actions: &mut Vec<Action>, install_file: &mut Option<bool>) {
     ui.horizontal(|ui| {
         let width = (ui.available_width() - 280.0).max(160.0);
         let field = ui.add(egui::TextEdit::singleline(search).hint_text(words.word(Word::SearchPlaceholder)).desired_width(width));
@@ -143,6 +157,9 @@ fn toolbar(ui: &mut Ui, model: &Model, search: &mut String, words: &dyn Words, a
         });
         if ui.button(words.word(Word::ActionRefresh)).clicked() {
             actions.push(Action::Refresh);
+        }
+        if let Some(pressed) = install_file.as_mut() {
+            *pressed |= ui.button(words.word(Word::ActionInstallFile)).clicked();
         }
         if model.busy() {
             ui.spinner();

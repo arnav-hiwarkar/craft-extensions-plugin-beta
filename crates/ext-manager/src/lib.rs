@@ -3,6 +3,7 @@
 mod detail;
 mod flow;
 mod problems;
+mod prompt;
 mod rank;
 mod view;
 mod words;
@@ -11,10 +12,11 @@ mod worker;
 pub use detail::{AppPanel, ContributionRow, Detail, GrantRow, PermissionRow, VersionRow};
 pub use flow::{Flow, FlowKind, NativeWarning, Setup, SetupContribution, SetupPermission, Step};
 pub use problems::{Fix, Problem, ProblemKind};
+pub use prompt::{Prompt, PromptOutcome};
 pub use view::{Look, Press, Tone, category_word, project_fix, project_tone, project_word};
 pub use rank::{MAX_DOWNLOAD_BOOST, SCORE_DESCRIPTION, SCORE_EXACT_NAME, SCORE_NAME_CONTAINS, SCORE_NAME_PREFIX, SCORE_NAME_WORD, SCORE_SUMMARY, SCORE_TAG, SCORE_TAG_CONTAINS};
 pub use words::{WORDS, Word};
-pub use worker::{REFRESH_AFTER_SECONDS, Snapshot, UpdateRow, WATCH_INTERVAL};
+pub use worker::{Pixels, REFRESH_AFTER_SECONDS, Snapshot, UpdateRow, WATCH_INTERVAL};
 
 use craft_ext_core::{
     catalogue::PackageFile,
@@ -29,6 +31,8 @@ use craft_ext_core::{
 };
 use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
 use worker::{Event, Job, Worker, Write};
+
+pub const UNCLEAN_EXIT: &str = "the app closed unexpectedly while this plugin was running";
 
 #[derive(Clone, Debug)]
 pub struct AppTarget {
@@ -245,6 +249,8 @@ pub enum Action {
     Unpin { id: ExtensionId, app: AppId },
     Rollback { id: ExtensionId, app: AppId, version: Version },
     TurnBackOn { id: ExtensionId, app: AppId },
+    TurnOffAfterCrash { id: ExtensionId, app: AppId },
+    RemoveFullAccess { id: ExtensionId, app: AppId },
     InstallMissing { app: AppId, refs: Vec<PluginRef> },
     SetUp { id: ExtensionId, app: AppId },
     SetupContribution { id: ExtensionId, contribution: String, on: bool },
@@ -258,6 +264,7 @@ pub enum Action {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Notice {
     pub word: Word,
+    pub plugin: Option<ExtensionId>,
     pub subject: String,
     pub detail: String,
     pub error: bool,
@@ -273,7 +280,7 @@ pub enum Effect {
 }
 
 fn notice(word: Word, subject: impl ToString, detail: impl Into<String>, error: bool) -> Effect {
-    Effect::Notice(Notice { word, subject: subject.to_string(), detail: detail.into(), error })
+    Effect::Notice(Notice { word, plugin: None, subject: subject.to_string(), detail: detail.into(), error })
 }
 
 pub struct Model {
@@ -286,7 +293,7 @@ pub struct Model {
     query: Query,
     selected: Option<ExtensionId>,
     packages: BTreeMap<ExtensionId, (String, Loadable<Arc<PackageFile>>)>,
-    images: BTreeMap<String, Loadable<Arc<[u8]>>>,
+    images: BTreeMap<String, Loadable<Arc<Pixels>>>,
     flows: BTreeMap<ExtensionId, Flow>,
     queued: Vec<(ExtensionId, AppId, FlowKind, Option<VersionReq>)>,
     cancelled: std::collections::BTreeSet<ExtensionId>,
@@ -380,7 +387,7 @@ impl Model {
         }
     }
 
-    pub fn image(&self, url: &str) -> Option<&Loadable<Arc<[u8]>>> {
+    pub fn image(&self, url: &str) -> Option<&Loadable<Arc<Pixels>>> {
         self.images.get(url)
     }
 
@@ -392,6 +399,10 @@ impl Model {
         self.unclean.insert(app, ids);
         self.rebuild();
         vec![Effect::Changed]
+    }
+
+    fn about(&self, word: Word, id: &ExtensionId, detail: impl Into<String>, error: bool) -> Effect {
+        Effect::Notice(Notice { word, plugin: Some(id.clone()), subject: self.name_of(id), detail: detail.into(), error })
     }
 
     fn send(&mut self, job: Job) {
@@ -518,7 +529,7 @@ impl Model {
             }
             Action::Install { id, app } => match self.app_for(&id, app) {
                 Some(app) => self.start(id, app, FlowKind::Install, None),
-                None => vec![notice(Word::NoticeFailed, id, "choose an app this plugin supports", true)],
+                None => vec![self.about(Word::NoticeFailed, &id, "choose an app this plugin supports", true)],
             },
             Action::InstallFile { path, app } => match app.or_else(|| self.config.scope().cloned()).or_else(|| self.config.apps.first().map(|t| t.app.clone())) {
                 Some(app) => {
@@ -544,6 +555,11 @@ impl Model {
             Action::Unpin { id, app } => self.write(Write::Pin(app, id, None)),
             Action::Rollback { id, app, version } => self.start(id, app, FlowKind::Rollback, Some(VersionReq::Exact(version))),
             Action::TurnBackOn { id, app } => self.write(Write::TurnBackOn(app, id)),
+            Action::TurnOffAfterCrash { id, app } => match self.view().active(&app, &id) {
+                Some(version) => self.write(Write::Quarantine(app, id, version)),
+                None => vec![],
+            },
+            Action::RemoveFullAccess { id, app } => self.write(Write::FullAccessOff(app, id)),
             Action::InstallMissing { app, refs } => {
                 for r in &refs {
                     self.flows.entry(r.id.clone()).or_insert_with(|| Flow { app: app.clone(), kind: FlowKind::InstallMissing, step: Step::Working(Word::StateChecking) });
@@ -560,7 +576,7 @@ impl Model {
                 let Some(flow) = self.flows.get_mut(&id) else { return vec![] };
                 let Step::Setup(setup) = &flow.step else { return vec![] };
                 if let Some(blocker) = setup.blocker() {
-                    return vec![notice(blocker, &id, "", true)];
+                    return vec![self.about(blocker, &id, "", true)];
                 }
                 let choice = setup.choice();
                 let kind = flow.kind;
@@ -600,7 +616,7 @@ impl Model {
         let saved = self.snapshot.state.apps.get(&app).and_then(|a| a.get(&id));
         let version = saved.and_then(|s| s.pending.or(s.active)).or_else(|| self.view().newest_installed(&id));
         let Some(manifest) = version.and_then(|v| self.view().manifest(&id, v).cloned()) else {
-            return vec![notice(Word::NoticeFailed, &id, "install the plugin first", true)];
+            return vec![self.about(Word::NoticeFailed, &id, "install the plugin first", true)];
         };
         let provided = self.config.apps.iter().find(|t| t.app == app).map(|t| t.provided.clone()).unwrap_or_default();
         let setup = Setup::new(manifest, app.clone(), saved, &provided, &self.config.platform, vec![]);
@@ -665,7 +681,7 @@ impl Model {
                     return vec![];
                 }
                 if !needs_setup {
-                    let done = notice(kind.done(), &id, manifest.version.to_string(), false);
+                    let done = Effect::Notice(Notice { word: kind.done(), plugin: Some(id.clone()), subject: manifest.name.clone(), detail: manifest.version.to_string(), error: false });
                     return self.end_flow(&id, vec![done]);
                 }
                 let tracked = self.flows.get(&id).is_some_and(|f| f.app == app) || kind == FlowKind::Install;
@@ -679,20 +695,20 @@ impl Model {
                 vec![Effect::OpenSetup(id)]
             }
             Event::Applied { id, kind, .. } => {
-                let done = notice(if kind == FlowKind::Install { Word::NoticeSetUp } else { kind.done() }, &id, "", false);
+                let done = self.about(if kind == FlowKind::Install { Word::NoticeSetUp } else { kind.done() }, &id, "", false);
                 self.end_flow(&id, vec![done])
             }
             Event::Failed(id, e) => {
-                let failed = notice(Word::NoticeFailed, &id, e, true);
+                let failed = self.about(Word::NoticeFailed, &id, e, true);
                 self.end_flow(&id, vec![failed])
             }
             Event::FileFailed(path, e) => vec![notice(Word::NoticeFailed, path.display(), e, true)],
             Event::Settled(id, word, detail) => {
-                let settled = notice(word, &id, detail, word == Word::NoticeUnavailable);
+                let settled = self.about(word, &id, detail, word == Word::NoticeUnavailable);
                 self.end_flow(&id, vec![settled])
             }
-            Event::Wrote(word, id, Ok(())) => vec![notice(word, &id, "", false)],
-            Event::Wrote(_, id, Err(e)) => vec![notice(Word::NoticeFailed, &id, e, true)],
+            Event::Wrote(word, id, Ok(())) => vec![self.about(word, &id, "", false)],
+            Event::Wrote(_, id, Err(e)) => vec![self.about(Word::NoticeFailed, &id, e, true)],
         }
     }
 }

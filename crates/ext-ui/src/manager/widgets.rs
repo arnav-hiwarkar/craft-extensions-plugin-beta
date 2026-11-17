@@ -1,6 +1,6 @@
 use super::look::{Button, button, initial, tone_color, tone_fill};
 use craft_ext_core::{id::ExtensionId, listing::Image};
-use craft_ext_manager::{Action, Loadable, Look, Model, Tone};
+use craft_ext_manager::{Action, Loadable, Look, Model, Pixels, Tone};
 use egui::{Align2, CornerRadius, FontId, Frame, Margin, Response, RichText, Sense, Stroke, Ui, vec2};
 
 pub(crate) const BUTTON_HEIGHT: f32 = 26.0;
@@ -62,20 +62,24 @@ pub(crate) fn action_button(ui: &mut Ui, text: String, look: Look) -> Response {
     }
 }
 
-pub(crate) fn images_supported(ui: &Ui) -> bool {
-    !ui.ctx().loaders().image.lock().is_empty()
+fn texture(ctx: &egui::Context, url: &str, pixels: &Pixels) -> egui::TextureHandle {
+    let key = egui::Id::unique(("craft-plugin-image", url));
+    if let Some(texture) = ctx.data(|d| d.get_temp::<egui::TextureHandle>(key)) {
+        return texture;
+    }
+    let image = egui::ColorImage::from_rgba_unmultiplied([pixels.width as usize, pixels.height as usize], &pixels.rgba);
+    let texture = ctx.load_texture(format!("craft-plugin/{url}"), image, egui::TextureOptions::LINEAR);
+    ctx.data_mut(|d| d.insert_temp(key, texture.clone()));
+    texture
 }
 
 pub(crate) fn picture(ui: &Ui, model: &Model, id: &ExtensionId, image: &Image, actions: &mut Vec<Action>) -> Option<egui::Image<'static>> {
-    if !images_supported(ui) {
-        return None;
-    }
     match model.image(&image.url) {
         None => {
             actions.push(Action::LoadImage(id.clone(), image.clone()));
             None
         }
-        Some(Loadable::Ready(bytes)) => Some(egui::Image::from_bytes(format!("bytes://craft-plugin/{}", image.url), egui::load::Bytes::Shared(bytes.clone()))),
+        Some(Loadable::Ready(pixels)) => Some(egui::Image::from_texture(egui::load::SizedTexture::from_handle(&texture(ui.ctx(), &image.url, pixels)))),
         Some(_) => None,
     }
 }

@@ -62,6 +62,7 @@ words! {
     ActionOpen "plugins.manager.action.open" "Open",
     ActionHomepage "plugins.manager.action.homepage" "Homepage",
     ActionInstallFile "plugins.manager.action.install-file" "Install from file…",
+    ActionRemoveFullAccess "plugins.manager.action.remove-full-access" "Turn off full access",
     StateInstalled "plugins.manager.state.installed" "Installed",
     StateWorking "plugins.manager.state.working" "Working…",
     StateDownloading "plugins.manager.state.downloading" "Downloading",
