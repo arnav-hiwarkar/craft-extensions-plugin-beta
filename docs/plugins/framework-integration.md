@@ -14,26 +14,26 @@ must install that runtime once for its window, not once for each plugin panel.
 
 ## Install the host renderer
 
-Implement `craft_ext_ui::plugin_ui::Engine` in the host-side framework adapter.
-Translate the validated `Surface.tree` into framework widgets and return the same
-`UiEvent` values, tagged with the original surface key and revision. Install it
-with `PluginUi::set_framework_engine(Some(Box::new(engine)))` when the host selects
-`EngineChoice::Framework`. Without an installed implementation the same choice
-continues to use egui. Removing the implementation restores that fallback.
+`craft_ext_ui_fw::FrameworkEngine` implements `craft_ext_ui::plugin_ui::Engine` for apps on
+the craft UI framework. It lives in `crates/ext-ui-fw`, its own Cargo workspace pinned to
+PhotoCraft's craft-libs revision, so EffectCraft, FigCraft and the launcher never link the
+framework. Install it with `PluginUi::set_framework_engine(Some(Box::new(FrameworkEngine::default())))`;
+`EngineChoice::Framework` then draws with it, and without it the same choice draws with egui.
+PhotoCraft installs it and defaults `plugIns.pluginUiEngine` to `framework`.
 
-The renderer does not edit a document or run a plugin. Return control events for the
-owner to dispatch after rendering; do not dispatch from measuring passes or replay
-records. Preserve stable widget IDs, local edit state and the shared commit-on-edit
-semantics. `forget` releases a closed surface's caches in both renderers. Replacing
-an installed implementation releases its known surface state before dropping it.
+The engine translates the validated `Surface.tree` into framework components
+([node to component](ui.md#relation-to-craft-framework)) and returns the same `UiEvent`
+values, tagged with the surface key and revision. Plugin text is passed untranslated as
+shared labels; host words go through `Host::tr`. Each control's id salt is (surface key,
+node id). Controls are given the plugin's value; an event leaves only from a click, an edit
+commit or a selection change, and only when the value differs from the one shown. A
+committed value is shown until the plugin's value changes or the revision moves on; a tab,
+section or selection is kept until the plugin's own value for it changes. `forget` releases
+both engines' state for a closed surface.
 
-The current `Engine` boundary accepts egui's `Ui` because the future framework also
-uses egui. The host workspace must use one egui source/revision for the app, framework
-and plugin renderer. At the checked framework revision the root patches the egui
-family to `aiongg/egui` revision `42e34e2acf5232928bc5f3fe092733d41b09cfe3`.
-Dependency patches are workspace-root decisions and are not inherited from a library.
-Do not copy that pin into guest packages or switch app pins during this source-only
-phase. Reconcile the app/framework lockfiles when the framework is actually adopted.
+Canvases and colour inputs are drawn by `EguiEngine::draw_part` inside the framework layout,
+with the surface's named images and widget state. The `Engine` boundary still accepts egui's
+`Ui`, and the host workspace uses one egui source for the app, framework and renderers.
 
 ## Preserve components and older UI
 
@@ -63,9 +63,9 @@ user theme activation as separate choices.
 
 ## Verification still required
 
-Regression source covers host renderer installation, existing tree/revision events,
-forgetting a surface and fallback after removal. It has not run. Before adopting
-the framework, compare each shared control's event values, stale revisions, local
-edits, component fallbacks, canvas input/clip transforms, focus, shortcuts, scaling,
-contrast, reduced motion and screen-reader names. Test repeated passes without
-duplicate edits. Current source checks do not establish runtime framework compatibility.
+Unit tests cover the node-to-component table, tones, variants, type roles and the event value
+each control sends. A headless render with the framework test kit was not run: it needs
+`craft/ui-testing` as a dev-dependency, and a non-member path package with dev-dependencies
+cannot be tested from PhotoCraft's workspace. Still unverified in the app: focus, keyboard,
+screen-reader names, repeated passes, canvas input inside framework containers and the look
+in each theme.

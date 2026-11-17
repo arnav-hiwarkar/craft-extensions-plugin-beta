@@ -15,15 +15,18 @@ The rule: **plugins describe UI as data; the host renders it.** A plugin cannot 
 detect the backend that draws its tree.
 
 - An app draws plugin UI with an engine **it** chooses (`craft_ext_ui::plugin_ui::EngineChoice`).
-  Today that is egui (`EngineChoice::Egui`, the default). `EngineChoice::Framework` is reserved for
-  the craft-framework renderer; it falls back to egui until the host installs a renderer with
-  `PluginUi::set_framework_engine` ([framework integration](framework-integration.md)).
+  `EngineChoice::Egui` is the generic renderer every app has. `EngineChoice::Framework` draws with
+  the renderer the host installs with `PluginUi::set_framework_engine`, and falls back to egui
+  without one. Apps on the craft UI framework install `craft_ext_ui_fw::FrameworkEngine`, which
+  draws each node with the framework component and theme tokens PhotoCraft's own panels use
+  ([framework integration](framework-integration.md)). PhotoCraft does so by default.
 - The same tree produces the same events and the same revision handling whichever engine draws it.
   The theme, fonts, spacing and accessibility come from the app. Write trees for meaning ("a table
   with selectable rows"), not for looks.
 - The guest SDK has no renderer dependency, the ABI carries no renderer identity, and there are no
   backend-specific nodes. The future framework renderer must keep drawing UI 1.0 (and 1.1) trees
-  unchanged, with the same widget ids and event values.
+  unchanged, with the same widget ids and event values. The framework engine does: it sends
+  the values the egui engine sends, only when a click, a commit or a selection change happens.
 
 ## Panels and windows
 
@@ -382,8 +385,8 @@ ui::set_panel("layers", tree)?;
 - `FormView` holds a form with its own state for dialogs (live edits, `apply_patch`,
   `replace_form`). `paint_ops(painter, Xf::new(offset, zoom), clip, ops, images)` paints draw
   lists such as canvas overlays (`canvas.overlay.set`, checked with `validate_draw_list`).
-- `PluginUi::set_framework_engine(Some(engine))` installs a host renderer for
-  `EngineChoice::Framework`; without one, that choice draws with egui. The `framework` cargo feature
+- `PluginUi::set_framework_engine(Some(Box::new(FrameworkEngine::default())))` installs the
+  framework renderer for `EngineChoice::Framework`; without one, that choice draws with egui. The `framework` cargo feature
   is only a compatibility marker. See [framework integration](framework-integration.md).
 
 Known limit: concave polygons and paths are triangulated by the renderer on every frame they are
@@ -392,8 +395,10 @@ large polygon counts out of panels that redraw often.
 
 ## Relation to craft-framework
 
-The form schema mirrors craft-framework's `Param` / `ParamKind` names. Differences to resolve when
-the framework's renderer becomes an engine here (none affect plugins, which only see the schema):
+The form schema mirrors craft-framework's `Param` / `ParamKind` names. The framework engine draws
+forms as its own framework rows rather than `ParamRows`, because of these differences (none affect
+plugins, which only see the schema) and because `ParamRows` reports values every pass, not on
+commit:
 
 - The framework's `Range` has a `scale` (linear, log, power) and `decimals`; `Number` has `step` and
   `decimals`; `Int` bounds are optional. Schema 1 has `Range.step` only and required `Int` bounds.
@@ -407,13 +412,40 @@ the framework's renderer becomes an engine here (none affect plugins, which only
 - Its icon catalogue uses meaning-based names; the icon names here are a subset of them.
 
 
+`craft_ext_ui_fw::FrameworkEngine` (`crates/ext-ui-fw/src/engine.rs`) is that engine. Node to
+component:
+
+| Node | Framework component |
+|---|---|
+| column, row, grid, scroll | `Stack`, `Row` (wrapping), `Grid`, scrolling `Stack` |
+| group, collapsible | `GroupBox`, `Section` |
+| label | `Text` in a type role (heading, body strong, caption, mono; weak is muted) and tone |
+| separator, spacer | `Divider`; a spacer draws nothing, the containers' gap tokens space rows |
+| button | `Button`, or `IconButton` when icon-only, with `Variant` |
+| checkbox, toggle | `Checkbox`, `Switch` |
+| slider, number | `SliderField`, `NumberField` in a `Field` |
+| text-input, text-area | `TextField` (search form when `search`), multi-line `TextField` |
+| select, radio | `Select`, `RadioGroup` |
+| tabs, list, table | `TabStrip`, `List` with `ListRow`, `Table` with columns |
+| progress | `Progress`, or `Spinner` without a value |
+| icon, image | `Icon` from the framework catalogue, `Picture` |
+| badge, notice | `Badge` (soft tone), `Notice` with `Tone` |
+| form | one labelled framework row per parameter, `Section` per form section |
+| component, unknown | `Host::component` or its fallback; unknown draws its fallback or a warn `Notice` |
+
+Canvases, `color` nodes and colour or point form rows draw with the egui engine inside the
+framework layout (`EguiEngine::draw_part`): the framework has no sanctioned content component
+for a plugin canvas yet, and its colour editing needs a host picker route
+(`ColorRequest`) the `Engine` boundary does not carry. Plugin pixel sizes (`spacer.size`,
+`scroll.max_height`, column widths, icon size and tint, image size) are not honoured; the theme
+decides them.
+
 The Plugin Manager is not drawn by this renderer. PhotoCraft draws it with framework components
 (`crates/ext-ui-fw`) and the other apps with the egui view in `crates/ext-ui`; see
 [manager hosting](manager.md#hosting). Plugin panels, windows and forms still draw through this renderer.
 
-The host-side installation boundary and the checked future framework/theme revision
-are documented in [framework integration](framework-integration.md). No future
-framework runtime is linked or activated by this beta source change.
+The host-side installation boundary is documented in
+[framework integration](framework-integration.md).
 
 For the shared flows and version boundaries, see [workflow maps](maps.md) and
 [formats and versioning](formats-and-versioning.md). This page describes source behavior;
