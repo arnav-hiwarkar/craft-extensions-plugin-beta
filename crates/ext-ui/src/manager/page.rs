@@ -42,7 +42,8 @@ impl PluginManager {
         let mut actions = vec![];
         let mut hook = Some(app_problems);
         let available = ui.available_rect_before_wrap();
-        let full = Rect::from_min_size(available.min, vec2(available.width(), available.height().max(MIN_HEIGHT)));
+        let bottom = available.bottom().min(ui.clip_rect().bottom());
+        let full = Rect::from_min_size(available.min, vec2(available.width(), (bottom - available.top()).max(MIN_HEIGHT)));
         let model = &self.session.model;
         let side = Rect::from_min_size(full.min, vec2(SIDEBAR_WIDTH, full.height()));
         ui.scope_builder(UiBuilder::new().max_rect(side).id_salt("craft-plugin-sidebar"), |ui| sidebar(ui, model, words, &mut actions));
@@ -132,6 +133,7 @@ fn toolbar(ui: &mut Ui, model: &Model, search: &mut String, words: &dyn Words, a
             actions.push(Action::SetQuery(search.clone()));
         }
         let current = model.query().sort;
+        ui.label(weak(ui, words.word(Word::SortLabel)));
         egui::ComboBox::from_id_salt("craft-plugin-sort").selected_text(words.word(current.word())).show_ui(ui, |ui| {
             for sort in Sort::ALL {
                 if ui.selectable_label(sort == current, words.word(sort.word())).clicked() && sort != current {
@@ -202,9 +204,10 @@ fn row_card(ui: &mut Ui, model: &Model, row: &Row, words: &dyn Words, actions: &
                         }
                     });
                     ui.add(egui::Label::new(weak(ui, &row.summary)).truncate());
-                    if !row.badges.is_empty() {
+                    let shown: Vec<_> = row.badges.iter().filter(|b| b.tone() != Tone::Neutral).collect();
+                    if !shown.is_empty() {
                         ui.horizontal_wrapped(|ui| {
-                            for b in &row.badges {
+                            for b in shown {
                                 badge(ui, words.word(b.word()), b.tone());
                             }
                         });
@@ -249,15 +252,6 @@ pub(crate) fn primary(ui: &mut Ui, model: &Model, row: &Row, words: &dyn Words, 
     }
 }
 
-fn problem_name(model: &Model, problem: &Problem) -> String {
-    let snapshot = model.snapshot();
-    problem
-        .version
-        .and_then(|v| snapshot.manifests.get(&(problem.id.clone(), v)))
-        .map(|m| m.name.clone())
-        .unwrap_or_else(|| problem.id.to_string())
-}
-
 fn problem_reason(kind: &ProblemKind) -> Option<String> {
     match kind {
         ProblemKind::Quarantined { reason } | ProblemKind::KillListed { reason } => Some(reason.clone()),
@@ -279,7 +273,7 @@ fn problem_card(ui: &mut Ui, model: &Model, problem: &Problem, words: &dyn Words
                 }
                 ui.with_layout(Layout::top_down(Align::Min), |ui| {
                     ui.horizontal(|ui| {
-                        ui.label(RichText::new(problem_name(model, problem)).strong());
+                        ui.label(RichText::new(model.name_of(&problem.id)).strong());
                         if let Some(v) = problem.version {
                             ui.label(weak(ui, v.to_string()).small());
                         }
