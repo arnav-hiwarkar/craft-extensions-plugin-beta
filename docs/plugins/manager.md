@@ -184,7 +184,7 @@ Decisions that both views need live in `ext-manager` (`src/view.rs`), never in a
 | PhotoCraft | `craft_ext_ui_fw::PluginManager` over `ManagerState`, a framework pattern | Its `ViewportWindow` opened by `plugins.manager`; paused and failed-load plugins are app rows on Problems |
 | EffectCraft | `craft_ext_ui::PluginManager` (egui) | Settings ▸ Plugins, with the project prompt |
 | FigCraft | `craft_ext_ui::PluginManager` (egui) | The Plugins window, with the project prompt |
-| Launcher | `craft_ext_ui::PluginManager` (egui) with `Config::new` over every app it knows | Its Store page beside the app list |
+| Launcher | `craft_ext_ui::PluginManager` (egui) with `Config::new` over every app it knows | Its Plugins page, a header tab beside Apps |
 
 The framework view uses only components, `Variant`s, `Tone`s and type roles, and maps each `Word` to
 `Label::Word(craft::i18n::Word::keyed(key, english))`, so the host's catalogue translates it and English
