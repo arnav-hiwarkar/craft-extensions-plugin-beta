@@ -4,3 +4,4 @@ __pycache__/
 *.pyc
 *.wasm
 *.craftplugin
+/crates/ext-ui-fw/Cargo.lock
