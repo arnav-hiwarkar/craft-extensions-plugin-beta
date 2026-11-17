@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 const BASELINE: &str = "xtask/comment-baseline.json";
-const RUSTDOC_CRATES: &[&str] = &["crates/guest/"];
+const RUSTDOC_CRATES: &[&str] = &["crates/guest/", "crates/native-sdk/"];
 
 fn main() -> ExitCode {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().map(Path::to_path_buf).unwrap_or_default();

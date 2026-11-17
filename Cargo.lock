@@ -303,6 +303,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "craft-native"
+version = "0.1.0"
+dependencies = [
+ "craft-guest",
+ "serde_json",
+]
+
+[[package]]
 name = "crc32fast"
 version = "1.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"

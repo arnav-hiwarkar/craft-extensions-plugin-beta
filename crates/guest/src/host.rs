@@ -71,7 +71,8 @@ impl CallError {
         }
     }
 
-    fn from_reply(code: i32, message: String) -> Self {
+    /// The error for an ABI return `code` with the host's `message` (empty: a default for the code).
+    pub fn from_reply(code: i32, message: String) -> Self {
         let message = if message.is_empty() { default_message(code).to_owned() } else { message };
         match code {
             -1 => Self::Invalid(message),
