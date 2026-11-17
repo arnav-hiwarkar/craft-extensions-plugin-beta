@@ -462,3 +462,20 @@ fn an_unclean_exit_is_reported_once_at_the_next_start() {
     s.end_run(&a);
     assert_eq!(s.begin_run(&a, &[]), None);
 }
+#[test]
+fn restoring_a_setup_puts_back_the_old_choices_and_stops_running_work() {
+    let t = tempfile::tempdir().unwrap();
+    let s = Store::at(t.path());
+    let (a, id) = ids();
+    let i = install(&s, "1.0.0", "");
+    s.set_active(&a, &id, i.version).unwrap();
+    s.set_enabled(&a, &id, "run", true).unwrap();
+    let before = s.state().unwrap().apps[&a][&id].clone();
+    s.set_enabled(&a, &id, "run", false).unwrap();
+    s.restore_setup(&a, &id, Some(before.clone())).unwrap();
+    let after = s.state().unwrap().apps[&a][&id].clone();
+    assert_eq!(after.enabled, before.enabled);
+    assert!(after.grant_generation > before.grant_generation);
+    s.restore_setup(&a, &id, None).unwrap();
+    assert!(!s.state().unwrap().apps[&a].contains_key(&id));
+}

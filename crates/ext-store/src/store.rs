@@ -324,6 +324,22 @@ impl Store {
             Ok(())
         })
     }
+    pub fn restore_setup(&self, app: &AppId, id: &ExtensionId, setup: Option<crate::state::AppSetup>) -> Result<()> {
+        self.update(|s| {
+            let apps = s.apps.entry(app.clone()).or_default();
+            let generation = apps.get(id).map_or(0, |a| a.grant_generation) + 1;
+            match setup {
+                Some(mut previous) => {
+                    previous.grant_generation = previous.grant_generation.max(generation);
+                    apps.insert(id.clone(), previous);
+                }
+                None => {
+                    apps.remove(id);
+                }
+            }
+            Ok(())
+        })
+    }
     pub fn quarantine(&self, app: &AppId, id: &ExtensionId, v: Version, reason: &str) -> Result<()> {
         self.setup(app, id, |a| {
             a.quarantine = Some(crate::state::Quarantine { version: v, reason: reason.chars().take(300).collect(), at: now() });

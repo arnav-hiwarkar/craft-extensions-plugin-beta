@@ -286,6 +286,8 @@ pub struct Model {
     packages: BTreeMap<ExtensionId, (String, Loadable<Arc<PackageFile>>)>,
     images: BTreeMap<String, Loadable<Arc<[u8]>>>,
     flows: BTreeMap<ExtensionId, Flow>,
+    queued: Vec<(ExtensionId, AppId, FlowKind, Option<VersionReq>)>,
+    cancelled: std::collections::BTreeSet<ExtensionId>,
     unclean: BTreeMap<AppId, Vec<ExtensionId>>,
     rows: Vec<Row>,
     problems: Vec<Problem>,
@@ -309,6 +311,8 @@ impl Model {
             packages: BTreeMap::new(),
             images: BTreeMap::new(),
             flows: BTreeMap::new(),
+            queued: Vec::new(),
+            cancelled: std::collections::BTreeSet::new(),
             unclean: BTreeMap::new(),
             rows: vec![],
             problems: vec![],
@@ -426,13 +430,26 @@ impl Model {
     }
 
     fn start(&mut self, id: ExtensionId, app: AppId, kind: FlowKind, req: Option<VersionReq>) -> Vec<Effect> {
-        if self.flows.contains_key(&id) {
+        if let Some(flow) = self.flows.get(&id) {
+            if flow.app != app && !self.queued.iter().any(|(i, a, ..)| i == &id && a == &app) {
+                self.queued.push((id, app, kind, req));
+            }
             return vec![];
         }
+        self.cancelled.remove(&id);
         self.flows.insert(id.clone(), Flow { app: app.clone(), kind, step: Step::Working(Word::StateDownloading) });
         self.send(Job::Stage { id, app, kind, req });
         self.rebuild();
         vec![Effect::Changed]
+    }
+
+    fn end_flow(&mut self, id: &ExtensionId, mut effects: Vec<Effect>) -> Vec<Effect> {
+        self.flows.remove(id);
+        if let Some(at) = self.queued.iter().position(|(i, ..)| i == id) {
+            let (id, app, kind, req) = self.queued.remove(at);
+            effects.extend(self.start(id, app, kind, req));
+        }
+        effects
     }
 
     fn write(&mut self, w: Write) -> Vec<Effect> {
@@ -551,9 +568,14 @@ impl Model {
                 vec![Effect::CloseSetup(id), Effect::Changed]
             }
             Action::Cancel { id } => {
-                let was_setup = matches!(self.flows.remove(&id).map(|f| f.step), Some(Step::Setup(_)));
+                let was_setup = matches!(self.flows.get(&id).map(|f| &f.step), Some(Step::Setup(_)));
+                if self.flows.contains_key(&id) {
+                    self.cancelled.insert(id.clone());
+                }
+                let effects = if was_setup { vec![Effect::CloseSetup(id.clone()), Effect::Changed] } else { vec![Effect::Changed] };
+                let effects = self.end_flow(&id, effects);
                 self.rebuild();
-                if was_setup { vec![Effect::CloseSetup(id), Effect::Changed] } else { vec![Effect::Changed] }
+                effects
             }
             Action::Report { id } => {
                 let v = self.view().installed_version(&id).or_else(|| self.snapshot.index.as_ref().and_then(|i| i.package(&id)).map(|p| p.latest));
@@ -637,9 +659,12 @@ impl Model {
                 vec![Effect::Changed]
             }
             Event::Staged { id, app, kind, manifest, needs_setup, dependencies } => {
+                if self.cancelled.remove(&id) {
+                    return vec![];
+                }
                 if !needs_setup {
-                    self.flows.remove(&id);
-                    return vec![notice(kind.done(), &id, manifest.version.to_string(), false)];
+                    let done = notice(kind.done(), &id, manifest.version.to_string(), false);
+                    return self.end_flow(&id, vec![done]);
                 }
                 let tracked = self.flows.get(&id).is_some_and(|f| f.app == app) || kind == FlowKind::Install;
                 if !tracked {
@@ -652,17 +677,17 @@ impl Model {
                 vec![Effect::OpenSetup(id)]
             }
             Event::Applied { id, kind, .. } => {
-                self.flows.remove(&id);
-                vec![notice(if kind == FlowKind::Install { Word::NoticeSetUp } else { kind.done() }, &id, "", false)]
+                let done = notice(if kind == FlowKind::Install { Word::NoticeSetUp } else { kind.done() }, &id, "", false);
+                self.end_flow(&id, vec![done])
             }
             Event::Failed(id, e) => {
-                self.flows.remove(&id);
-                vec![notice(Word::NoticeFailed, &id, e, true)]
+                let failed = notice(Word::NoticeFailed, &id, e, true);
+                self.end_flow(&id, vec![failed])
             }
             Event::FileFailed(path, e) => vec![notice(Word::NoticeFailed, path.display(), e, true)],
             Event::Settled(id, word, detail) => {
-                self.flows.remove(&id);
-                vec![notice(word, &id, detail, word == Word::NoticeUnavailable)]
+                let settled = notice(word, &id, detail, word == Word::NoticeUnavailable);
+                self.end_flow(&id, vec![settled])
             }
             Event::Wrote(word, id, Ok(())) => vec![notice(word, &id, "", false)],
             Event::Wrote(_, id, Err(e)) => vec![notice(Word::NoticeFailed, &id, e, true)],

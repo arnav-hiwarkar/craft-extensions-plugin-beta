@@ -242,6 +242,7 @@ impl Runner {
 
     fn apply(&self, c: &SetupChoice) -> Result<(), String> {
         let m = self.manager(Some(&c.app));
+        let before = self.store.state().map_err(|e| e.to_string())?.apps.get(&c.app).and_then(|a| a.get(&c.id)).cloned();
         let run = || -> craft_ext_store::store::Result<()> {
             let state = self.store.state()?;
             if let Some(a) = state.apps.get(&c.app).and_then(|a| a.get(&c.id)) {
@@ -265,7 +266,13 @@ impl Runner {
             }
             Ok(())
         };
-        run().map_err(|e| e.to_string())
+        run().map_err(|e| {
+            let restored = self.store.restore_setup(&c.app, &c.id, before);
+            match restored {
+                Ok(()) => e.to_string(),
+                Err(r) => format!("{e}; the previous setup could not be restored: {r}"),
+            }
+        })
     }
 
     fn write(&mut self, w: Write) -> (Word, ExtensionId, Result<(), String>) {
