@@ -388,6 +388,10 @@ the framework's renderer becomes an engine here (none affect plugins, which only
 - Its icon catalogue uses meaning-based names; the icon names here are a subset of them.
 
 
+The Plugin Manager is not drawn by this renderer. PhotoCraft draws it with framework components
+(`crates/ext-ui-fw`) and the other apps with the egui view in `crates/ext-ui`; see
+[manager hosting](manager.md#hosting). Plugin panels, windows and forms still draw through this renderer.
+
 The host-side installation boundary and the checked future framework/theme revision
 are documented in [framework integration](framework-integration.md). No future
 framework runtime is linked or activated by this beta source change.

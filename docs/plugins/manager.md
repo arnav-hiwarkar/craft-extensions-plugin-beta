@@ -5,9 +5,10 @@ the launcher draw. It holds no UI toolkit: it owns the tabs, search, filters, de
 update flows, setup consent, problems and English words. Each app draws it with its own widgets
 (egui today, the craft framework later) and translates its words through its own i18n.
 
-Status: implemented and unit-tested in source (`cargo test -p craft-ext-manager`, 12 tests that drive
-the real worker against a temporary store and a signed test catalogue). No app or launcher uses it
-yet; `crates/ext-ui` still draws the older `ManagerView`. See [Migration](#migration-from-managerview).
+Status: implemented and unit-tested in source (`cargo test -p craft-ext-manager` drives the real worker
+against a temporary store and a signed test catalogue). PhotoCraft draws it with the craft framework
+(`crates/ext-ui-fw`); EffectCraft, FigCraft and the launcher draw it with egui (`crates/ext-ui`). See
+[Hosting](#hosting).
 
 ## Shape
 
@@ -151,29 +152,61 @@ let text = tr(word.key()).unwrap_or(word.english());
 Category names come from the taxonomy table in `craft_ext_core::listing::CATEGORIES`. Keys never
 change meaning; a changed sentence gets a new key.
 
-## Migration from ManagerView
+## Hosting
 
-`crates/ext-ui` keeps its egui `ManagerView` until another agent finishes its egui compatibility
-work. Its replacement is a thin view over this model:
+Two views draw the same model with the same structure, so a plugin looks and behaves the same in
+every app and the launcher:
 
-| `ManagerView` today | Model |
+- a sidebar of Discover, Installed, Updates and Problems, with counts on Updates and Problems;
+- a toolbar with search, sort, Refresh and, on Discover, category chips from `Model::categories()`
+  (the per-app taxonomy of the managed apps);
+- rows with the icon (or the name's initial), name, one-line summary, badges and one primary button;
+  while a flow runs the button shows busy and the summary line shows the step;
+- a detail pane with the description, facts, screenshots, plain-language permissions with the
+  author's reasons, per-app switches, pins and grants, versions with release notes, the native
+  warning, Uninstall, and the homepage and Report links;
+- the setup sheet as a modal dialog from `Model::pending_setup()`, whose Confirm stays disabled with
+  the `blocker()` sentence until the choices are complete;
+- results as toasts, an empty state for every tab and a loading placeholder until the first snapshot.
+
+Decisions that both views need live in `ext-manager` (`src/view.rs`), never in a view:
+
+| Function | Decides |
 |---|---|
-| One `Jobs` slot that ignores a second job | Worker queue, one flow per plugin |
-| `Manager::search` and `Catalogue::cached` every frame and row | Snapshot loaded once per change |
-| Find versions, pick, install, confirm, set up | `Install` then the setup sheet |
-| `Setup::confirm` on the UI thread | `ConfirmSetup` on the worker, same order |
-| Updates need an app picked first in the launcher | Update rows for every managed app |
-| Raw English strings | `Word` keys |
+| `Badge::tone`, `ProblemKind::tone`, `NativeWarning::tone` | The `Tone` each view maps to its own colours or variants. |
+| `Primary::look` | Whether the row button is primary, secondary or busy. |
+| `Model::press(row)` | What the row button does: `Do(actions)`, `ChooseApp(apps)` when several managed apps support the plugin, `Open` (select it) or nothing. |
+| `Problem::action` | The action behind a problem's fix button. |
+| `category_word` | The word for a category. |
 
-Per the [suite replacement rule](suite-replacement-rule.md), once each app and the launcher draw this
-model, delete `ManagerView`, its `Jobs` and `Setup`, and the per-app polling of `store.state()`.
+| Host | View | Where |
+|---|---|---|
+| PhotoCraft | `craft_ext_ui_fw::PluginManager` over `ManagerState`, a framework pattern | Its `ViewportWindow` opened by `plugins.manager`; paused and failed-load plugins are app rows on Problems |
+| EffectCraft | `craft_ext_ui::PluginManager` (egui) | Settings ▸ Plugins, with the project prompt |
+| FigCraft | `craft_ext_ui::PluginManager` (egui) | The Plugins window, with the project prompt |
+| Launcher | `craft_ext_ui::PluginManager` (egui) with `Config::new` over every app it knows | Its Store page beside the app list |
+
+The framework view uses only components, `Variant`s, `Tone`s and type roles, and maps each `Word` to
+`Label::Word(craft::i18n::Word::keyed(key, english))`, so the host's catalogue translates it and English
+is the fallback. It posts toasts to its own window key and shows them in its body, and returns links
+(`PluginManagerOutput::links`) for the host to open. The egui view takes colours from `ui.visuals()`
+and words through the host's `Words`.
+
+`crates/ext-ui-fw` is its own Cargo workspace with the egui `[patch]` PhotoCraft uses, and is not a
+member of the craft-extensions workspace. A member would make every craft-extensions build fetch and
+compile the framework and its egui fork, and would force that egui onto `ext-ui`, which EffectCraft,
+FigCraft and the launcher build against their own egui pins. Apps on the framework depend on it by path
+and resolve it under their own `[patch]`; its `craft` revision must equal the app's.
 
 ## Not done yet
 
-- No app or launcher draws the model yet, and `crates/ext-ui` is unchanged.
-- Media (icons and screenshots) are fetched on request with `Action::LoadImage` and kept in memory
-  only; there is no disk cache.
+- The framework has no skeleton component, so loading shows an indeterminate progress bar over
+  faint placeholder lines.
+- Icons and screenshots are decoded on the UI thread the first time they are drawn, then kept in the
+  framework texture cache; media bytes are kept in memory only, with no disk cache.
 - Installs from the catalogue go through `Manager::install`, which verifies the cache with the
   compiled keys only, so the tests cover installing from a file, rollback, setup and writes, not a
   catalogue download.
 - Change detection compares file stamps every 500 ms instead of using a file-system watcher.
+- The model is not told about unclean exits by any app yet (`set_unclean_exit`); each app still shows
+  its own prompt after an unexpected close.
