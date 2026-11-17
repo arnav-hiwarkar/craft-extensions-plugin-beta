@@ -229,6 +229,7 @@ impl Helper {
                         if self.api.contract().op(&op).is_none() {
                             return Err(OpError::new(Code::NotFound, format!("this app has no operation {op}")));
                         }
+                        crate::api::check_args(self.api.contract(), &op, &msg["args"])?;
                         self.api.call(inv, &op, msg["args"].clone())
                     });
                     let stopped = self.check(inv).is_err();

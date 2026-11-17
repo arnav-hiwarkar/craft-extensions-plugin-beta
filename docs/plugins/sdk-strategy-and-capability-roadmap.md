@@ -108,6 +108,16 @@ canonical types/registries wherever practical; avoid a second independently edit
 API catalogue. Migrate a small operation family first and prove schema/dispatch
 agreement before expanding.
 
+First family (2026-11-17): the UI operations every adapter shares (`ui.notify`,
+`ui.panel.set`, `ui.window.open`, `canvas.overlay.set`) have structured schemas in
+[ext-host schema.rs](../../crates/ext-host/src/schema.rs): field types, bounds,
+required fields, exactly-one-of alternatives and a version. The host checks them
+before authorization and before the adapter on both guest entry points (Wasm and
+native), so the documented and dispatched shapes cannot drift; contract pages and
+JSON Schema render from the same definition. The schema is the envelope all three
+adapters accept, and each adapter keeps its narrower limits. Results, app-specific
+families, IDs/units and generated language bindings are still to do.
+
 Offer a high-level author layer over those stable contracts: typed object handles,
 change-plan builders, component helpers, forms, canvas utilities and scoped jobs.
 Convenience wrappers must preserve the host's required permissions and captured

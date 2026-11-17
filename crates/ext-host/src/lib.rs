@@ -9,6 +9,7 @@
 
 pub mod api;
 pub mod native;
+pub mod schema;
 pub mod wasm;
 
 #[cfg(test)]

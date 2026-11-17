@@ -423,3 +423,53 @@ fn rust_sdk_reference_types_are_supported() {
     let mut filter = Filter::new(&p, log()).unwrap();
     filter.run(&json!({}), &mut [0.0, 0.0, 0.0, 1.0], 1, 1, &|| Ok(())).unwrap();
 }
+
+/// A shared-schema call with a malformed argument is refused with -1 before authorization and
+/// before the adapter: the fake adapter would otherwise answer it successfully.
+#[test]
+fn typed_ui_arguments_are_checked_before_the_adapter_sees_them() {
+    let run = |args: &str| {
+        let escaped = args.replace('"', "\\\"");
+        let p = module(
+            &format!(
+                r#"(data (i32.const 16) "ui.notify") (data (i32.const 64) "{escaped}")
+                   (func (export "craft_event") (param i32 i32) (result i32) (local $r i64)
+                     (local.set $r (call $call (i32.const 16) (i32.const 9) (i32.const 64) (i32.const {len})))
+                     (if (result i32) (i64.lt_s (local.get $r) (i64.const 0)) (then (i32.wrap_i64 (local.get $r))) (else (i32.const 0))))"#,
+                len = args.len()
+            ),
+            r#"(import "craft" "call" (func $call (param i32 i32 i32 i32) (result i64)))"#,
+        );
+        let app = Arc::new(FakeApp {
+            contract: AppContract {
+                app: AppId::new("testcraft").unwrap(),
+                display_name: "TestCraft",
+                provided: Provided::new(&[("testcraft.session", 1, 0)]),
+                ops: vec![OpSpec { id: "ui.notify", kind: OpKind::Ui, summary: "", args: "{}", result: "null", requires: none, permission_rule: "free" }],
+                events: vec![],
+                slots: vec![],
+                notes: "",
+            },
+            committed: Mutex::new(vec![]),
+        });
+        let grants = Arc::new(FakeGrants { edit: AtomicBool::new(false), generation: AtomicU64::new(1) });
+        let mut s = Session::new(&p, app, grants, log()).unwrap();
+        s.dispatch(inv(1), &json!({"event":"command"}))
+    };
+    assert!(run(r#"{"message":"Done"}"#).is_ok());
+    assert!(matches!(run(r#"{"message":"Done","level":"warn"}"#), Err(PluginError::Failed(-1, _))));
+    assert!(matches!(run(r#"{"message":7}"#), Err(PluginError::Failed(-1, _))));
+    assert!(matches!(run(r#"{}"#), Err(PluginError::Failed(-1, _))));
+    // The generated page documents the same fields.
+    let page = AppContract {
+        app: AppId::new("testcraft").unwrap(),
+        display_name: "TestCraft",
+        provided: Provided::new(&[]),
+        ops: vec![OpSpec { id: "ui.notify", kind: OpKind::Ui, summary: "", args: "{}", result: "null", requires: none, permission_rule: "free" }],
+        events: vec![],
+        slots: vec![],
+        notes: "",
+    }
+    .to_markdown();
+    assert!(page.contains("| `message` | text, ≤ 4000 characters | yes |"), "{page}");
+}

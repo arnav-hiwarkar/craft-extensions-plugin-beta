@@ -149,6 +149,9 @@ impl AppContract {
         for op in &self.ops {
             let _ = writeln!(s, "### `{}` ({:?})\n\n{}\n\nPermission: {}\n", op.id, op.kind, op.summary, op.permission_rule);
             let _ = writeln!(s, "```json\n// args\n{}\n// result\n{}\n```\n", op.args, op.result);
+            if let Some(schema) = crate::schema::shared(op.id) {
+                let _ = writeln!(s, "{}", schema.to_markdown());
+            }
         }
         let _ = writeln!(s, "## Events (`craft_event`)\n\n| Event | Payload | Needs `app.events` | Meaning |\n|---|---|---|---|");
         for e in &self.events {
@@ -227,6 +230,16 @@ pub fn authorize(contract: &AppContract, grants: &dyn Grants, inv: &Invocation, 
         }
     }
     Ok(())
+}
+
+/// Check a guest call's arguments against the shared typed schema of its operation, when the app
+/// offers the operation and it belongs to a typed family ([`crate::schema`]). Runs before
+/// authorization and before the adapter sees the call, on every guest entry point.
+pub fn check_args(contract: &AppContract, op: &str, args: &Value) -> Result<(), OpError> {
+    match crate::schema::shared(op) {
+        Some(schema) if contract.op(op).is_some() => schema.check(args).map_err(|why| OpError::invalid(format!("{op}: {why}"))),
+        _ => Ok(()),
+    }
 }
 
 /// Checks independent of arguments/app state; deliberately never evaluates `requires`.

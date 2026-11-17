@@ -429,6 +429,16 @@ Permission: free
 {"rev": 4}
 ```
 
+Typed arguments (schema version 1; unknown arguments are refused):
+
+| Argument | Type | Required | Meaning |
+|---|---|---|---|
+| `panel` | text, 1–64 characters | yes | A panel id the manifest declares |
+| `tree` | UI tree (validated at the contribution's UI level) | no | The panel's whole content |
+| `patch` | form patch (`craft_ext_core::form::Patch`) | no | A change to the panel's current form, where the app supports patches |
+
+Give exactly one of `tree`, `patch`.
+
 ### `ui.window.open` (Ui)
 
 Open or redraw a floating window (at most 32 surfaces per app).
@@ -441,6 +451,17 @@ Permission: ui.window
 // result
 {"rev": 5}
 ```
+
+Typed arguments (schema version 1; unknown arguments are refused):
+
+| Argument | Type | Required | Meaning |
+|---|---|---|---|
+| `id` | text, 1–64 characters | yes | The plugin's own window id |
+| `title` | text, ≤ 200 characters | no | Window title (some apps require it with `tree`) |
+| `tree` | UI tree (validated at the contribution's UI level) | no | The window's whole content |
+| `patch` | form patch (`craft_ext_core::form::Patch`) | no | A change to the window's current form, where the app supports patches |
+
+Give exactly one of `tree`, `patch`.
 
 ### `ui.notify` (Ui)
 
@@ -455,6 +476,13 @@ Permission: free
 null
 ```
 
+Typed arguments (schema version 1; unknown arguments are refused):
+
+| Argument | Type | Required | Meaning |
+|---|---|---|---|
+| `message` | text, ≤ 4000 characters | yes | Short text for the person |
+| `error` | boolean | no | Show it as an error where the app distinguishes errors |
+
 ### `canvas.overlay.set` (Ui)
 
 Draw guides over the canvas: a UI draw list (no images) whose coordinates are image pixels; stroke widths and text sizes are screen points. Published when the event commits, cleared when a tool gesture ends. At most 20 000 ops and 1 MiB.
@@ -467,6 +495,12 @@ Permission: free
 // result
 null
 ```
+
+Typed arguments (schema version 1; unknown arguments are refused):
+
+| Argument | Type | Required | Meaning |
+|---|---|---|---|
+| `ops` | array of ≤ 20000 × draw operation | no | The plugin's whole overlay; omitted or empty clears it |
 
 ### `plugin.resources` (Query)
 
