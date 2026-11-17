@@ -157,22 +157,28 @@ fn native_updates_need_fresh_acceptance_and_enable_checks_context() {
     let t = tempfile::tempdir().unwrap();
     let s = Store::at(t.path());
     let (app, id) = ids();
-    for version in ["1.0.0", "2.0.0"] {
-        let bytes = native_package(version);
-        let i = s.install_bytes(&bytes, Tier::Local, Origin::Local { sha256: digest(&bytes) }).unwrap();
-        s.set_active(&app, &id, i.version).unwrap();
-        assert_eq!(s.state().unwrap().apps[&app][&id].pending, Some(i.version));
-        // Consent given to the previous version never carries over to a new executable.
-        assert!(!s.state().unwrap().apps[&app][&id].full_access);
-        assert!(s.accept_pending(&app, &id).is_err());
-        s.set_full_access(&app, &id, true).unwrap();
-        s.accept_pending(&app, &id).unwrap();
-    }
+    let provided = Provided::new(&[("app.session", 1, 0)]);
+    let first = native_package("1.0.0");
+    let catalogue = || Origin::Catalogue { vendor: "example".into(), repo: "test".into() };
+    let i = s.install_bytes(&first, Tier::Community, catalogue()).unwrap();
+    s.set_active(&app, &id, i.version).unwrap();
+    assert_eq!(s.state().unwrap().apps[&app][&id].active, Some(i.version), "nothing native runs yet, so activation needs no consent");
+    assert!(s.set_enabled_checked(&app, &id, "run", true, Some((&provided, "linux-x86_64"))).is_err(), "running the helper needs consent");
+    s.set_full_access(&app, &id, true).unwrap();
+    s.set_enabled_checked(&app, &id, "run", true, Some((&provided, "linux-x86_64"))).unwrap();
+
+    let second = native_package("2.0.0");
+    let next = s.install_bytes(&second, Tier::Community, catalogue()).unwrap();
+    s.set_active(&app, &id, next.version).unwrap();
+    assert_eq!(s.state().unwrap().apps[&app][&id].pending, Some(next.version));
+    assert!(!s.state().unwrap().apps[&app][&id].full_access, "consent never carries over to a new executable");
+    assert!(s.accept_pending(&app, &id).is_err());
+    s.set_full_access(&app, &id, true).unwrap();
+    s.accept_pending(&app, &id).unwrap();
     // Re-activating the same version keeps its consent.
     s.set_active(&app, &id, Version::parse("2.0.0").unwrap()).unwrap();
     assert!(s.state().unwrap().apps[&app][&id].full_access);
     assert!(s.set_enabled_checked(&app, &id, "run", true, Some((&Provided::default(), "linux-x86_64"))).is_err());
-    let provided = Provided::new(&[("app.session", 1, 0)]);
     assert!(s.set_enabled_checked(&app, &id, "run", true, Some((&provided, "windows-x86_64"))).is_err());
     s.set_enabled_checked(&app, &id, "run", true, Some((&provided, "linux-x86_64"))).unwrap();
 }
@@ -478,4 +484,17 @@ fn restoring_a_setup_puts_back_the_old_choices_and_stops_running_work() {
     assert!(after.grant_generation > before.grant_generation);
     s.restore_setup(&a, &id, None).unwrap();
     assert!(!s.state().unwrap().apps[&a].contains_key(&id));
+}
+#[test]
+fn a_hybrid_package_enables_its_sandboxed_effect_without_native_consent() {
+    let t = tempfile::tempdir().unwrap();
+    let s = Store::at(t.path());
+    let (a, id) = ids();
+    let i = s.install_bytes(&hybrid_package(), Tier::Community, Origin::Catalogue { vendor: "example".into(), repo: "test".into() }).unwrap();
+    s.set_active(&a, &id, i.version).unwrap();
+    s.set_enabled(&a, &id, "glow", true).unwrap();
+    assert!(s.set_enabled(&a, &id, "helper", true).is_err(), "the native contribution still needs consent");
+    let view = GrantView::open(t.path(), a.clone()).unwrap();
+    let enabled = view.enabled_contributions(&a).unwrap();
+    assert_eq!(enabled[0].4, std::collections::BTreeSet::from(["glow".to_string()]));
 }

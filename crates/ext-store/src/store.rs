@@ -213,13 +213,13 @@ impl Store {
                 p.origin = release_origin;
             }
             let setup = s.apps.entry(app.clone()).or_default().entry(id.clone()).or_default();
-            // Full access is consent to one native executable: another version must ask again.
             if m.is_native() && setup.active != Some(v) && setup.full_access {
                 setup.full_access = false;
                 setup.grant_generation += 1;
             }
             let widened = m.permissions_for(app, |c| setup.enabled.contains(c)).0.iter().any(|p| !setup.grants.iter().any(|g| g.covers(p)));
-            if widened || (m.is_native() && (setup.active != Some(v) || !setup.full_access)) {
+            let native_on = m.contributions.iter().any(|c| setup.enabled.contains(&c.id) && m.needs_native(c));
+            if widened || (native_on && (setup.active != Some(v) || !setup.full_access)) {
                 setup.pending = Some(v)
             } else {
                 setup.active = Some(v);
@@ -236,7 +236,8 @@ impl Store {
             if s.blocked(id, v, &s.packages[id].releases[&v].sha256, Severity::BlockNew) {
                 return Err(error("this release has been withdrawn"));
             }
-            if (m.is_native() && !a.full_access)
+            let native_on = m.contributions.iter().any(|c| a.enabled.contains(&c.id) && m.needs_native(c));
+            if (native_on && !a.full_access)
                 || m.permissions_for(app, |c| a.enabled.contains(c)).0.iter().any(|p| !a.grants.iter().any(|g| g.covers(p)))
             {
                 return Err(error("grant the required access before accepting this release"));
@@ -288,7 +289,7 @@ impl Store {
             if on
                 && (s.blocked(id, v, &s.packages[id].releases[&v].sha256, Severity::BlockNew)
                     || contribution.permissions.iter().any(|p| !a.grants.iter().any(|g| g.covers(p)))
-                    || (m.is_native() && !a.full_access))
+                    || (m.needs_native(contribution) && !a.full_access))
             {
                 return Err(error("grant the required access before enabling this contribution"));
             }

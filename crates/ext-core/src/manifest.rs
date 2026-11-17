@@ -290,6 +290,10 @@ impl Manifest {
         self.native.is_some()
     }
 
+    pub fn needs_native(&self, c: &Contribution) -> bool {
+        matches!(self.runtime(c), Runtime::Native(_))
+    }
+
     pub fn native_mode(&self) -> Option<NativeMode> {
         self.native.as_ref().map(|n| n.mode)
     }

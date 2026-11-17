@@ -30,3 +30,29 @@ permissions = [{permission}]
     );
     zip_of(&[(craft_ext_core::manifest::MANIFEST_NAME, text.as_bytes()), ("run.wasm", payload)])
 }
+pub fn hybrid_package() -> Vec<u8> {
+    let text = r#"schema = 2
+id = "org.example.test"
+name = "Test"
+version = "1.0.0"
+license = "MIT"
+source = "https://github.com/example/test"
+summary = "Hybrid test package"
+apps = ["photocraft"]
+[native]
+mode = "restricted"
+executables = { "macos-aarch64" = "bin/helper", "linux-x86_64" = "bin/helper" }
+[[contribution]]
+id = "glow"
+kind = "effect"
+contract = "raster.filter@1.0"
+label = "Glow"
+module = "glow.wasm"
+[[contribution]]
+id = "helper"
+kind = "command"
+contract = "app.session@1.0"
+label = "Helper"
+"#;
+    zip_of(&[(craft_ext_core::manifest::MANIFEST_NAME, text.as_bytes()), ("glow.wasm", b"wasm"), ("bin/helper", b"#!/bin/sh\n")])
+}

@@ -88,7 +88,7 @@ impl GrantView {
                         .filter(|c| {
                             a.enabled.contains(&c.id)
                                 && c.permissions.iter().all(|p| a.grants.iter().any(|g| g.covers(p)))
-                                && (!m.is_native() || a.full_access)
+                                && (!m.needs_native(c) || a.full_access)
                         })
                         .map(|c| c.id.clone())
                         .collect();

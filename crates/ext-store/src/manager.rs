@@ -453,7 +453,7 @@ impl Manager {
                                 && !a.enabled.is_empty()
                                 && r.contributions.iter().chain(r.state_versions.iter().flat_map(|v| v.keys())).all(|c| a.enabled.contains(c))
                                 && self.store.manifest(&s, &r.id, r.version).is_ok_and(|m| {
-                                    (!m.is_native() || a.full_access)
+                                    (a.full_access || !m.contributions.iter().any(|c| a.enabled.contains(&c.id) && m.needs_native(c)))
                                         && self.app.as_ref().is_some_and(|app| {
                                             m.permissions_for(app, |c| a.enabled.contains(c)).0.iter().all(|p| a.grants.iter().any(|g| g.covers(p)))
                                         })
