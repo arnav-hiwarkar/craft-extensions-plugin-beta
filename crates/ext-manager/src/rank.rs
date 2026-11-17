@@ -202,7 +202,7 @@ impl<'a> View<'a> {
             return Primary::Install;
         }
         let set_up = self.scope().is_none_or(|app| self.snapshot.state.apps.get(app).and_then(|a| a.get(e.id)).is_some_and(|a| a.active.is_some() && !a.enabled.is_empty()));
-        if set_up { Primary::Installed } else { Primary::SetUp }
+        if set_up { Primary::Open } else { Primary::SetUp }
     }
 
     fn keep(&self, e: &Entry<'_>, f: &Filters) -> bool {

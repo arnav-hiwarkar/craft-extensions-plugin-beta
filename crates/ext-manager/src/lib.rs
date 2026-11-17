@@ -4,12 +4,14 @@ mod detail;
 mod flow;
 mod problems;
 mod rank;
+mod view;
 mod words;
 mod worker;
 
 pub use detail::{AppPanel, ContributionRow, Detail, GrantRow, PermissionRow, VersionRow};
 pub use flow::{Flow, FlowKind, NativeWarning, Setup, SetupContribution, SetupPermission, Step};
 pub use problems::{Fix, Problem, ProblemKind};
+pub use view::{Look, Press, Tone, category_word};
 pub use rank::{MAX_DOWNLOAD_BOOST, SCORE_DESCRIPTION, SCORE_EXACT_NAME, SCORE_NAME_CONTAINS, SCORE_NAME_PREFIX, SCORE_NAME_WORD, SCORE_SUMMARY, SCORE_TAG, SCORE_TAG_CONTAINS};
 pub use words::{WORDS, Word};
 pub use worker::{REFRESH_AFTER_SECONDS, Snapshot, UpdateRow, WATCH_INTERVAL};
@@ -180,7 +182,7 @@ pub enum Primary {
     Install,
     Update(Version),
     SetUp,
-    Installed,
+    Open,
     Working,
 }
 
@@ -190,7 +192,7 @@ impl Primary {
             Primary::Install => Word::ActionInstall,
             Primary::Update(_) => Word::ActionUpdate,
             Primary::SetUp => Word::ActionSetUp,
-            Primary::Installed => Word::StateInstalled,
+            Primary::Open => Word::ActionOpen,
             Primary::Working => Word::StateWorking,
         }
     }

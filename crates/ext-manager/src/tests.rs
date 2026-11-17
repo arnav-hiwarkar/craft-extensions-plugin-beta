@@ -92,6 +92,15 @@ impl Fixture {
         m
     }
 
+    fn model_for(&self, apps: &[&str]) -> Model {
+        let targets = apps.iter().map(|a| AppTarget { app: AppId::new(a).unwrap(), provided: Provided::new(&[("effectcraft.session", 1, 1)]) }).collect();
+        let mut config = Config::new(self.store_root(), targets, PLATFORM).with_test_key(hex::encode(self.key.verifying_key().as_bytes()));
+        config.catalogue_base = format!("file://{}/", self.remote().display());
+        let mut m = Model::new(config);
+        settle(&mut m);
+        m
+    }
+
     fn file(&self, name: &str, bytes: &[u8]) -> std::path::PathBuf {
         let path = self.dir.path().join(name);
         std::fs::write(&path, bytes).unwrap();
@@ -252,7 +261,7 @@ fn install_from_file_opens_setup_and_confirm_turns_it_on() {
     let setup = &m.snapshot().state.apps[&app()][&plugin];
     assert_eq!((setup.active, setup.enabled.iter().cloned().collect::<Vec<_>>()), (Some(Version::new(1, 0, 0)), vec!["run".to_string()]));
     m.apply(Action::SetTab(Tab::Installed));
-    assert_eq!(m.rows()[0].primary, Primary::Installed);
+    assert_eq!(m.rows()[0].primary, Primary::Open);
     assert_eq!(m.rows()[0].badges, vec![Badge::Tier(Tier::Local)]);
     assert_eq!(m.count(Tab::Installed), 1);
 }
@@ -413,4 +422,59 @@ fn the_catalogue_is_read_once_per_change_not_per_poll() {
     }
     assert_eq!(Arc::as_ptr(&m.snapshot), before);
     assert!(f.store_root().join("catalogue/index.signed").exists());
+}
+
+#[test]
+fn badges_problems_warnings_and_buttons_each_carry_one_tone() {
+    let badges = [Badge::Tier(Tier::Official), Badge::Tier(Tier::Verified), Badge::Tier(Tier::Community), Badge::Tier(Tier::Local), Badge::NativeFull, Badge::NativeRestricted, Badge::Featured];
+    assert_eq!(badges.map(Badge::tone), [Tone::Accent, Tone::Good, Tone::Neutral, Tone::Warn, Tone::Bad, Tone::Warn, Tone::Info]);
+    let primaries = [Primary::Install, Primary::Update(Version::new(2, 0, 0)), Primary::SetUp, Primary::Open, Primary::Working];
+    assert_eq!(primaries.map(Primary::look), [Look::Primary, Look::Primary, Look::Primary, Look::Secondary, Look::Busy]);
+    assert_eq!(primaries.map(|p| p.word().english()), ["Install", "Update", "Set up", "Open", "Working…"]);
+    assert_eq!(ProblemKind::KillListed { reason: "malware".into() }.tone(), Tone::Bad);
+    assert_eq!(ProblemKind::ConsentPending { native: true }.tone(), Tone::Info);
+    assert_eq!([NativeWarning::FullAccess, NativeWarning::Restricted].map(NativeWarning::tone), [Tone::Bad, Tone::Warn]);
+}
+
+#[test]
+fn a_problem_fix_is_the_action_that_fixes_it() {
+    let problem = |fix| Problem { app: app(), id: id("io.github.alice.grain"), version: None, kind: ProblemKind::UncleanExit, fix };
+    assert_eq!(problem(Some(Fix::TurnBackOn)).action(), Some(Action::TurnBackOn { id: id("io.github.alice.grain"), app: app() }));
+    assert_eq!(problem(Some(Fix::Update(Version::new(2, 0, 0)))).action(), Some(Action::Update { id: id("io.github.alice.grain"), app: app() }));
+    assert_eq!(problem(Some(Fix::Uninstall)).action(), Some(Action::Uninstall { id: id("io.github.alice.grain") }));
+    assert_eq!(problem(None).action(), None);
+}
+
+#[test]
+fn install_asks_which_app_only_when_several_managed_apps_support_the_plugin() {
+    let f = Fixture::new();
+    f.publish(
+        vec![
+            row("io.github.alice.both", "Both", "alice", json!({"apps":["effectcraft","photocraft"]})),
+            row("io.github.alice.one", "One", "alice", json!({})),
+        ],
+        json!({}),
+    );
+    let photocraft = AppId::new("photocraft").unwrap();
+    let launcher = f.model_for(&["effectcraft", "photocraft", "figcraft"]);
+    let row_named = |m: &Model, name: &str| m.rows().iter().find(|r| r.name == name).unwrap().clone();
+    assert_eq!(launcher.press(&row_named(&launcher, "Both")), Press::ChooseApp(vec![app(), photocraft.clone()]));
+    let one = row_named(&launcher, "One");
+    assert_eq!(launcher.press(&one), Press::Do(vec![Action::Install { id: one.id.clone(), app: Some(app()) }]));
+    let single = f.model();
+    let both = row_named(&single, "Both");
+    assert_eq!(single.press(&both), Press::Do(vec![Action::Install { id: both.id.clone(), app: Some(app()) }]));
+}
+
+#[test]
+fn categories_follow_the_managed_apps_and_have_words() {
+    let f = Fixture::new();
+    f.publish(vec![], json!({}));
+    assert_eq!(f.model().categories().len(), 11);
+    let photocraft = f.model_for(&["photocraft"]).categories();
+    assert!(!photocraft.contains(&Category::MotionAnimation) && !photocraft.contains(&Category::ThreeDParticles));
+    assert_eq!(photocraft.len(), 9);
+    for row in craft_ext_core::listing::CATEGORIES {
+        assert_eq!(category_word(row.category).english(), row.english);
+    }
 }
