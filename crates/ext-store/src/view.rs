@@ -71,7 +71,7 @@ impl GrantView {
     pub fn stopped(&self, id: &ExtensionId, v: Version) -> bool {
         let Some(a) = self.setup(id) else { return true };
         let Some(r) = self.state.packages.get(id).and_then(|p| p.releases.get(&v)) else { return true };
-        a.active != Some(v) || a.enabled.is_empty() || self.is_disabled(id, v, &r.sha256)
+        a.active != Some(v) || a.enabled.is_empty() || a.quarantine.as_ref().is_some_and(|q| q.version == v) || self.is_disabled(id, v, &r.sha256)
     }
     pub fn enabled_contributions(&self, app: &AppId) -> Result<Vec<EnabledRelease>> {
         let mut out = vec![];
@@ -79,7 +79,7 @@ impl GrantView {
             for (id, a) in setups {
                 if let Some(v) = a.active {
                     let r = self.state.packages.get(id).and_then(|p| p.releases.get(&v)).ok_or_else(|| error("active release is missing"))?;
-                    if self.is_disabled(id, v, &r.sha256) {
+                    if self.is_disabled(id, v, &r.sha256) || a.quarantine.as_ref().is_some_and(|q| q.version == v) {
                         continue;
                     }
                     let m = self.store.manifest(&self.state, id, v)?;

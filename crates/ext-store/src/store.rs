@@ -320,6 +320,37 @@ impl Store {
             Ok(())
         })
     }
+    /// Stops `v` of `id` in this app after repeated failures, across launches, with a reason the
+    /// manager shows next to "Turn back on".
+    pub fn quarantine(&self, app: &AppId, id: &ExtensionId, v: Version, reason: &str) -> Result<()> {
+        self.setup(app, id, |a| {
+            a.quarantine = Some(crate::state::Quarantine { version: v, reason: reason.chars().take(300).collect(), at: now() });
+            a.grant_generation += 1;
+            Ok(())
+        })
+    }
+    /// The person turned a stopped plugin back on.
+    pub fn clear_quarantine(&self, app: &AppId, id: &ExtensionId) -> Result<()> {
+        self.setup(app, id, |a| {
+            a.quarantine = None;
+            a.grant_generation += 1;
+            Ok(())
+        })
+    }
+    /// Marks the start of an app run and returns the plugins that were running when the previous
+    /// run ended without [`Store::end_run`] (a crash or a forced quit), so the app can offer to
+    /// start without them. `running` lists the plugins this run starts with.
+    pub fn begin_run(&self, app: &AppId, running: &[ExtensionId]) -> Option<Vec<ExtensionId>> {
+        let path = self.root().join(format!("running-{}.json", app.as_str()));
+        let previous = std::fs::read(&path).ok().and_then(|b| serde_json::from_slice::<Vec<ExtensionId>>(&b).ok());
+        let _ = std::fs::create_dir_all(self.root());
+        let _ = std::fs::write(&path, serde_json::to_vec(running).unwrap_or_default());
+        previous
+    }
+    /// Marks a clean exit.
+    pub fn end_run(&self, app: &AppId) {
+        let _ = std::fs::remove_file(self.root().join(format!("running-{}.json", app.as_str())));
+    }
     pub fn uninstall(&self, id: &ExtensionId) -> Result<()> {
         self.update_cleanup(|s| {
             s.packages.remove(id);

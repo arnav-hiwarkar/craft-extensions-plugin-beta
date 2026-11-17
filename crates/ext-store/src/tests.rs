@@ -435,3 +435,30 @@ fn app_fingerprint_ignores_unrelated_store_writes() {
     s.set_enabled(&app, &id, &c, false).unwrap();
     assert_ne!(s.state().unwrap().app_fingerprint(&app), base);
 }
+#[test]
+fn a_quarantined_release_stays_stopped_across_launches_until_turned_back_on() {
+    let t = tempfile::tempdir().unwrap();
+    let s = Store::at(t.path());
+    let (a, id) = ids();
+    let i = install(&s, "1.0.0", "");
+    s.set_active(&a, &id, i.version).unwrap();
+    s.set_enabled(&a, &id, "run", true).unwrap();
+    s.quarantine(&a, &id, i.version, "crashed 3 times").unwrap();
+    let view = GrantView::open(t.path(), a.clone()).unwrap();
+    assert!(view.stopped(&id, i.version));
+    assert!(view.enabled_contributions(&a).unwrap().is_empty());
+    assert_eq!(s.state().unwrap().apps[&a][&id].quarantine.as_ref().map(|q| q.reason.as_str()), Some("crashed 3 times"));
+    s.clear_quarantine(&a, &id).unwrap();
+    let view = GrantView::open(t.path(), a.clone()).unwrap();
+    assert!(!view.stopped(&id, i.version));
+}
+#[test]
+fn an_unclean_exit_is_reported_once_at_the_next_start() {
+    let t = tempfile::tempdir().unwrap();
+    let s = Store::at(t.path());
+    let (a, id) = ids();
+    assert_eq!(s.begin_run(&a, std::slice::from_ref(&id)), None);
+    assert_eq!(s.begin_run(&a, &[]), Some(vec![id]), "no end_run: the last run crashed with the plugin running");
+    s.end_run(&a);
+    assert_eq!(s.begin_run(&a, &[]), None);
+}
