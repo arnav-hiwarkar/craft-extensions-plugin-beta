@@ -255,7 +255,7 @@ fn kernel_call(caller: &mut Caller<'_, HostData>, mem: &Memory, op: &str, args: 
         .ok_or_else(|| OpError::new(Code::Budget, "plugins are using too much memory for image work right now; try again"))?;
     let data = mem.data(&*caller);
     let region = |ptr: usize, bytes: Option<usize>| bytes.and_then(|b| ptr.checked_add(b).and_then(|end| data.get(ptr..end)));
-    let floats = |raw: &[u8]| raw.chunks_exact(4).map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]])).collect::<Vec<f32>>();
+    let floats = |raw: &[u8]| raw.as_chunks::<4>().0.iter().map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]])).collect::<Vec<f32>>();
     let splats = match op {
         "kernel.splat" => {
             let pts = args.get("points").ok_or_else(|| OpError::invalid("points is required"))?;
@@ -665,14 +665,14 @@ impl Filter {
         let start = usize::try_from(px_ptr).map_err(|_| PluginError::InvalidOutput("bad pointer".into()))?;
         inst.memory.read(&inst.store, start, &mut raw).map_err(|_| PluginError::InvalidOutput("pixels out of bounds".into()))?;
         let mut out = Vec::with_capacity(n);
-        for chunk in raw.chunks_exact(4) {
+        for chunk in raw.as_chunks::<4>().0 {
             let v = f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
             if !v.is_finite() {
                 return Err(PluginError::InvalidOutput("a pixel is not a number".into()));
             }
             out.push(v);
         }
-        for px in out.chunks_exact_mut(4) {
+        for px in out.as_chunks_mut::<4>().0 {
             px[3] = px[3].clamp(0.0, 1.0);
             if px[3] == 0.0 {
                 px[0] = 0.0;

@@ -44,7 +44,7 @@ jobs:
         run: |
           sudo apt-get update -q && sudo apt-get install -yq --no-install-recommends bubblewrap
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.97.1
         with: { components: clippy }
       - uses: Swatinem/rust-cache@v2
         with: { workspaces: craft-extensions -> target, key: shared }

@@ -290,7 +290,7 @@ pub fn run(args: &[String]) -> Result<Value> {
                 if first.iter().zip(&second).any(|(a, b)| a.to_bits() != b.to_bits()) {
                     return Err(format!("{} is not deterministic", c.id).into());
                 }
-                if first.iter().any(|p| !p.is_finite()) || first.chunks_exact(4).any(|p| !(0.0..=1.0).contains(&p[3])) {
+                if first.iter().any(|p| !p.is_finite()) || first.as_chunks::<4>().0.iter().any(|p| !(0.0..=1.0).contains(&p[3])) {
                     return Err("invalid output pixels".into());
                 }
                 results.push(json!({"contribution":c.id,"milliseconds":start.elapsed().as_secs_f64()*1000.0,"deterministic":true}));

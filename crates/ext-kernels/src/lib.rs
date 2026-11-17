@@ -21,7 +21,7 @@ pub fn cost(op: &str, args: &Value, pixels: u64, height: u64, splats: &[f32]) ->
     };
     let splat_work: u64 = if op == "kernel.splat" {
         let count = (splats.len() / 8) as u64;
-        let area: u64 = splats.chunks_exact(8).map(|s| {
+        let area: u64 = splats.as_chunks::<8>().0.iter().map(|s| {
             let r = if s[2].is_finite() { s[2].clamp(0.0, MAX_RADIUS) as u64 } else { 0 };
             (2 * r + 1).pow(2).min(pixels)
         }).fold(0u64, u64::saturating_add);
@@ -347,7 +347,7 @@ pub fn morphology(img: &mut Image, radius: f32, dilate: bool) -> Result<(), Stri
 fn per_pixel(img: &mut Image, f: impl Fn([f32; 4]) -> [f32; 4] + Sync) {
     let width = img.width;
     rows(&mut img.px, width, |_, row| {
-        for p in row.chunks_exact_mut(4) {
+        for p in row.as_chunks_mut::<4>().0 {
             let a = p[3];
             let straight = if a > 0.0 { [p[0] / a, p[1] / a, p[2] / a, a] } else { [0.0, 0.0, 0.0, 0.0] };
             let o = f(straight);
@@ -573,7 +573,7 @@ pub fn splat(img: &mut Image, splats: &[f32]) -> Result<(), String> {
     let width = img.width;
     rows(&mut img.px, width, |y, row| {
         let yc = y as f32 + 0.5;
-        for s in splats.chunks_exact(8) {
+        for s in splats.as_chunks::<8>().0 {
             let (sx, sy, r) = (s[0], s[1], s[2].clamp(0.0, MAX_RADIUS));
             if r <= 0.0 || (yc - sy).abs() > r {
                 continue;
@@ -601,7 +601,7 @@ pub fn splat(img: &mut Image, splats: &[f32]) -> Result<(), String> {
 
 pub fn histogram(img: &Image) -> Value {
     let mut bins = vec![[0u64; 256]; 4];
-    for p in img.px.chunks_exact(4) {
+    for p in img.px.as_chunks::<4>().0 {
         let a = p[3];
         let v = if a > 0.0 { [p[0] / a, p[1] / a, p[2] / a, a] } else { [0.0; 4] };
         for c in 0..4 {
@@ -612,7 +612,7 @@ pub fn histogram(img: &Image) -> Value {
 }
 
 fn clamp_premultiplied(img: &mut Image) {
-    for p in img.px.chunks_exact_mut(4) {
+    for p in img.px.as_chunks_mut::<4>().0 {
         p[3] = if p[3].is_finite() { p[3].clamp(0.0, 1.0) } else { 0.0 };
         for c in 0..3 {
             p[c] = if p[c].is_finite() { p[c].clamp(0.0, p[3].max(0.0) * 64.0) } else { 0.0 };
@@ -760,7 +760,7 @@ pub fn hsl_range(img: &mut Image, hue: [f32; 2], saturation: [f32; 2], lightness
     }
     let width = img.width;
     rows(&mut img.px, width, |_, row| {
-        for p in row.chunks_exact_mut(4) {
+        for p in row.as_chunks_mut::<4>().0 {
             let a = p[3];
             let m = if a > 0.0 {
                 let [h, s, l] = hsl(p[0] / a, p[1] / a, p[2] / a);
@@ -842,12 +842,12 @@ mod tests {
     fn blurring_a_flat_image_leaves_it_flat_and_spreads_a_dot() {
         let mut flat = solid(9, 7, [0.25, 0.5, 0.75, 1.0]);
         blur(&mut flat, 3.0, "gaussian").unwrap();
-        assert!(flat.px.chunks_exact(4).all(|p| (p[0] - 0.25).abs() < 1e-5 && (p[3] - 1.0).abs() < 1e-5));
+        assert!(flat.px.as_chunks::<4>().0.iter().all(|p| (p[0] - 0.25).abs() < 1e-5 && (p[3] - 1.0).abs() < 1e-5));
 
         let mut dot = Image::new(9, 9);
         dot.px[(4 * 9 + 4) * 4 + 3] = 1.0;
         blur(&mut dot, 2.0, "box").unwrap();
-        let alpha: f32 = dot.px.chunks_exact(4).map(|p| p[3]).sum();
+        let alpha: f32 = dot.px.as_chunks::<4>().0.iter().map(|p| p[3]).sum();
         assert!((alpha - 1.0).abs() < 1e-4, "box blur keeps energy, got {alpha}");
         assert!((dot.px[(4 * 9 + 4) * 4 + 3] - 1.0 / 25.0).abs() < 1e-5);
     }
@@ -859,7 +859,7 @@ mod tests {
         let mut exact = fast.clone();
         blur(&mut fast, 30.0, "gaussian").unwrap();
         separable(&mut exact, &gaussian_weights(30.0));
-        let energy: f32 = fast.px.chunks_exact(4).map(|p| p[3]).sum();
+        let energy: f32 = fast.px.as_chunks::<4>().0.iter().map(|p| p[3]).sum();
         assert!((energy - 1.0).abs() < 1e-3, "{energy}");
         let worst = fast.px.iter().zip(&exact.px).map(|(a, b)| (a - b).abs()).fold(0.0f32, f32::max);
         let peak = exact.px.iter().copied().fold(0.0f32, f32::max);
@@ -912,7 +912,7 @@ mod tests {
         let src = solid(8, 8, [0.3, 0.3, 0.3, 1.0]);
         let mut small = Image::new(3, 5);
         resample(&src, &mut small);
-        assert!(small.px.chunks_exact(4).all(|p| (p[0] - 0.3).abs() < 1e-5));
+        assert!(small.px.as_chunks::<4>().0.iter().all(|p| (p[0] - 0.3).abs() < 1e-5));
         let mut shifted = Image::new(8, 8);
         warp_affine(&src, &mut shifted, &[1.0, 0.0, 2.0, 0.0, 1.0, 0.0]).unwrap();
         assert_eq!(shifted.px[3], 0.0, "uncovered pixels are transparent");
@@ -931,7 +931,7 @@ mod tests {
         noise(&mut a, 4.0, 3, 7, 0.0, false).unwrap();
         noise(&mut b, 4.0, 3, 7, 0.0, false).unwrap();
         assert_eq!(a, b);
-        assert!(a.px.chunks_exact(4).all(|p| (0.0..=1.0).contains(&p[0]) && p[3] == 1.0));
+        assert!(a.px.as_chunks::<4>().0.iter().all(|p| (0.0..=1.0).contains(&p[0]) && p[3] == 1.0));
     }
 
     #[test]
