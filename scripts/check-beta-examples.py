@@ -8,10 +8,9 @@ root = Path(__file__).resolve().parents[1]
 known = (root / 'crates/ext-cli/src/known_apps.rs').read_text()
 apps = {}
 for app in ('effectcraft', 'photocraft', 'figcraft'):
-    match = re.search(r'"' + app + r'" => &\[([^\]]+)\]', known)
+    match = re.search(r'"' + app + r'" => &\[(.+?)\],', known)
     assert match, f'{app}: missing CLI contract metadata'
-    names = re.findall(r'"([^"]+)"', match[1])
-    apps[app] = {name: '1.1' if name.endswith('.session') else '1.0' for name in names}
+    apps[app] = {name: f'{major}.{minor}' for name, major, minor in re.findall(r'\("([^"]+)", (\d+), (\d+)\)', match[1])}
     page = (root / f'docs/plugins/contracts/{app}.md').read_text()
     table = page.split('## Contracts provided', 1)[1].split('\n## ', 1)[0]
     documented = dict(re.findall(r'\| `([^`]+)` \| ([0-9.]+) \|', table))

@@ -76,7 +76,7 @@ fn confined_command(exe: &Path, confinement: &Confinement) -> Result<Command, St
         let Some(bwrap) = bwrap else { return Err("restricted native helpers need bubblewrap (bwrap) on Linux".into()) };
         let mut c = Command::new(bwrap);
         c.args(["--unshare-all", "--die-with-parent", "--new-session", "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp"]);
-        for sys in ["/usr", "/lib", "/lib64", "/lib32", "/etc/ld.so.cache", "/etc/localtime"] {
+        for sys in ["/usr/lib", "/usr/lib64", "/usr/lib32", "/lib", "/lib64", "/lib32", "/etc/ld.so.cache", "/etc/localtime"] {
             if Path::new(sys).exists() {
                 c.args(["--ro-bind", sys, sys]);
             }
@@ -516,7 +516,7 @@ mod final_validation_tests {
         assert!(!alive(pid), "the helper's child process survived");
     }
 
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
     #[test]
     fn a_restricted_helper_writes_only_its_data_folder_and_reaches_no_network() {
         let dir = tempfile::tempdir().unwrap();
@@ -530,7 +530,11 @@ mod final_validation_tests {
             d = data.display(),
             o = outside.display()
         );
-        let mut c = confined_command(Path::new("/bin/bash"), &Confinement::Restricted { release: release.clone(), data: data.clone() }).unwrap();
+        let helper = if cfg!(target_os = "linux") { release.join("helper") } else { PathBuf::from("/bin/bash") };
+        if cfg!(target_os = "linux") {
+            std::fs::copy("/bin/bash", &helper).unwrap();
+        }
+        let mut c = confined_command(&helper, &Confinement::Restricted { release: release.clone(), data: data.clone() }).unwrap();
         c.arg("-c").arg(&probe).current_dir(&data).stdout(Stdio::null()).stderr(Stdio::null()).status().unwrap();
         assert!(data.join("in.txt").exists(), "writing the data folder is allowed");
         assert!(!outside.join("out.txt").exists(), "writing elsewhere is refused");
