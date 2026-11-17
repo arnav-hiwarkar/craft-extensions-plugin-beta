@@ -7,7 +7,9 @@ one adapter in each app, and the signed catalogue in `craft-plugins`.
 
 For continued implementation and upstream integration, apply the
 [suite replacement rule](suite-replacement-rule.md) and start with the
-[2026-11-17 continuation record](continuation-2026-11-17.md). The rule's final
+[2026-11-17 continuation record](continuation-2026-11-17.md). The
+[upstream integration ledger](upstream-integration-2026-11-17.md) pins the merged upstream
+refs and separates source-complete from verified work. The rule's final
 end state supersedes earlier proposals to retain parallel per-app plugin systems.
 
 | Guide | For |
