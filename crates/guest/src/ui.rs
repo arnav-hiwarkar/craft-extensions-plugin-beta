@@ -201,8 +201,7 @@ pub fn component(key: &str, name: &str, version: u32, props: Value, fallback: No
 
 pub use craft_ext_core::contract::Level;
 pub use craft_ext_core::ui::tree::{
-    Align, Cursor, ICONS, Listen, Mods, PathCmd, PointerButton, PointerEvent, PointerKind, Selection, TextStyle, UI_LEVEL, UiValue, VAlign,
-};
+    Align, Cursor, ICONS, Listen, Mods, PathCmd, PointerButton, PointerEvent, PointerKind, Selection, TextStyle, UI_LEVEL, UiValue, VAlign, Tone, Variant};
 
 fn to_json<T: serde::Serialize>(v: T) -> Value {
     serde_json::to_value(v).unwrap_or(Value::Null)
@@ -236,6 +235,22 @@ pub trait NodeExt: Sized {
     /// Text style of a label.
     fn style(self, style: TextStyle) -> Self {
         self.set("style", to_json(style))
+    }
+    /// Meaning of a label's text (ui 1.2); the app picks the colour from its theme.
+    fn tone(self, tone: Tone) -> Self {
+        self.set("tone", to_json(tone))
+    }
+    /// Emphasis of a button (ui 1.2): one primary action per surface, danger for destructive ones.
+    fn variant(self, variant: Variant) -> Self {
+        self.set("variant", to_json(variant))
+    }
+    /// Text a list or table shows when it has no rows (ui 1.2).
+    fn empty(self, text: &str) -> Self {
+        self.set("empty", text)
+    }
+    /// Draw a text input as a search field (ui 1.2).
+    fn search(self) -> Self {
+        self.set("search", true)
     }
     /// Lower and upper bound of a number field.
     fn range(self, min: f64, max: f64) -> Self {
@@ -390,6 +405,20 @@ pub fn icon(name: &str) -> Node {
     json!({"type": "icon", "name": name})
 }
 
+/// A short status tag such as "Beta" or "Offline" (ui 1.2).
+pub fn badge(text: &str, tone: Tone) -> Node {
+    json!({ "type": "badge", "text": text, "tone": to_json(tone) })
+}
+
+/// A highlighted message with an optional title (ui 1.2): warnings, tips, errors in place.
+pub fn notice(title: Option<&str>, text: &str, tone: Tone) -> Node {
+    let mut n = json!({ "type": "notice", "text": text, "tone": to_json(tone) });
+    if let Some(t) = title {
+        n["title"] = json!(t);
+    }
+    n
+}
+
 /// Empty space, in points.
 pub fn spacer(size: f32) -> Node {
     json!({"type": "spacer", "size": size})
@@ -492,8 +521,18 @@ mod level_1_1_tests {
             button("del", "Delete").icon("trash").icon_only(),
         ]);
         check(&tree).unwrap();
-        assert_eq!(level(&tree), Ok(UI_LEVEL));
+        assert_eq!(level(&tree), Ok(Level::new(1, 1)));
         assert_eq!(level(&column(vec![label("Hi"), button("go", "Go")])), Ok(Level::new(1, 0)));
+        let meaning = column(vec![
+            button("render", "Render").variant(Variant::Primary),
+            notice(Some("Heads up"), "Large frames take a while", Tone::Warn),
+            badge("Beta", Tone::Info),
+            text_input("q", "Search", "").search(),
+            list("layers", "Layers", vec![]).empty("No layers yet"),
+            label("Saved").tone(Tone::Good),
+        ]);
+        check(&meaning).unwrap();
+        assert_eq!(level(&meaning), Ok(UI_LEVEL));
         assert!(check(&button("x", "")).is_err());
     }
 

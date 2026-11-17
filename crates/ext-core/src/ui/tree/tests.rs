@@ -98,23 +98,43 @@ fn rich_tree_round_trips_and_needs_1_1() {
     let n = Node::parse(&rich()).unwrap();
     let back: Node = serde_json::from_value(serde_json::to_value(&n).unwrap()).unwrap();
     assert_eq!(back, n);
-    assert_eq!(n.level(), UI_LEVEL);
+    assert_eq!(n.level(), UI_LEVEL_1_1);
     assert_eq!(n.first_1_1_feature(), Some("tabs"));
     let err = n.validate_at(UI_LEVEL_1_0).unwrap_err();
     assert!(err.0.contains("needs ui 1.1"), "{err}");
     n.validate_at(UI_LEVEL).unwrap();
     // A new field on an old node is level 1.1 too.
     let hinted = Node::parse(&json!({"type":"button","id":"b","label":"B","hint":"Tip"})).unwrap();
-    assert_eq!(hinted.level(), UI_LEVEL);
+    assert_eq!(hinted.level(), UI_LEVEL_1_1);
     assert_eq!(hinted.first_1_1_feature(), None);
-    assert!(hinted.validate_at(UI_LEVEL_1_0).unwrap_err().0.contains("level 1.1 fields"));
+    assert!(hinted.validate_at(UI_LEVEL_1_0).unwrap_err().0.contains("newer fields"));
 }
 
 #[test]
 fn session_contract_minor_carries_the_ui_level() {
     assert_eq!(ui_level_for_session(Level::new(1, 0)), UI_LEVEL_1_0);
-    assert_eq!(ui_level_for_session(Level::new(1, 1)), UI_LEVEL);
+    assert_eq!(ui_level_for_session(Level::new(1, 1)), UI_LEVEL_1_1);
+    assert_eq!(ui_level_for_session(Level::new(1, 2)), UI_LEVEL);
     assert_eq!(ui_level_for_session(Level::new(1, 4)), UI_LEVEL);
+}
+
+#[test]
+fn meaning_without_colour_needs_ui_1_2_and_degrades_with_a_clear_message() {
+    let tree: Node = serde_json::from_value(serde_json::json!({"type":"column","children":[
+        {"type":"button","id":"go","label":"Render","variant":"primary"},
+        {"type":"notice","title":"Heads up","text":"Large frames take a while","tone":"warn"},
+        {"type":"badge","text":"Beta","tone":"info"},
+        {"type":"text-input","id":"q","label":"Search","value":"","search":true},
+        {"type":"list","id":"l","label":"Layers","items":[],"empty":"No layers yet"}
+    ]})).unwrap();
+    assert_eq!(tree.level(), UI_LEVEL);
+    tree.validate_at(UI_LEVEL).unwrap();
+    assert_eq!(
+        tree.validate_at(UI_LEVEL_1_1).unwrap_err().0,
+        "this interface uses \"button variant\", which needs ui 1.2; the plugin declares ui 1.1 (declare the session contract @1.2 or later)"
+    );
+    let colour: Result<Node, _> = serde_json::from_value(serde_json::json!({"type":"badge","text":"x","rgba":[1,0,0,1]}));
+    assert!(colour.map_or(true, |n| n.validate().is_err() || matches!(n, Node::Unknown(_))), "colours are not part of meaning nodes");
 }
 
 #[test]
@@ -127,7 +147,7 @@ fn unknown_nodes_degrade_and_broken_known_nodes_explain_themselves() {
     let Node::Column(s) = &n else { panic!() };
     assert!(matches!(&s.children[0], Node::Unknown(u) if u.kind == "webview" && u.fallback.is_none()));
     assert!(
-        matches!(&s.children[1], Node::Unknown(u) if u.fallback.as_deref() == Some(&Node::Label(Label { text: "No chart".into(), style: TextStyle::Body, icon: None })))
+        matches!(&s.children[1], Node::Unknown(u) if u.fallback.as_deref() == Some(&Node::Label(Label { text: "No chart".into(), style: TextStyle::Body, tone: Tone::Neutral, icon: None })))
     );
     // The unknown node's own fields are not echoed back to the frontend.
     assert_eq!(serde_json::to_value(&s.children[0]).unwrap(), json!({"type":"webview"}));

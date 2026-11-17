@@ -14,8 +14,7 @@ use super::paint::{Xf, color, paint_ops};
 use super::{Engine, Host, Surface};
 use craft_ext_core::form::{FormState, Value as FValue};
 use craft_ext_core::ui::tree::{
-    Align, Canvas, Cursor, Listen, Mods, Node, PointerButton, PointerEvent, PointerKind, Selection, TextStyle, UiEvent, UiValue,
-};
+    Align, Canvas, Cursor, Listen, Mods, Node, PointerButton, PointerEvent, PointerKind, Selection, TextStyle, UiEvent, UiValue, Tone, Variant};
 use egui::{Color32, Id, Pos2, Rect, Response, RichText, Sense, TextureHandle, Ui, Vec2, pos2, vec2};
 use std::collections::HashMap;
 
@@ -121,6 +120,26 @@ fn with_hint(r: Response, hint: Option<&str>) -> Response {
     }
 }
 
+pub fn tone_color(v: &egui::Visuals, tone: Tone) -> Color32 {
+    match tone {
+        Tone::Neutral => v.text_color(),
+        Tone::Accent => v.selection.bg_fill,
+        Tone::Info => v.hyperlink_color,
+        Tone::Good => Color32::from_rgb(0x3d, 0xa8, 0x5f).lerp_to_gamma(v.text_color(), 0.15),
+        Tone::Warn => v.warn_fg_color,
+        Tone::Bad => v.error_fg_color,
+    }
+}
+
+fn badge(ui: &mut Ui, text: &str, tone: Tone) {
+    let ink = tone_color(ui.visuals(), tone);
+    egui::Frame::new()
+        .fill(ink.gamma_multiply(0.15))
+        .corner_radius(ui.visuals().widgets.noninteractive.corner_radius)
+        .inner_margin(egui::Margin::symmetric(6, 1))
+        .show(ui, |ui| ui.label(RichText::new(text).small().color(ink)));
+}
+
 fn node(ui: &mut Ui, cx: &mut Cx<'_>, n: &Node, depth: usize) {
     if depth > MAX_DRAW_DEPTH {
         return;
@@ -148,6 +167,7 @@ fn node(ui: &mut Ui, cx: &mut Cx<'_>, n: &Node, depth: usize) {
                 TextStyle::Weak => RichText::new(&l.text).weak(),
                 TextStyle::Mono => RichText::new(&l.text).monospace(),
             };
+            let text = if l.tone == Tone::Neutral { text } else { text.color(tone_color(ui.visuals(), l.tone)) };
             match &l.icon {
                 Some(icon) => {
                     ui.horizontal(|ui| {
@@ -165,9 +185,19 @@ fn node(ui: &mut Ui, cx: &mut Cx<'_>, n: &Node, depth: usize) {
         }
         Node::Spacer(s) => ui.add_space(s.size.clamp(0.0, 512.0)),
         Node::Button(b) => {
-            let r = match &b.icon {
-                Some(icon) => icon_button(ui, icon, if b.icon_only { None } else { Some(&b.label) }, !b.disabled),
-                None => ui.add_enabled(!b.disabled, egui::Button::new(&b.label)),
+            let r = match (&b.icon, b.variant) {
+                (Some(icon), _) => icon_button(ui, icon, if b.icon_only { None } else { Some(&b.label) }, !b.disabled),
+                (None, Variant::Primary) => {
+                    let v = ui.visuals();
+                    let (fill, ink) = (v.selection.bg_fill, v.selection.stroke.color);
+                    ui.add_enabled(!b.disabled, egui::Button::new(RichText::new(&b.label).color(ink).strong()).fill(fill))
+                }
+                (None, Variant::Danger) => {
+                    let ink = ui.visuals().error_fg_color;
+                    ui.add_enabled(!b.disabled, egui::Button::new(RichText::new(&b.label).color(ink)))
+                }
+                (None, Variant::Ghost) => ui.add_enabled(!b.disabled, egui::Button::new(&b.label).frame(false)),
+                (None, Variant::Secondary) => ui.add_enabled(!b.disabled, egui::Button::new(&b.label)),
             };
             cx.widget(&b.id, &r, &b.label);
             let hint = b.hint.as_deref().or(if b.icon_only { Some(&b.label) } else { None });
@@ -220,7 +250,29 @@ fn node(ui: &mut Ui, cx: &mut Cx<'_>, n: &Node, depth: usize) {
             });
         }
         Node::TextInput(t) => {
-            text_field(ui, cx, &t.id, &t.label, &t.value, t.placeholder.as_deref(), t.hint.as_deref(), t.disabled, None);
+            if t.search {
+                ui.horizontal(|ui| {
+                    icon_widget(ui, "search", ui.text_style_height(&egui::TextStyle::Body), None);
+                    text_field(ui, cx, &t.id, &t.label, &t.value, t.placeholder.as_deref().or(Some(&t.label)), t.hint.as_deref(), t.disabled, None);
+                });
+            } else {
+                text_field(ui, cx, &t.id, &t.label, &t.value, t.placeholder.as_deref(), t.hint.as_deref(), t.disabled, None);
+            }
+        }
+        Node::Badge(b) => badge(ui, &b.text, b.tone),
+        Node::Notice(n) => {
+            let ink = tone_color(ui.visuals(), n.tone);
+            egui::Frame::new()
+                .fill(ink.gamma_multiply(0.08))
+                .stroke(egui::Stroke::new(1.0, ink.gamma_multiply(0.5)))
+                .corner_radius(ui.visuals().widgets.noninteractive.corner_radius)
+                .inner_margin(egui::Margin::same(8))
+                .show(ui, |ui| {
+                    if let Some(title) = &n.title {
+                        ui.label(RichText::new(title).strong().color(ink));
+                    }
+                    ui.label(&n.text);
+                });
         }
         Node::TextArea(t) => {
             let rows = t.rows.unwrap_or(4).clamp(1, 50) as usize;
@@ -377,6 +429,12 @@ fn node(ui: &mut Ui, cx: &mut Cx<'_>, n: &Node, depth: usize) {
                     }
                 }
             });
+        }
+        Node::Table(t) if t.rows.is_empty() && t.empty.is_some() => {
+            ui.label(RichText::new(t.empty.as_deref().unwrap_or_default()).weak());
+        }
+        Node::List(l) if l.items.is_empty() && l.empty.is_some() => {
+            ui.label(RichText::new(l.empty.as_deref().unwrap_or_default()).weak());
         }
         Node::Table(t) => {
             let keys: Vec<&str> = t.rows.iter().map(|r| r.key.as_str()).collect();

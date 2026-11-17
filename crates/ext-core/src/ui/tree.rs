@@ -26,14 +26,19 @@ use std::collections::BTreeSet;
 pub use super::UiError;
 
 /// The UI level this build understands.
-pub const UI_LEVEL: Level = Level::new(1, 1);
+pub const UI_LEVEL: Level = Level::new(1, 2);
+pub const UI_LEVEL_1_1: Level = Level::new(1, 1);
 /// The first UI level: the vocabulary of [`super::Node`].
 pub const UI_LEVEL_1_0: Level = Level::new(1, 0);
 
 /// Which UI level a session contract carries. `<app>.session@1.0` carries ui 1.0; a host that draws
 /// with the shared renderer provides `<app>.session@1.1` or later, which carries ui 1.1.
 pub fn ui_level_for_session(session: Level) -> Level {
-    if session.major == 1 && session.minor == 0 { UI_LEVEL_1_0 } else { UI_LEVEL }
+    match (session.major, session.minor) {
+        (1, 0) => UI_LEVEL_1_0,
+        (1, 1) => UI_LEVEL_1_1,
+        _ => UI_LEVEL,
+    }
 }
 
 /// Every limit a tree is checked against.
@@ -190,6 +195,8 @@ pub enum Node {
     Radio(Radio),
     Icon(Icon),
     Spacer(Spacer),
+    Badge(Badge),
+    Notice(Notice),
     /// A node from a newer UI level, or a known node with invalid fields (refused by `validate`).
     #[serde(untagged)]
     Unknown(Unknown),
@@ -216,6 +223,47 @@ pub const KINDS_1_0: &[&str] = &[
 /// Node types added in level 1.1.
 pub const KINDS_1_1: &[&str] =
     &["tabs", "collapsible", "scroll", "grid", "table", "list", "number", "text-area", "progress", "toggle", "radio", "icon", "spacer"];
+pub const KINDS_1_2: &[&str] = &["badge", "notice"];
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum Tone {
+    #[default]
+    Neutral,
+    Accent,
+    Info,
+    Good,
+    Warn,
+    Bad,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum Variant {
+    Primary,
+    #[default]
+    Secondary,
+    Danger,
+    Ghost,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Badge {
+    pub text: String,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub tone: Tone,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Notice {
+    pub text: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub tone: Tone,
+}
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -271,6 +319,8 @@ pub struct Label {
     pub text: String,
     #[serde(default, skip_serializing_if = "is_default")]
     pub style: TextStyle,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub tone: Tone,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub icon: Option<String>,
 }
@@ -285,6 +335,8 @@ pub struct Button {
     /// Draw only the icon; the label becomes the tooltip and accessible name. Needs `icon`.
     #[serde(default, skip_serializing_if = "is_false")]
     pub icon_only: bool,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub variant: Variant,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hint: Option<String>,
     #[serde(default, skip_serializing_if = "is_false")]
@@ -332,6 +384,8 @@ pub struct TextInput {
     pub hint: Option<String>,
     #[serde(default, skip_serializing_if = "is_false")]
     pub disabled: bool,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub search: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -531,6 +585,8 @@ pub struct Table {
     pub max_height: Option<f32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hint: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub empty: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -565,6 +621,8 @@ pub struct List {
     pub max_height: Option<f32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hint: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub empty: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -1034,6 +1092,8 @@ impl Node {
             Node::Radio(_) => "radio",
             Node::Icon(_) => "icon",
             Node::Spacer(_) => "spacer",
+            Node::Badge(_) => "badge",
+            Node::Notice(_) => "notice",
             Node::Unknown(u) => &u.kind,
         }
     }
@@ -1056,12 +1116,28 @@ impl Node {
     /// The lowest UI level that can draw this tree: 1.0 when the level-1.0 parser accepts it as
     /// written, else 1.1. Unknown nodes (from a newer level) do not raise it: they degrade.
     pub fn level(&self) -> Level {
+        if self.first_1_2_feature().is_some() {
+            return UI_LEVEL;
+        }
         if self.contains_unknown() {
             // An unknown node never parses at 1.0; judge the rest by its known kinds.
-            return if self.first_1_1_feature().is_some() { UI_LEVEL } else { UI_LEVEL_1_0 };
+            return if self.first_1_1_feature().is_some() { UI_LEVEL_1_1 } else { UI_LEVEL_1_0 };
         }
         let as_1_0 = serde_json::to_value(self).ok().and_then(|v| serde_json::from_value::<super::Node>(v).ok());
-        if as_1_0.is_some() { UI_LEVEL_1_0 } else { UI_LEVEL }
+        if as_1_0.is_some() { UI_LEVEL_1_0 } else { UI_LEVEL_1_1 }
+    }
+
+    pub fn first_1_2_feature(&self) -> Option<&str> {
+        let own = match self {
+            Node::Badge(_) | Node::Notice(_) => Some(self.kind()),
+            Node::Button(b) if b.variant != Variant::default() => Some("button variant"),
+            Node::Label(l) if l.tone != Tone::default() => Some("label tone"),
+            Node::TextInput(t) if t.search => Some("search field"),
+            Node::List(l) if l.empty.is_some() => Some("list empty text"),
+            Node::Table(t) if t.empty.is_some() => Some("table empty text"),
+            _ => None,
+        };
+        own.or_else(|| self.children().into_iter().find_map(Node::first_1_2_feature))
     }
 
     fn contains_unknown(&self) -> bool {
@@ -1082,9 +1158,13 @@ impl Node {
     pub fn validate_at(&self, declared: Level) -> Result<(), UiError> {
         let needed = self.level();
         if needed > declared {
-            let what = self.first_1_1_feature().map_or_else(|| "level 1.1 fields or drawing".to_string(), |k| format!("\"{k}\""));
+            let what = self
+                .first_1_2_feature()
+                .or_else(|| self.first_1_1_feature())
+                .map_or_else(|| "newer fields or drawing".to_string(), |k| format!("\"{k}\""));
+            let minor = needed.minor;
             return Err(UiError(format!(
-                "this interface uses {what}, which needs ui {needed}; the plugin declares ui {declared} (declare the session contract @1.1 or later)"
+                "this interface uses {what}, which needs ui {needed}; the plugin declares ui {declared} (declare the session contract @1.{minor} or later)"
             )));
         }
         self.validate()
@@ -1139,6 +1219,13 @@ impl Node {
                 icon_name(l.icon.as_deref())
             }
             Node::Separator => Ok(()),
+            Node::Badge(b) => text_len(&b.text, 64, "badge"),
+            Node::Notice(n) => {
+                if let Some(t) = &n.title {
+                    text_len(t, 200, "notice title")?;
+                }
+                text_len(&n.text, MAX_TEXT, "notice")
+            }
             Node::Button(b) => {
                 control(&b.id, &b.label, b.hint.as_deref())?;
                 icon_name(b.icon.as_deref())?;
@@ -1244,6 +1331,7 @@ impl Node {
             }
             Node::Table(t) => {
                 control(&t.id, &t.label, t.hint.as_deref())?;
+                hint(t.empty.as_deref())?;
                 if t.columns.is_empty() || t.columns.len() > MAX_TABLE_COLUMNS || t.rows.len() > MAX_ROWS {
                     return Err(UiError(format!("table \"{}\" has too many or no columns, or too many rows", t.id)));
                 }
@@ -1271,6 +1359,7 @@ impl Node {
             }
             Node::List(l) => {
                 control(&l.id, &l.label, l.hint.as_deref())?;
+                hint(l.empty.as_deref())?;
                 if l.items.len() > MAX_ROWS {
                     return Err(UiError(format!("list \"{}\" has too many items", l.id)));
                 }

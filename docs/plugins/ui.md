@@ -57,7 +57,7 @@ revisions so in-progress edits survive a redraw.
 
 ## Versioning
 
-The vocabulary has a level (`UI_LEVEL` = 1.1 in `tree.rs`). **ui 1.0** is the original set (marked
+The vocabulary has a level (`UI_LEVEL` = 1.2 in `tree.rs`). **ui 1.0** is the original set (marked
 1.0 below; `KINDS_1_0`). **ui 1.1** adds everything else on this page (`KINDS_1_1` plus new fields and
 draw ops). A level-1.0 tree is valid, unchanged, at 1.1.
 
@@ -78,6 +78,25 @@ draw ops). A level-1.0 tree is valid, unchanged, at 1.1.
   version of the app"). Any node may carry `"fallback": {…}` for this purpose. A *known* type with
   wrong fields is still refused, with the reason. Unknown nodes do not raise the level a tree needs.
 - New fields on existing nodes only arrive with a new level; unknown fields are refused.
+
+### ui 1.2: meaning without colour
+
+`UI_LEVEL` is now 1.2. A session contract at `@1.2` or later carries it. EffectCraft provides
+`effectcraft.session@1.2`. Level 1.2 lets a plugin say what something means; the app chooses how it
+looks from its own theme, so plugins match light, dark and suite themes without picking colours.
+
+| Addition | Meaning |
+|---|---|
+| `button.variant` | `primary` (the one main action of a surface), `secondary` (default), `danger` (destructive), `ghost` (quiet) |
+| `label.tone`, `badge.tone`, `notice.tone` | `neutral` (default), `accent`, `info`, `good`, `warn`, `bad` |
+| `badge` node | `{text, tone}`: a short status tag such as "Beta" or "Offline", at most 64 characters |
+| `notice` node | `{text, title?, tone}`: a highlighted message in place, such as a warning, tip or error |
+| `list.empty`, `table.empty` | Text shown when there are no rows |
+| `text-input.search` | Draw the input as a search field |
+
+Colours and pixel sizes are never part of these nodes. `craft_guest::ui` has `badge`, `notice` and
+the `.variant`, `.tone`, `.empty` and `.search` builders. A tree that uses them declared at `@1.1`
+is refused with the reason and the level to declare.
 
 ## Nodes
 
