@@ -283,7 +283,7 @@ fn native_helper(script: &str, api: Arc<dyn AppApi>, grants: Arc<dyn Grants>) ->
     std::fs::write(&path, format!("#!/bin/sh\nread hello\nprintf '%s\\n' '{{\"type\":\"ready\"}}'\n{script}\n")).unwrap();
     std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o700)).unwrap();
     let i = inv(1);
-    let h = crate::native::Helper::start(&i.plugin, i.version, &path, &std::env::temp_dir(), api, grants, log()).unwrap();
+    let h = crate::native::Helper::start(&i.plugin, i.version, &crate::native::HelperLaunch { exe: path.clone(), work: std::env::temp_dir().to_path_buf(), confinement: crate::native::Confinement::Full }, api, grants, log()).unwrap();
     std::fs::remove_file(path).unwrap();
     h
 }
@@ -388,9 +388,9 @@ fn native_packaged_helper_round_trip() {
     if let Some(path) = std::env::var_os("CRAFT_E2E_NATIVE_EXE") {
         let path = std::path::PathBuf::from(path);
         let work = path.parent().unwrap();
-        assert!(crate::native::Helper::start(&i.plugin, i.version, &path, work, app.clone(), grants.clone(), log()).is_err());
+        assert!(crate::native::Helper::start(&i.plugin, i.version, &crate::native::HelperLaunch { exe: path.clone(), work: work.to_path_buf(), confinement: crate::native::Confinement::Full }, app.clone(), grants.clone(), log()).is_err());
         grants.0.store(true, Ordering::Relaxed);
-        let mut helper = crate::native::Helper::start(&i.plugin, i.version, &path, work, app.clone(), grants.clone(), log()).unwrap();
+        let mut helper = crate::native::Helper::start(&i.plugin, i.version, &crate::native::HelperLaunch { exe: path.clone(), work: work.to_path_buf(), confinement: crate::native::Confinement::Full }, app.clone(), grants.clone(), log()).unwrap();
         helper.dispatch(i, &json!({"type":"command","id":"smoke"})).unwrap();
         grants.0.store(false, Ordering::Relaxed);
         assert!(!helper.supervise());

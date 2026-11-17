@@ -87,6 +87,13 @@ fn confined_command(exe: &Path, confinement: &Confinement) -> Result<Command, St
     Err("restricted native helpers are not available on this operating system yet".into())
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct HelperLaunch {
+    pub exe: PathBuf,
+    pub work: PathBuf,
+    pub confinement: Confinement,
+}
+
 pub fn platform() -> String {
     format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH)
 }
@@ -111,29 +118,15 @@ impl Helper {
     pub fn start(
         plugin: &ExtensionId,
         version: Version,
-        exe: &Path,
-        work: &Path,
+        launch: &HelperLaunch,
         api: Arc<dyn AppApi>,
         grants: Arc<dyn Grants>,
         log: LogFn,
-    ) -> Result<Self, PluginError> {
-        Self::start_confined(plugin, version, exe, work, api, grants, log, &Confinement::Full)
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub fn start_confined(
-        plugin: &ExtensionId,
-        version: Version,
-        exe: &Path,
-        work: &Path,
-        api: Arc<dyn AppApi>,
-        grants: Arc<dyn Grants>,
-        log: LogFn,
-        confinement: &Confinement,
     ) -> Result<Self, PluginError> {
         if !grants.full_access(plugin) || grants.stopped(plugin, version) {
             return Err(PluginError::Stopped("native code has not been allowed for this plugin".into()));
         }
+        let HelperLaunch { exe, work, confinement } = launch;
         let mut command = confined_command(exe, confinement).map_err(PluginError::Load)?;
         #[cfg(unix)]
         std::os::unix::process::CommandExt::process_group(&mut command, 0);
