@@ -1,0 +1,22 @@
+[package]
+name = "craft-ext-manager"
+description = "The Plugin Manager model shared by every app and the launcher: tabs, search, details, install and update flows, problems and words. No UI toolkit."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+craft-ext-core.workspace = true
+craft-ext-store = { path = "../ext-store", features = ["net"] }
+serde_json.workspace = true
+
+[dev-dependencies]
+ed25519-dalek.workspace = true
+hex.workspace = true
+tempfile = "3.27.0"
+zip = { version = "9.0.4", default-features = false, features = ["deflate"] }

@@ -36,6 +36,7 @@ fn test_key(base: &str, key: Option<String>, allow_file: Option<String>) -> Opti
     let key = key?.trim().to_ascii_lowercase();
     (key.len() == 64 && hex::decode(&key).is_ok()).then_some(key)
 }
+#[cfg(feature = "net")]
 fn verify_for(bytes: &[u8], sig: &[u8], base: &str) -> Result<bool> {
     let keys = trusted_keys_for(base);
     let keys: Vec<&str> = keys.iter().map(String::as_str).collect();
@@ -133,6 +134,10 @@ impl Catalogue {
     }
     /// The cached index, verified with the keys trusted for `base` (the manager's catalogue).
     pub fn cached_for(dir: &Path, base: &str) -> Result<Index> {
+        let keys = trusted_keys_for(base);
+        Self::cached_with_keys(dir, &keys.iter().map(String::as_str).collect::<Vec<_>>())
+    }
+    pub fn cached_with_keys(dir: &Path, keys: &[&str]) -> Result<Index> {
         let (b, sig) = match crate::state_read(dir.join(SNAPSHOT), MAX_INDEX_BYTES + 1024) {
             Ok(snapshot) => {
                 let split = snapshot.iter().position(|&c| c == b'\n').ok_or_else(|| error("the cached catalogue is damaged"))?;
@@ -141,10 +146,21 @@ impl Catalogue {
             }
             Err(_) => (crate::state_read(dir.join("index.json"), MAX_INDEX_BYTES)?, crate::state_read(dir.join("index.json.sig"), 1024)?),
         };
-        if !verify_for(&b, &sig, base)? {
+        if !verify_index(&b, std::str::from_utf8(&sig).map_err(error)?, keys) {
             return Err(error("the cached catalogue signature is invalid"));
         }
         Index::parse_cached(&b).map_err(error)
+    }
+    #[cfg(feature = "net")]
+    pub fn media(base: &str, repo: &str, image: &craft_ext_core::listing::Image, role: craft_ext_core::listing::ImageRole) -> Result<Vec<u8>> {
+        image.check(role, repo).map_err(error)?;
+        let url = resolve_asset_url(&image.url, base)?;
+        if url.starts_with("file:") && !file_allowed(base) {
+            return Err(error("file media require a file catalogue or CRAFT_CATALOGUE_ALLOW_FILE=1"));
+        }
+        let b = get(&url, image.size)?;
+        image.check_bytes(role, &b, &digest(&b)).map_err(error)?;
+        Ok(b)
     }
     /// Download and verify the index (signature, schema, expiry, serial, clock). Nothing is written.
     #[cfg(feature = "net")]

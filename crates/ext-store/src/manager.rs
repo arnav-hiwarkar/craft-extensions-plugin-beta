@@ -502,8 +502,11 @@ impl Manager {
             .collect())
     }
     pub fn report_url(&self, id: &ExtensionId, v: Version) -> String {
-        format!("https://github.com/arnav-hiwarkar/craft-plugins/issues/new?template=report.yml&plugin={id}&version={v}")
+        report_url(id, v)
     }
+}
+pub fn report_url(id: &ExtensionId, v: Version) -> String {
+    format!("https://github.com/arnav-hiwarkar/craft-plugins/issues/new?template=report.yml&plugin={id}&version={v}")
 }
 
 #[cfg(feature = "net")]
