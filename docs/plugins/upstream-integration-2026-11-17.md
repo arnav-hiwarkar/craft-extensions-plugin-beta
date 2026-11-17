@@ -18,6 +18,9 @@ private remotes.
 | effectcraft | `aeedb92` | `fbfeed2` | 375 / 17 | `32a514f` |
 | figcraft | `e188356` | `0d6ce11` | 292 / 21 | `cc75013` (then `af0c4ba`) |
 | photocraft | `01b7995` | `f75cfd5` | 1150 / 19 | `31d8774` |
+| effectcraft (second pass) | `cd9ee1e` | `aeedb92` | 66 / 0 | `322c2150` |
+| figcraft (second pass) | `da2792c` | `e188356` | 63 / 0 | `c889100f` |
+| photocraft (craft UI framework) | `c337d6e` | `01b7995` | 15 / 0 | `0ccf36860` |
 
 `craft-plugins` has no upstream. Every app and the launcher use the same egui fork
 (`storytold/egui@6d518fc`) on both sides; the merges changed no egui pin. Each `Cargo.lock`
@@ -46,6 +49,13 @@ packages and their hashing, signing and zip dependencies (and removed retired le
   legacy `plugin_cmds` and `menus/plugin_ui.rs` stay removed, with upstream's legacy registry guard
   and install test. A scripted check found no `crate::` module path in beta-touched files that the
   merged crates lack.
+- **PhotoCraft on the craft UI framework (`ed14e1c`).** Upstream moved the whole UI onto craft-libs
+  `a6b9d9c` (shell, dock, hosted dialogs, themes) and egui `e9711ca`. Beta plugin panels became dock
+  panels `plugin.<pluginId>.<panelId>` in a runtime list beside the static registry, registered before
+  the saved layout restores; an absent plugin's panel stays hidden in place. Plugin windows are
+  `ViewportWindow`s; filter forms go through `HostedParamDialog`; the plugin tool is a framework canvas
+  tool. Verified: `cargo check` of the adapter, engine, UI and app packages; `--tests` fails only in an
+  upstream macOS-only test (`external_svg.rs`, `mkfifoat`).
 - **App workflows.** Upstream workflow files (including FigCraft's new `lockfile.yml`) stay out of
   every app repository, as in the beta start commits.
 
