@@ -112,6 +112,32 @@ impl Contribution {
 #[serde(deny_unknown_fields)]
 pub struct Native {
     pub executables: BTreeMap<String, String>,
+    #[serde(default)]
+    pub mode: NativeMode,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum NativeMode {
+    #[default]
+    Full,
+    Restricted,
+}
+
+impl NativeMode {
+    pub fn sentence(self) -> &'static str {
+        match self {
+            Self::Full => "Native: full access to your computer",
+            Self::Restricted => "Native, restricted: runs its own code with no network and no access to your files outside its own folder",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Runtime<'a> {
+    Data,
+    Wasm(&'a str),
+    Native(NativeMode),
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -237,6 +263,9 @@ impl Manifest {
                 (false, Some(_), _) => return err(format!("data contribution {} cannot have code", c.id)),
                 _ => {}
             }
+            if c.kind == ContributionKind::Effect && c.module.is_none() {
+                return err(format!("effect {} needs a sandboxed module; native helpers cannot render effects", c.id));
+            }
             if c.kind.is_data() && c.files.is_empty() {
                 return err(format!("data contribution {} lists no files", c.id));
             }
@@ -244,9 +273,6 @@ impl Manifest {
                 validate_path(p).map_err(|e| ManifestError(format!("{}: {e}", c.id)))?;
             }
             if let Some(form) = &c.form { form.validate().map_err(ManifestError)?; }
-        }
-        if self.native.is_some() && self.contributions.iter().any(|c| c.kind == ContributionKind::Effect) {
-            return err("native packages cannot contribute effects in this version (use a sandboxed module)");
         }
         let mut apps = BTreeSet::new();
         if !self.apps.iter().all(|a| apps.insert(a)) {
@@ -262,6 +288,19 @@ impl Manifest {
 
     pub fn is_native(&self) -> bool {
         self.native.is_some()
+    }
+
+    pub fn native_mode(&self) -> Option<NativeMode> {
+        self.native.as_ref().map(|n| n.mode)
+    }
+
+    pub fn runtime<'a>(&'a self, c: &'a Contribution) -> Runtime<'a> {
+        match (&c.module, &self.native) {
+            _ if c.kind.is_data() => Runtime::Data,
+            (Some(module), _) => Runtime::Wasm(module),
+            (None, Some(n)) => Runtime::Native(n.mode),
+            (None, None) => Runtime::Data,
+        }
     }
 
     pub fn contribution(&self, id: &str) -> Option<&Contribution> {

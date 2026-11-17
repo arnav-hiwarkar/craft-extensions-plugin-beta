@@ -140,7 +140,7 @@ fn sheet(manifest: &Manifest) -> Value {
     let required: std::collections::BTreeSet<&Permission> = manifest.contributions.iter().flat_map(|c| &c.permissions).collect();
     let optional: std::collections::BTreeSet<&Permission> =
         manifest.contributions.iter().flat_map(|c| &c.optional_permissions).filter(|p| !required.contains(p)).collect();
-    json!({"required":required.iter().map(|p|json!({"permission":p,"sentence":p.sentence(),"why":manifest.why.get(&p.to_string())})).collect::<Vec<_>>(),"optional":optional.iter().map(|p|json!({"permission":p,"sentence":p.sentence(),"why":manifest.why.get(&p.to_string())})).collect::<Vec<_>>(),"warnings":craft_ext_core::permission::warnings(&manifest.contributions.iter().flat_map(|c|c.permissions.iter().chain(&c.optional_permissions)).cloned().collect::<Vec<_>>()),"native":if manifest.is_native(){Some("Native: full access to your computer")}else{None}})
+    json!({"required":required.iter().map(|p|json!({"permission":p,"sentence":p.sentence(),"why":manifest.why.get(&p.to_string())})).collect::<Vec<_>>(),"optional":optional.iter().map(|p|json!({"permission":p,"sentence":p.sentence(),"why":manifest.why.get(&p.to_string())})).collect::<Vec<_>>(),"warnings":craft_ext_core::permission::warnings(&manifest.contributions.iter().flat_map(|c|c.permissions.iter().chain(&c.optional_permissions)).cloned().collect::<Vec<_>>()),"native":manifest.native_mode().map(|m|m.sentence())})
 }
 fn plugin(m: &Manager, args: &[String]) -> Result<Value> {
     let a = Args::parse(args, &["kind", "version", "enable", "grant"], &["all", "full-access", "with-deps", "no-deps", "force"])?;

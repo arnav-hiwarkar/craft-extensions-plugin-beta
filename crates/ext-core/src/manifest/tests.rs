@@ -94,3 +94,22 @@ fn unsupported_kinds_are_unavailable_even_with_a_matching_contract() {
     let legacy: Provided = serde_json::from_str(r#"{"contracts":[]}"#).unwrap();
     assert!(legacy.unsupported.is_empty());
 }
+
+#[test]
+fn a_hybrid_package_runs_effects_sandboxed_and_its_session_natively() {
+    let text = SAMPLE.replace(
+        "apps = [\"effectcraft\", \"photocraft\"]",
+        "apps = [\"effectcraft\", \"photocraft\"]\n\n[native]\nmode = \"restricted\"\n[native.executables]\nmacos-aarch64 = \"bin/helper\"",
+    ) + "\n[[contribution]]\nid = \"upscale\"\nkind = \"command\"\ncontract = \"photocraft.session@1.0\"\nlabel = \"Upscale\"\n";
+    let m = Manifest::parse(text.as_bytes()).unwrap();
+    assert_eq!(m.native_mode(), Some(NativeMode::Restricted));
+    assert_eq!(m.runtime(&m.contributions[0]), Runtime::Wasm("halftone.wasm"));
+    assert_eq!(m.runtime(&m.contributions[1]), Runtime::Native(NativeMode::Restricted));
+    assert!(NativeMode::Restricted.sentence().starts_with("Native, restricted"));
+
+    let effect_without_module = text.replace("module = \"halftone.wasm\"\n", "");
+    assert_eq!(
+        Manifest::parse(effect_without_module.as_bytes()).unwrap_err().to_string(),
+        "effect halftone needs a sandboxed module; native helpers cannot render effects"
+    );
+}

@@ -269,7 +269,7 @@ mod form_tests {
         assert!(component.validate().is_err());
         if let Node::Component { props, fallback, .. } = &mut component {
             *props = serde_json::json!({});
-            *fallback = Box::new(Node::Button { id: String::new(), label: String::new() });
+            **fallback = Node::Button { id: String::new(), label: String::new() };
         }
         assert!(component.validate().is_err());
     }
