@@ -1,26 +1,14 @@
 use craft_guest::kernel::{self, Buffer};
 use craft_guest::{FilterCtx, Image, filter};
 
-pub fn skin_likelihood(rgba: [f32; 4]) -> f32 {
-    let a = rgba[3];
-    if a <= 0.0 {
-        return 0.0;
-    }
-    let (r, g, b) = (rgba[0] / a, rgba[1] / a, rgba[2] / a);
-    let warm = (r - b).clamp(0.0, 1.0);
-    let ordered = if r > g && g > b { 1.0 } else { 0.0 };
-    let bright = ((r - 0.15) / 0.2).clamp(0.0, 1.0) * ((1.0 - r) / 0.05 + 0.5).clamp(0.0, 1.0);
-    let band = 1.0 - ((warm - 0.3).abs() / 0.25).clamp(0.0, 1.0);
-    ordered * bright * band * a
-}
+pub const SKIN_HUE: [f32; 2] = [0.0, 50.0];
+pub const SKIN_SATURATION: [f32; 2] = [0.12, 0.75];
+pub const SKIN_LIGHTNESS: [f32; 2] = [0.2, 0.92];
 
-fn skin_mask(img: &Image<'_>) -> Buffer {
-    let mut mask = Buffer::new(img.width, img.height);
-    for (out, px) in mask.pixels.chunks_exact_mut(4).zip(img.pixels.chunks_exact(4)) {
-        let s = skin_likelihood([px[0], px[1], px[2], px[3]]);
-        out.copy_from_slice(&[s, s, s, 1.0]);
-    }
-    mask
+fn skin_mask(img: &Image<'_>) -> Result<Buffer, craft_guest::CallError> {
+    let mut mask = Buffer { width: img.width, height: img.height, pixels: img.pixels.to_vec() };
+    kernel::hsl_range(&mut mask.image(), SKIN_HUE, SKIN_SATURATION, SKIN_LIGHTNESS, 0.08)?;
+    Ok(mask)
 }
 
 fn fail(e: craft_guest::CallError) -> String {
@@ -40,7 +28,7 @@ fn softskin(ctx: &FilterCtx, img: &mut Image<'_>) -> Result<(), String> {
     let mut smooth = Buffer::copy_of(img);
     kernel::bilateral(&mut smooth.image(), radius, ctx.f("detail")? as f32).map_err(fail)?;
     if ctx.b("skin_only")? {
-        let mut mask = skin_mask(img);
+        let mut mask = skin_mask(img).map_err(fail)?;
         kernel::blur(&mut mask.image(), radius * 0.5).map_err(fail)?;
         kernel::mix_masked(img, &smooth.image(), &mask.image(), amount).map_err(fail)
     } else {
@@ -52,13 +40,14 @@ filter!(softskin);
 
 #[cfg(test)]
 mod tests {
-    use super::skin_likelihood;
+    use super::*;
 
     #[test]
     fn warm_mid_tones_read_as_skin_and_greys_and_blues_do_not() {
-        assert!(skin_likelihood([0.85, 0.62, 0.5, 1.0]) > 0.5);
-        assert_eq!(skin_likelihood([0.5, 0.5, 0.5, 1.0]), 0.0);
-        assert_eq!(skin_likelihood([0.2, 0.3, 0.8, 1.0]), 0.0);
-        assert_eq!(skin_likelihood([0.85, 0.62, 0.5, 0.0]), 0.0);
+        let mut px = vec![0.85, 0.62, 0.5, 1.0, 0.5, 0.5, 0.5, 1.0, 0.2, 0.3, 0.8, 1.0];
+        let img = Image { width: 3, height: 1, pixels: &mut px };
+        let mask = skin_mask(&img).unwrap();
+        assert!(mask.pixels[0] > 0.9);
+        assert_eq!((mask.pixels[4], mask.pixels[8]), (0.0, 0.0));
     }
 }

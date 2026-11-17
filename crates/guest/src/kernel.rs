@@ -121,6 +121,13 @@ pub fn bilateral(img: &mut Image<'_>, radius: f32, tolerance: f32) -> Result<(),
     run("kernel.bilateral", json!({ "radius": radius, "tolerance": tolerance }), img).map(drop)
 }
 
+/// Replaces `img` with an opaque grey mask: white where its colour falls inside the hue range
+/// (degrees, wrapping past 360, e.g. `[340, 20]` for reds), saturation and lightness ranges (0..1),
+/// fading over `softness` (0..1). Like Select › Color Range: skin, sky, foliage, keys.
+pub fn hsl_range(img: &mut Image<'_>, hue: [f32; 2], saturation: [f32; 2], lightness: [f32; 2], softness: f32) -> Result<(), CallError> {
+    run("kernel.hsl_range", json!({ "hue": hue, "saturation": saturation, "lightness": lightness, "softness": softness }), img).map(drop)
+}
+
 /// Moves `img` toward `src` (same size) by `amount` 0..=1.
 pub fn mix(img: &mut Image<'_>, src: &Image<'_>, amount: f32) -> Result<(), CallError> {
     run_with("kernel.mix", json!({ "amount": amount }), img, &[src]).map(drop)

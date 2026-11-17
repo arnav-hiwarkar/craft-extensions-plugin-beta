@@ -612,6 +612,7 @@ pub const KERNELS: &[Spec] = &[
     spec("kernel.mix", &["image", "src"], true),
     spec("kernel.mix_masked", &["image", "src", "mask"], true),
     spec("kernel.noise", &["image"], true),
+    spec("kernel.hsl_range", &["image"], true),
     spec("kernel.resample", &["image", "src"], true),
     spec("kernel.warp_affine", &["image", "src"], true),
     spec("kernel.splat", &["image"], true),
@@ -635,6 +636,9 @@ pub fn bilateral(img: &mut Image, radius: f32, tolerance: f32) -> Result<(), Str
     let sigma_space = (radius / 2.0).max(0.5);
     let space: Vec<f32> = (-r..=r).flat_map(|dy| (-r..=r).map(move |dx| (-((dx * dx + dy * dy) as f32) / (2.0 * sigma_space * sigma_space)).exp())).collect();
     let range = 1.0 / (2.0 * tolerance * tolerance);
+    let cutoff = 16.0 / range;
+    let steps = 4096.0 / cutoff;
+    let table: Vec<f32> = (0..=4096).map(|i| (-(i as f32 / steps) * range).exp()).collect();
     let src = img.clone();
     rows(&mut img.px, img.width, |y, row| {
         for x in 0..src.width {
@@ -644,7 +648,10 @@ pub fn bilateral(img: &mut Image, radius: f32, tolerance: f32) -> Result<(), Str
                 let (dx, dy) = ((k as isize % (2 * r + 1)) - r, (k as isize / (2 * r + 1)) - r);
                 let p = src.at(x as isize + dx, y as isize + dy);
                 let d = (0..3).map(|c| (p[c] - centre[c]).powi(2)).sum::<f32>();
-                let w = w_space * (-d * range).exp();
+                if d >= cutoff {
+                    continue;
+                }
+                let w = w_space * table[(d * steps) as usize];
                 for c in 0..4 {
                     acc[c] += p[c] * w;
                 }
@@ -681,6 +688,57 @@ pub fn mix(img: &mut Image, src: &Image, amount: f32, mask: Option<&Image>) -> R
             for c in 0..4 {
                 row[x * 4 + c] += (src.px[i + c] - row[x * 4 + c]) * t;
             }
+        }
+    });
+    Ok(())
+}
+
+pub fn hsl(r: f32, g: f32, b: f32) -> [f32; 3] {
+    let (max, min) = (r.max(g).max(b), r.min(g).min(b));
+    let l = (max + min) / 2.0;
+    let d = max - min;
+    if d <= f32::EPSILON {
+        return [0.0, 0.0, l];
+    }
+    let s = d / (1.0 - (2.0 * l - 1.0).abs()).max(f32::EPSILON);
+    let h = if max == r {
+        60.0 * ((g - b) / d).rem_euclid(6.0)
+    } else if max == g {
+        60.0 * ((b - r) / d + 2.0)
+    } else {
+        60.0 * ((r - g) / d + 4.0)
+    };
+    [h, s.clamp(0.0, 1.0), l]
+}
+
+fn soft_band(v: f32, lo: f32, hi: f32, soft: f32) -> f32 {
+    let inside = (v - lo).min(hi - v);
+    (inside / soft.max(f32::EPSILON) + 1.0).clamp(0.0, 1.0)
+}
+
+fn hue_band(h: f32, lo: f32, hi: f32, soft: f32) -> f32 {
+    let width = (hi - lo).rem_euclid(360.0);
+    let offset = (h - lo).rem_euclid(360.0);
+    let inside = if offset <= width { offset.min(width - offset) } else { -(offset - width).min(360.0 - offset) };
+    (inside / soft.max(f32::EPSILON) + 1.0).clamp(0.0, 1.0)
+}
+
+pub fn hsl_range(img: &mut Image, hue: [f32; 2], saturation: [f32; 2], lightness: [f32; 2], softness: f32) -> Result<(), String> {
+    let ok = |r: [f32; 2], max: f32| r.iter().all(|v| v.is_finite() && (0.0..=max).contains(v));
+    if !ok(hue, 360.0) || !ok(saturation, 1.0) || !ok(lightness, 1.0) || !(0.0..=1.0).contains(&softness) {
+        return Err("hue must be within 0..=360, saturation and lightness within 0..=1, softness 0..=1".into());
+    }
+    let width = img.width;
+    rows(&mut img.px, width, |_, row| {
+        for p in row.chunks_exact_mut(4) {
+            let a = p[3];
+            let m = if a > 0.0 {
+                let [h, s, l] = hsl(p[0] / a, p[1] / a, p[2] / a);
+                hue_band(h, hue[0], hue[1], softness * 360.0) * soft_band(s, saturation[0], saturation[1], softness) * soft_band(l, lightness[0], lightness[1], softness) * a
+            } else {
+                0.0
+            };
+            p.copy_from_slice(&[m, m, m, 1.0]);
         }
     });
     Ok(())
@@ -725,6 +783,13 @@ pub fn run(op: &str, args: &Value, images: &mut [Image], splats: &[f32]) -> Resu
             let octaves = args.get("octaves").and_then(Value::as_u64).unwrap_or(4) as u32;
             let seed = args.get("seed").and_then(Value::as_u64).unwrap_or(0) as u32;
             noise(target, num(args, "scale", 32.0), octaves, seed, num(args, "z", 0.0), multiply)?;
+        }
+        "kernel.hsl_range" => {
+            let pair = |k: &str, max: f32| -> Result<[f32; 2], String> {
+                let v = floats(args, k, 2)?.unwrap_or_else(|| vec![0.0, max]);
+                <[f32; 2]>::try_from(v).map_err(|_| format!("{k} must be [low, high]"))
+            };
+            hsl_range(target, pair("hue", 360.0)?, pair("saturation", 1.0)?, pair("lightness", 1.0)?, num(args, "softness", 0.1))?;
         }
         "kernel.resample" => resample(other(0)?, target),
         "kernel.warp_affine" => warp_affine(other(0)?, target, &floats(args, "matrix", 6)?.ok_or("matrix is required")?)?,
@@ -858,6 +923,18 @@ mod tests {
         mask.px[4..8].copy_from_slice(&[0.0, 0.0, 0.0, 1.0]);
         mix(&mut img, &src, 0.5, Some(&mask)).unwrap();
         assert_eq!(&img.px[..8], &[0.5, 0.5, 0.5, 1.0, 0.0, 0.0, 0.0, 1.0]);
+    }
+
+    #[test]
+    fn hsl_range_selects_warm_tones_softly_and_wraps_hue() {
+        let mut img = Image::new(3, 1);
+        img.px.copy_from_slice(&[0.85, 0.62, 0.5, 1.0, 0.2, 0.3, 0.8, 1.0, 0.9, 0.2, 0.25, 1.0]);
+        let mut wrap = img.clone();
+        hsl_range(&mut img, [0.0, 50.0], [0.1, 1.0], [0.2, 0.95], 0.0).unwrap();
+        assert_eq!((img.px[0], img.px[4], img.px[3]), (1.0, 0.0, 1.0));
+        hsl_range(&mut wrap, [340.0, 30.0], [0.0, 1.0], [0.0, 1.0], 0.0).unwrap();
+        assert_eq!((wrap.px[0], wrap.px[4], wrap.px[8]), (1.0, 0.0, 1.0));
+        assert!(hsl_range(&mut wrap, [0.0, 400.0], [0.0, 1.0], [0.0, 1.0], 0.0).is_err());
     }
 
     #[test]

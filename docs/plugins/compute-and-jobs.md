@@ -26,6 +26,7 @@ does this for you.
 | `kernel.convolve` | Odd `size`×`size` convolution, size ≤ 15 | `size`, `weights`, `divisor`, `bias` |
 | `kernel.morphology` | Dilate or erode | `radius`, `op` |
 | `kernel.bilateral` | Edge-preserving smoothing | `radius` 0..=32, `tolerance` (straight colour distance) |
+| `kernel.hsl_range` | Replace with a soft grey mask of a hue/saturation/lightness range | `hue` [lo, hi] degrees (wraps), `saturation`, `lightness` [lo, hi], `softness` |
 | `kernel.mix` | Move `image` toward `src` | `src`, `amount` 0..=1 |
 | `kernel.mix_masked` | `kernel.mix` weighted by `mask` luminance | `src`, `mask`, `amount` |
 | `kernel.color_matrix` | 4×5 matrix on straight colour | `matrix` (20 values) |
