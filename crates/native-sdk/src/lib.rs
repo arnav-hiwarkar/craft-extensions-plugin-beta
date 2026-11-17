@@ -28,6 +28,7 @@
 
 #![warn(missing_docs)]
 
+pub use craft_guest::job::Outcome as JobOutcome;
 pub use craft_guest::{CallError, Event};
 pub use serde_json::{Value, json};
 use std::collections::BTreeMap;

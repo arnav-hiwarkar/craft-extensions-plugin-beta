@@ -1,0 +1,22 @@
+schema = 2
+id = "io.github.arnav-hiwarkar.quietgrain"
+name = "Quietgrain"
+version = "1.0.0"
+license = "MIT OR Apache-2.0"
+source = "https://github.com/arnav-hiwarkar/quietgrain"
+summary = "Removes noise from photos with non-local means, on every core, into a new layer"
+tags = ["denoise", "noise reduction", "photo", "native"]
+apps = ["photocraft"]
+[why]
+"document.read:document" = "Reads the active layer's pixels to clean them"
+"document.edit:document" = "Adds a new layer with the cleaned pixels"
+[native]
+mode = "restricted"
+executables = { "linux-x86_64" = "bin/quietgrain-linux-x86_64", "macos-aarch64" = "bin/quietgrain-macos-aarch64" }
+[[contribution]]
+id = "denoise"
+kind = "command"
+contract = "photocraft.session@1.0"
+label = "Quietgrain Denoise"
+category = "Noise"
+permissions = ["document.read:document", "document.edit:document"]
