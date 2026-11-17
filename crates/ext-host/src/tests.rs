@@ -175,6 +175,7 @@ fn inv(generation: u64) -> Invocation {
         cancel: Arc::new(AtomicBool::new(false)),
         deadline: None,
         label: "Fill".into(),
+        document: None,
         declared: vec![Permission::parse("document.edit:selection").unwrap()].into(),
     }
 }
@@ -520,7 +521,7 @@ fn a_session_starts_a_background_job_and_gets_its_result_as_an_event() {
     s.dispatch(inv(1), &json!({"event":"command"})).unwrap();
     let started = std::time::Instant::now();
     let done = loop {
-        let d = board.take_finished();
+        let d = { let mut out = Vec::new(); board.deliver(|_| true, |j| { out.push(j.clone()); true }); out };
         if !d.is_empty() || started.elapsed().as_secs() > 20 {
             break d;
         }
@@ -605,7 +606,7 @@ while read line; do :; done"#;
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
     let done = loop {
         assert!(helper.supervise());
-        let d = board.take_finished();
+        let d = { let mut out = Vec::new(); board.deliver(|_| true, |j| { out.push(j.clone()); true }); out };
         if !d.is_empty() || std::time::Instant::now() > deadline {
             break d;
         }
@@ -614,4 +615,20 @@ while read line; do :; done"#;
     assert_eq!(done.len(), 1);
     assert_eq!((done[0].progress, done[0].note.as_str()), (Some(0.5), "half"));
     assert_eq!(done[0].event(), json!({"event":"job","job":1,"ok":true,"result":{"tiles":4}}));
+}
+
+#[test]
+fn launch_plans_follow_the_manifest_runtime() {
+    use crate::native::{Confinement, HelperLaunch, Launch, platform};
+    let text = format!(
+        "schema = 2\nid = \"org.example.hybrid\"\nname = \"H\"\nversion = \"1.0.0\"\nlicense = \"MIT\"\nsource = \"https://github.com/example/h\"\nsummary = \"h\"\napps = [\"photocraft\"]\n[native]\nmode = \"restricted\"\nexecutables = {{ \"{p}\" = \"bin/helper\" }}\n[[contribution]]\nid = \"glow\"\nkind = \"effect\"\ncontract = \"raster.filter@1.0\"\nlabel = \"Glow\"\nmodule = \"glow.wasm\"\n[[contribution]]\nid = \"run\"\nkind = \"command\"\ncontract = \"photocraft.session@1.0\"\nlabel = \"Run\"\n",
+        p = platform()
+    );
+    let m = craft_ext_core::manifest::Manifest::parse(text.as_bytes()).unwrap();
+    let (rel, data) = (std::path::Path::new("/rel"), std::path::Path::new("/data"));
+    assert_eq!(Launch::plan(&m, &m.contributions[0], rel, data).unwrap(), Launch::Wasm("/rel/glow.wasm".into()));
+    assert_eq!(
+        Launch::plan(&m, &m.contributions[1], rel, data).unwrap(),
+        Launch::Native(HelperLaunch { exe: "/rel/bin/helper".into(), work: "/data".into(), confinement: Confinement::Restricted { release: rel.into(), data: data.into() } })
+    );
 }

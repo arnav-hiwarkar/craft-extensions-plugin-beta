@@ -16,6 +16,12 @@ use std::{
     time::{Duration, Instant, SystemTime},
 };
 pub type EnabledRelease = (ExtensionId, Version, PathBuf, Manifest, BTreeSet<String>);
+
+#[derive(Debug, Default)]
+pub struct Enabled {
+    pub releases: Vec<EnabledRelease>,
+    pub problems: Vec<(ExtensionId, String)>,
+}
 pub struct GrantView {
     store: Store,
     app: AppId,
@@ -73,16 +79,25 @@ impl GrantView {
         let Some(r) = self.state.packages.get(id).and_then(|p| p.releases.get(&v)) else { return true };
         a.active != Some(v) || a.enabled.is_empty() || a.quarantine.as_ref().is_some_and(|q| q.version == v) || self.is_disabled(id, v, &r.sha256)
     }
-    pub fn enabled_contributions(&self, app: &AppId) -> Result<Vec<EnabledRelease>> {
-        let mut out = vec![];
+    pub fn enabled_contributions(&self, app: &AppId) -> Enabled {
+        let mut out = Enabled::default();
         if let Some(setups) = self.state.apps.get(app) {
             for (id, a) in setups {
                 if let Some(v) = a.active {
-                    let r = self.state.packages.get(id).and_then(|p| p.releases.get(&v)).ok_or_else(|| error("active release is missing"))?;
+                    let Some(r) = self.state.packages.get(id).and_then(|p| p.releases.get(&v)) else {
+                        out.problems.push((id.clone(), format!("release {v} is missing from the store; reinstall it")));
+                        continue;
+                    };
                     if self.is_disabled(id, v, &r.sha256) || a.quarantine.as_ref().is_some_and(|q| q.version == v) {
                         continue;
                     }
-                    let m = self.store.manifest(&self.state, id, v)?;
+                    let m = match self.store.manifest(&self.state, id, v) {
+                        Ok(m) => m,
+                        Err(e) => {
+                            out.problems.push((id.clone(), format!("release {v} cannot be read: {e}")));
+                            continue;
+                        }
+                    };
                     let enabled = m
                         .contributions_for(app)
                         .filter(|c| {
@@ -92,10 +107,10 @@ impl GrantView {
                         })
                         .map(|c| c.id.clone())
                         .collect();
-                    out.push((id.clone(), v, self.store.release_dir(id, v, &r.sha256), m, enabled));
+                    out.releases.push((id.clone(), v, self.store.release_dir(id, v, &r.sha256), m, enabled));
                 }
             }
         }
-        Ok(out)
+        out
     }
 }

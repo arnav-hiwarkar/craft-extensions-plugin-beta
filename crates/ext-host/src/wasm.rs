@@ -15,25 +15,30 @@ pub const MAX_PENDING_BYTES: usize = 8 * 1024 * 1024;
 pub const MAX_APP_PENDING_BYTES: usize = 64 * 1024 * 1024;
 static APP_PENDING: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 pub const MAX_APP_KERNEL_BYTES: usize = 1024 * 1024 * 1024;
+pub const MAX_APP_JOB_BYTES: usize = 2 * 1024 * 1024 * 1024;
 static APP_KERNEL: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+static APP_JOBS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
-struct KernelMemory(usize);
+struct Reservation {
+    pool: &'static std::sync::atomic::AtomicUsize,
+    bytes: usize,
+}
 
-impl KernelMemory {
-    fn reserve(bytes: usize) -> Option<Self> {
+impl Reservation {
+    fn take(pool: &'static std::sync::atomic::AtomicUsize, limit: usize, bytes: usize) -> Option<Self> {
         use std::sync::atomic::Ordering;
-        let prev = APP_KERNEL.fetch_add(bytes, Ordering::AcqRel);
-        if prev.saturating_add(bytes) > MAX_APP_KERNEL_BYTES {
-            APP_KERNEL.fetch_sub(bytes, Ordering::AcqRel);
+        let prev = pool.fetch_add(bytes, Ordering::AcqRel);
+        if prev.saturating_add(bytes) > limit {
+            pool.fetch_sub(bytes, Ordering::AcqRel);
             return None;
         }
-        Some(Self(bytes))
+        Some(Self { pool, bytes })
     }
 }
 
-impl Drop for KernelMemory {
+impl Drop for Reservation {
     fn drop(&mut self) {
-        APP_KERNEL.fetch_sub(self.0, std::sync::atomic::Ordering::AcqRel);
+        self.pool.fetch_sub(self.bytes, std::sync::atomic::Ordering::AcqRel);
     }
 }
 const FUEL_SLICE: u64 = 20_000_000;
@@ -246,7 +251,7 @@ fn kernel_call(caller: &mut Caller<'_, HostData>, mem: &Memory, op: &str, args: 
     let names = spec.reads;
     let refs = names.iter().map(|n| kernels::ImageRef::parse(args.get(*n), n)).collect::<Result<Vec<_>, _>>().map_err(OpError::invalid)?;
     let image_bytes = refs.iter().filter_map(kernels::ImageRef::bytes).fold(0usize, usize::saturating_add);
-    let _held = KernelMemory::reserve(image_bytes.saturating_mul(3))
+    let _held = Reservation::take(&APP_KERNEL, MAX_APP_KERNEL_BYTES, image_bytes.saturating_mul(3))
         .ok_or_else(|| OpError::new(Code::Budget, "plugins are using too much memory for image work right now; try again"))?;
     let data = mem.data(&*caller);
     let region = |ptr: usize, bytes: Option<usize>| bytes.and_then(|b| ptr.checked_add(b).and_then(|end| data.get(ptr..end)));
@@ -319,7 +324,7 @@ fn job_call(caller: &mut Caller<'_, HostData>, op: &str, args: &Value) -> Result
                 return Err(OpError::new(Code::Budget, "job.start: input is larger than 8 MiB"));
             }
             let cancellable = args.get("cancellable").and_then(Value::as_bool).unwrap_or(true);
-            let ticket = Arc::new(board.admit(&inv.plugin, &inv.contribution, label, cancellable).map_err(|e| OpError::new(Code::Budget, e))?);
+            let ticket = Arc::new(board.admit(&inv.plugin, &inv.contribution, label, cancellable, inv.document.as_deref()).map_err(|e| OpError::new(Code::Budget, e))?);
             let id = ticket.id;
             let (module, log, grants, inv) = (module.clone(), data.log.clone(), session.grants.clone(), inv.clone());
             let worker = ticket.clone();
@@ -344,6 +349,19 @@ fn job_call(caller: &mut Caller<'_, HostData>, op: &str, args: &Value) -> Result
 
 fn run_job(p: &Plugin, log: LogFn, ticket: &Arc<Ticket>, input: &[u8], grants: &dyn Grants, inv: &Invocation) -> JobState {
     let go = || -> Result<Value, PluginError> {
+        let _memory = loop {
+            if let Some(r) = Reservation::take(&APP_JOBS, MAX_APP_JOB_BYTES, MAX_TRANSFORM_MEMORY) {
+                break r;
+            }
+            if ticket.cancel.load(std::sync::atomic::Ordering::Relaxed) {
+                return Err(PluginError::Cancelled);
+            }
+            if grants.stopped(&inv.plugin, inv.version) {
+                return Err(PluginError::Stopped("this plugin has been turned off".into()));
+            }
+            ticket.progress(None, "waiting for memory");
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        };
         let mut inst = instantiate(p, MAX_TRANSFORM_MEMORY, log, None)?;
         let t = ticket.clone();
         inst.store.data_mut().progress = Some(Arc::new(move |v, note| t.progress(v, note)));
@@ -675,7 +693,8 @@ impl Inst {
 pub struct Session {
     inst: Inst,
     event: TypedFunc<(i32, i32), i32>,
-    failures: u32,
+    strikes: crate::policy::Strikes,
+    pub pause_reason: Option<String>,
     pub paused: bool,
     plugin: Plugin,
     log: LogFn,
@@ -686,7 +705,7 @@ impl Session {
     pub fn new(p: &Plugin, api: Arc<dyn AppApi>, grants: Arc<dyn Grants>, log: LogFn) -> Result<Self, PluginError> {
         let inst = instantiate(p, MAX_SESSION_MEMORY, log.clone(), Some(SessionCtx { api, grants, inv: None, jobs: None }))?;
         let event = inst.func::<(i32, i32), i32>("craft_event")?;
-        Ok(Self { inst, event, failures: 0, paused: false, plugin: p.clone(), log, jobs: None })
+        Ok(Self { inst, event, strikes: Default::default(), pause_reason: None, paused: false, plugin: p.clone(), log, jobs: None })
     }
 
     pub fn set_jobs(&mut self, board: Arc<JobBoard>) {
@@ -735,24 +754,19 @@ impl Session {
         match result {
             Ok(()) if !still_ok => Err(PluginError::Stopped("permissions changed or cancelled before commit".into())),
             Ok(()) => {
-                self.failures = 0;
+                self.strikes.record(Ok(()));
                 Ok(())
             }
             Err(e) => {
-                if matches!(
-                    e,
-                    PluginError::Trap(_) | PluginError::TooSlow | PluginError::TooMuchMemory | PluginError::Cancelled | PluginError::Stopped(_)
-                ) {
-                    if matches!(e, PluginError::Trap(_) | PluginError::TooSlow | PluginError::TooMuchMemory) {
-                        self.failures += 1;
-                        if self.failures >= 3 {
-                            self.paused = true;
-                        }
-                    }
-                    if let Err(load) = self.reinstantiate(api, grants) {
-                        self.paused = true;
-                        return Err(load);
-                    }
+                if let Some(reason) = self.strikes.record(Err(&e)) {
+                    self.paused = true;
+                    self.pause_reason = Some(reason);
+                }
+                if (crate::policy::is_fault(&e) || matches!(e, PluginError::Cancelled | PluginError::Stopped(_)))
+                    && let Err(load) = self.reinstantiate(api, grants)
+                {
+                    self.paused = true;
+                    return Err(load);
                 }
                 Err(e)
             }

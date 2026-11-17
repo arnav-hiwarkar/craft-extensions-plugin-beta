@@ -452,7 +452,7 @@ fn a_quarantined_release_stays_stopped_across_launches_until_turned_back_on() {
     s.quarantine(&a, &id, i.version, "crashed 3 times").unwrap();
     let view = GrantView::open(t.path(), a.clone()).unwrap();
     assert!(view.stopped(&id, i.version));
-    assert!(view.enabled_contributions(&a).unwrap().is_empty());
+    assert!(view.enabled_contributions(&a).releases.is_empty());
     assert_eq!(s.state().unwrap().apps[&a][&id].quarantine.as_ref().map(|q| q.reason.as_str()), Some("crashed 3 times"));
     s.clear_quarantine(&a, &id).unwrap();
     let view = GrantView::open(t.path(), a.clone()).unwrap();
@@ -464,9 +464,11 @@ fn an_unclean_exit_is_reported_once_at_the_next_start() {
     let s = Store::at(t.path());
     let (a, id) = ids();
     assert_eq!(s.begin_run(&a, std::slice::from_ref(&id)), None);
-    assert_eq!(s.begin_run(&a, &[]), Some(vec![id]), "no end_run: the last run crashed with the plugin running");
+    std::fs::write(t.path().join(format!("running-{}-{}.json", a.as_str(), u32::MAX - 7)), serde_json::to_vec(&[&id]).unwrap()).unwrap();
+    assert_eq!(s.begin_run(&a, &[]), Some(vec![id]), "a marker whose process is gone means that run crashed");
+    assert_eq!(s.begin_run(&a, &[]), None, "it is reported once");
     s.end_run(&a);
-    assert_eq!(s.begin_run(&a, &[]), None);
+    assert!(!t.path().join(format!("running-{}-{}.json", a.as_str(), std::process::id())).exists());
 }
 #[test]
 fn restoring_a_setup_puts_back_the_old_choices_and_stops_running_work() {
@@ -495,6 +497,23 @@ fn a_hybrid_package_enables_its_sandboxed_effect_without_native_consent() {
     s.set_enabled(&a, &id, "glow", true).unwrap();
     assert!(s.set_enabled(&a, &id, "helper", true).is_err(), "the native contribution still needs consent");
     let view = GrantView::open(t.path(), a.clone()).unwrap();
-    let enabled = view.enabled_contributions(&a).unwrap();
+    let enabled = view.enabled_contributions(&a).releases;
     assert_eq!(enabled[0].4, std::collections::BTreeSet::from(["glow".to_string()]));
+}
+#[test]
+fn a_broken_release_is_a_problem_while_the_others_still_load() {
+    let t = tempfile::tempdir().unwrap();
+    let s = Store::at(t.path());
+    let a = AppId::new("photocraft").unwrap();
+    let good = s.install_bytes(&package("1.0.0", "", b"wasm"), Tier::Community, Origin::Catalogue { vendor: "example".into(), repo: "test".into() }).unwrap();
+    let id = good.manifest.id.clone();
+    s.set_active(&a, &id, good.version).unwrap();
+    s.set_enabled(&a, &id, "run", true).unwrap();
+    let mut state = s.state().unwrap();
+    let broken = ExtensionId::new("org.example.broken").unwrap();
+    state.apps.get_mut(&a).unwrap().insert(broken.clone(), AppSetup { active: Some(Version::new(1, 0, 0)), enabled: ["run".into()].into(), ..Default::default() });
+    std::fs::write(t.path().join(crate::state::STATE_FILE), serde_json::to_vec(&state).unwrap()).unwrap();
+    let loaded = GrantView::open(t.path(), a.clone()).unwrap().enabled_contributions(&a);
+    assert_eq!(loaded.releases.len(), 1);
+    assert_eq!(loaded.problems, vec![(broken, "release 1.0.0 is missing from the store; reinstall it".to_string())]);
 }

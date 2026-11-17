@@ -355,15 +355,35 @@ impl Store {
             Ok(())
         })
     }
+    fn run_marker(&self, app: &AppId, pid: u32) -> std::path::PathBuf {
+        self.root().join(format!("running-{}-{pid}.json", app.as_str()))
+    }
     pub fn begin_run(&self, app: &AppId, running: &[ExtensionId]) -> Option<Vec<ExtensionId>> {
-        let path = self.root().join(format!("running-{}.json", app.as_str()));
-        let previous = std::fs::read(&path).ok().and_then(|b| serde_json::from_slice::<Vec<ExtensionId>>(&b).ok());
+        let me = std::process::id();
+        let prefix = format!("running-{}-", app.as_str());
+        let mut crashed: Vec<ExtensionId> = Vec::new();
+        let mut found = false;
+        for entry in std::fs::read_dir(self.root()).into_iter().flatten().flatten() {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            let Some(pid) = name.strip_prefix(&prefix).and_then(|r| r.strip_suffix(".json")).and_then(|p| p.parse::<u32>().ok()) else { continue };
+            if pid == me || process_alive(pid) {
+                continue;
+            }
+            found = true;
+            let ids = std::fs::read(entry.path()).ok().and_then(|b| serde_json::from_slice::<Vec<ExtensionId>>(&b).ok()).unwrap_or_default();
+            for id in ids {
+                if !crashed.contains(&id) {
+                    crashed.push(id);
+                }
+            }
+            let _ = std::fs::remove_file(entry.path());
+        }
         let _ = std::fs::create_dir_all(self.root());
-        let _ = std::fs::write(&path, serde_json::to_vec(running).unwrap_or_default());
-        previous
+        let _ = std::fs::write(self.run_marker(app, me), serde_json::to_vec(running).unwrap_or_default());
+        found.then_some(crashed)
     }
     pub fn end_run(&self, app: &AppId) {
-        let _ = std::fs::remove_file(self.root().join(format!("running-{}.json", app.as_str())));
+        let _ = std::fs::remove_file(self.run_marker(app, std::process::id()));
     }
     pub fn uninstall(&self, id: &ExtensionId) -> Result<()> {
         self.update_cleanup(|s| {
@@ -440,4 +460,29 @@ impl Store {
             Ok(())
         })
     }
+}
+
+#[cfg(unix)]
+fn process_alive(pid: u32) -> bool {
+    ["/bin/kill", "/usr/bin/kill"].into_iter().find(|k| std::path::Path::new(k).exists()).is_some_and(|kill| {
+        std::process::Command::new(kill)
+            .args(["-0", &pid.to_string()])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .is_ok_and(|s| s.success())
+    })
+}
+
+#[cfg(windows)]
+fn process_alive(pid: u32) -> bool {
+    std::process::Command::new("tasklist")
+        .args(["/FI", &format!("PID eq {pid}"), "/NH"])
+        .output()
+        .is_ok_and(|o| String::from_utf8_lossy(&o.stdout).contains(&pid.to_string()))
+}
+
+#[cfg(not(any(unix, windows)))]
+fn process_alive(_pid: u32) -> bool {
+    true
 }

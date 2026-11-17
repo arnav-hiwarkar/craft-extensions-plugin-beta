@@ -94,6 +94,31 @@ pub struct HelperLaunch {
     pub confinement: Confinement,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Launch {
+    Wasm(PathBuf),
+    Native(HelperLaunch),
+}
+
+impl Launch {
+    pub fn plan(manifest: &craft_ext_core::manifest::Manifest, c: &craft_ext_core::manifest::Contribution, release: &Path, data: &Path) -> Result<Self, String> {
+        use craft_ext_core::manifest::{NativeMode, Runtime};
+        match manifest.runtime(c) {
+            Runtime::Data => Err(format!("contribution {} runs no code", c.id)),
+            Runtime::Wasm(module) => Ok(Self::Wasm(release.join(module))),
+            Runtime::Native(mode) => {
+                let native = manifest.native.as_ref().ok_or("no native helper")?;
+                let exe = native.executables.get(&platform()).ok_or_else(|| format!("no native helper for {}", platform()))?;
+                let confinement = match mode {
+                    NativeMode::Full => Confinement::Full,
+                    NativeMode::Restricted => Confinement::Restricted { release: release.to_path_buf(), data: data.to_path_buf() },
+                };
+                Ok(Self::Native(HelperLaunch { exe: release.join(exe), work: data.to_path_buf(), confinement }))
+            }
+        }
+    }
+}
+
 pub fn platform() -> String {
     format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH)
 }
@@ -237,7 +262,7 @@ impl Helper {
     fn start_job(&mut self, inv: &Invocation, args: &Value) -> Result<Value, OpError> {
         let board = self.jobs.clone().ok_or_else(|| OpError::new(Code::NotFound, "this app has no jobs list"))?;
         let label = args["label"].as_str().filter(|l| !l.trim().is_empty()).ok_or_else(|| OpError::invalid("job.start: label is required"))?;
-        let ticket = board.admit(&inv.plugin, &inv.contribution, label, args["cancellable"].as_bool().unwrap_or(true)).map_err(|e| OpError::new(Code::Budget, e))?;
+        let ticket = board.admit(&inv.plugin, &inv.contribution, label, args["cancellable"].as_bool().unwrap_or(true), inv.document.as_deref()).map_err(|e| OpError::new(Code::Budget, e))?;
         let id = ticket.id;
         self.live_jobs.insert(id, Arc::new(ticket));
         Ok(json!({ "job": id }))
@@ -434,7 +459,7 @@ mod final_validation_tests {
         let inv = Invocation {
             app: AppId::new("testcraft").unwrap(), plugin: ExtensionId::new("org.example.test").unwrap(),
             version: Version::new(1, 0, 0), contribution: "test".into(), grant_generation: 1,
-            cancel: Arc::new(AtomicBool::new(false)), deadline: None, label: "Test".into(), declared: vec![].into(),
+            cancel: Arc::new(AtomicBool::new(false)), deadline: None, label: "Test".into(), declared: vec![].into(), document: None,
         };
         let mut child = Command::new("sh").args(["-c", "while read line; do :; done"])
             .stdin(Stdio::piped()).stdout(Stdio::null()).stderr(Stdio::null()).spawn().unwrap();

@@ -1,4 +1,4 @@
-//! The plugin UI vocabulary, level 1.1 ([`UI_LEVEL`]): the tree a plugin sends with
+//! The plugin UI vocabulary, level 1.2 ([`UI_LEVEL`]): the tree a plugin sends with
 //! `ui.panel.set` / `ui.window.open`, the canvas draw list and the events that come back.
 //!
 //! This is a JSON superset of level 1.0 ([`super::Node`]): every 1.0 tree parses here unchanged and
@@ -26,7 +26,8 @@ use std::collections::BTreeSet;
 pub use super::UiError;
 
 /// The UI level this build understands.
-pub const UI_LEVEL: Level = Level::new(1, 2);
+pub const UI_LEVEL: Level = UI_LEVEL_1_2;
+pub const UI_LEVEL_1_2: Level = Level::new(1, 2);
 pub const UI_LEVEL_1_1: Level = Level::new(1, 1);
 /// The first UI level: the vocabulary of [`super::Node`].
 pub const UI_LEVEL_1_0: Level = Level::new(1, 0);
@@ -37,7 +38,7 @@ pub fn ui_level_for_session(session: Level) -> Level {
     match (session.major, session.minor) {
         (1, 0) => UI_LEVEL_1_0,
         (1, 1) => UI_LEVEL_1_1,
-        _ => UI_LEVEL,
+        _ => UI_LEVEL_1_2,
     }
 }
 

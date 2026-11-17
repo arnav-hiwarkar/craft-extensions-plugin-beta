@@ -33,6 +33,7 @@ pub struct JobInfo {
     pub cancellable: bool,
     pub state: JobState,
     pub delivered: bool,
+    pub document: Option<String>,
 }
 
 impl JobInfo {
@@ -47,6 +48,7 @@ impl JobInfo {
             cancellable: self.cancellable,
             state: JobState::Running,
             delivered: self.delivered,
+            document: self.document.clone(),
         }
     }
 
@@ -108,7 +110,7 @@ impl JobBoard {
         }
     }
 
-    pub fn admit(self: &Arc<Self>, plugin: &ExtensionId, contribution: &str, label: &str, cancellable: bool) -> Result<Ticket, String> {
+    pub fn admit(self: &Arc<Self>, plugin: &ExtensionId, contribution: &str, label: &str, cancellable: bool, document: Option<&str>) -> Result<Ticket, String> {
         let mut jobs = self.lock();
         let running = jobs.iter().filter(|(j, _)| !j.state.finished());
         let (mine, all) = running.fold((0, 0), |(m, a), (j, _)| (m + usize::from(&j.plugin == plugin), a + 1));
@@ -130,6 +132,7 @@ impl JobBoard {
             cancellable,
             state: JobState::Running,
             delivered: false,
+            document: document.map(str::to_owned),
         };
         jobs.push((info, cancel.clone()));
         let finished: Vec<u64> = jobs.iter().filter(|(j, _)| j.delivered).map(|(j, _)| j.id).collect();
@@ -173,19 +176,35 @@ impl JobBoard {
         }
     }
 
-    pub fn take_finished(&self) -> Vec<JobInfo> {
-        let mut out = Vec::new();
-        for (j, _) in self.lock().iter_mut() {
-            if j.state.finished() && !j.delivered {
-                j.delivered = true;
-                let state = match &mut j.state {
-                    JobState::Done(v) => JobState::Done(std::mem::take(v)),
-                    other => other.clone(),
-                };
-                out.push(JobInfo { state, ..j.clone_meta() });
+    pub fn deliver(&self, ready: impl Fn(&JobInfo) -> bool, mut send: impl FnMut(&JobInfo) -> bool) {
+        let candidates: Vec<JobInfo> = self
+            .lock()
+            .iter()
+            .filter(|(j, _)| j.state.finished() && !j.delivered && ready(j))
+            .map(|(j, _)| JobInfo { state: j.state.clone(), ..j.clone_meta() })
+            .collect();
+        for job in candidates {
+            if send(&job) {
+                self.update(job.id, |j| {
+                    j.delivered = true;
+                    if let JobState::Done(v) = &mut j.state {
+                        *v = Value::Null;
+                    }
+                });
             }
         }
-        out
+    }
+
+    pub fn cancel_document(&self, document: &str) {
+        for (j, c) in self.lock().iter_mut() {
+            if j.document.as_deref() == Some(document) {
+                c.store(true, Ordering::Relaxed);
+                if j.state.finished() {
+                    j.delivered = true;
+                    j.state = JobState::Cancelled;
+                }
+            }
+        }
     }
 
     pub fn clear_finished(&self) {
@@ -197,6 +216,35 @@ impl JobBoard {
 mod tests {
     use super::*;
 
+    fn take(board: &JobBoard) -> Vec<JobInfo> {
+        let mut out = Vec::new();
+        board.deliver(|_| true, |j| {
+            out.push(j.clone());
+            true
+        });
+        out
+    }
+
+    #[test]
+    fn a_result_waits_for_its_document_and_is_delivered_only_when_accepted() {
+        let board = JobBoard::new();
+        let p = id("io.github.a.b");
+        let a = board.admit(&p, "c", "A", true, Some("doc-a")).unwrap();
+        let b = board.admit(&p, "c", "B", true, Some("doc-b")).unwrap();
+        a.finish(JobState::Done(json!(1)));
+        b.finish(JobState::Done(json!(2)));
+        let mut seen = Vec::new();
+        board.deliver(|j| j.document.as_deref() == Some("doc-b"), |j| {
+            seen.push(j.event());
+            false
+        });
+        assert_eq!(seen, vec![json!({"event":"job","job":2,"ok":true,"result":2})]);
+        assert_eq!(take(&board).len(), 2, "a refused hand-over stays pending");
+        let c = board.admit(&p, "c", "C", true, Some("doc-c")).unwrap();
+        board.cancel_document("doc-c");
+        assert!(c.cancel.load(Ordering::Relaxed));
+    }
+
     fn id(s: &str) -> ExtensionId {
         ExtensionId::new(s).unwrap()
     }
@@ -205,9 +253,9 @@ mod tests {
     fn limits_cancel_and_delivery_follow_the_job_lifecycle() {
         let board = JobBoard::new();
         let p = id("io.github.a.b");
-        let tickets: Vec<Ticket> = (0..MAX_PER_PLUGIN).map(|_| board.admit(&p, "c", "Render", true).unwrap()).collect();
-        assert_eq!(board.admit(&p, "c", "Render", true).unwrap_err(), "at most 4 jobs per plugin run at once");
-        assert!(board.admit(&id("io.github.a.other"), "c", "x", true).is_ok());
+        let tickets: Vec<Ticket> = (0..MAX_PER_PLUGIN).map(|_| board.admit(&p, "c", "Render", true, None).unwrap()).collect();
+        assert_eq!(board.admit(&p, "c", "Render", true, None).unwrap_err(), "at most 4 jobs per plugin run at once");
+        assert!(board.admit(&id("io.github.a.other"), "c", "x", true, None).is_ok());
 
         tickets[0].progress(Some(1.5), "frame 3");
         let first = board.list().into_iter().find(|j| j.id == tickets[0].id).unwrap();
@@ -216,11 +264,11 @@ mod tests {
         assert!(board.cancel(tickets[1].id, false));
         tickets[0].finish(JobState::Done(json!({"frames": 3})));
         tickets[1].finish(JobState::Failed("stopped".into()));
-        let done = board.take_finished();
+        let done = take(&board);
         assert_eq!(done.len(), 2);
         assert_eq!(done[0].event(), json!({"event":"job","job":1,"ok":true,"result":{"frames":3}}));
         assert_eq!(done[1].event(), json!({"event":"job","job":2,"ok":false,"cancelled":true}));
-        assert!(board.take_finished().is_empty(), "each job is delivered once");
+        assert!(take(&board).is_empty(), "each job is delivered once");
 
         board.cancel_plugin(&p);
         assert!(tickets[2..].iter().all(|t| t.cancel.load(Ordering::Relaxed)));
@@ -229,7 +277,7 @@ mod tests {
     #[test]
     fn a_job_that_is_not_cancellable_ignores_cancel_unless_forced() {
         let board = JobBoard::new();
-        let t = board.admit(&id("io.github.a.b"), "c", "Save", false).unwrap();
+        let t = board.admit(&id("io.github.a.b"), "c", "Save", false, None).unwrap();
         assert!(!board.cancel(t.id, false));
         assert!(board.cancel(t.id, true));
     }

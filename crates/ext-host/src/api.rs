@@ -140,6 +140,7 @@ pub struct Invocation {
     pub cancel: Arc<AtomicBool>,
     pub deadline: Option<Instant>,
     pub label: String,
+    pub document: Option<String>,
     pub declared: Arc<[Permission]>,
 }
 

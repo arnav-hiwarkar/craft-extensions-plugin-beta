@@ -5,6 +5,7 @@ pub mod data;
 pub mod jobs;
 pub use craft_ext_kernels as kernels;
 pub mod native;
+pub mod policy;
 pub mod schema;
 pub mod wasm;
 
