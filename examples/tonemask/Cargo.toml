@@ -1,0 +1,17 @@
+[package]
+name = "tonemask"
+version = "1.0.0"
+description = "Luminosity masks panel for PhotoCraft (example plugin)."
+edition = "2024"
+rust-version = "1.90"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+craft-guest = { path = "../../crates/guest" }
+base64 = "0.22"
+
+[workspace]

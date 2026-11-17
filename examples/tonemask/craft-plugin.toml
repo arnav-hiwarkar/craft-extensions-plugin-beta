@@ -1,0 +1,21 @@
+schema = 2
+id = "io.github.arnav-hiwarkar.tonemask"
+name = "Tonemask"
+version = "1.0.0"
+license = "MIT OR Apache-2.0"
+source = "https://github.com/arnav-hiwarkar/tonemask"
+summary = "Luminosity masks in one click: select lights, darks or midtones by tone, then save or mask"
+tags = ["luminosity masks", "selection", "tones", "retouch"]
+apps = ["photocraft"]
+
+[why]
+"document.read:document" = "Reads the image's tones to build the mask"
+"document.edit:document" = "Sets the selection and saves masks when you press a button"
+
+[[contribution]]
+id = "tonemask"
+kind = "panel"
+contract = "photocraft.session@1.1"
+label = "Tonemask"
+module = "tonemask.wasm"
+permissions = ["document.read:document", "document.edit:document"]
