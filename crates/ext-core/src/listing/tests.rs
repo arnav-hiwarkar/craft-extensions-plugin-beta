@@ -200,3 +200,12 @@ fn media_urls_stay_in_the_catalogue_or_the_package_release() {
         assert!(!media_url_ok(bad, repo), "{bad}");
     }
 }
+
+#[test]
+fn a_later_catalogue_field_inside_an_image_does_not_break_this_app() {
+    let image: Image = serde_json::from_value(serde_json::json!({
+        "url": "media/x/icon.png", "sha256": "ab", "size": 10, "width": 64, "height": 64, "alt": "added in 1.2"
+    }))
+    .unwrap();
+    assert_eq!((image.width, image.height), (64, 64));
+}

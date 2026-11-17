@@ -1,5 +1,5 @@
 
-use crate::api::{AppApi, Code, Grants, Invocation, OpError, authorize};
+use crate::api::{AppApi, Code, Grants, Invocation, OpError};
 use crate::jobs::{JobBoard, JobState, Ticket};
 use crate::kernels;
 use serde_json::Value;
@@ -14,6 +14,28 @@ pub const MAX_CALL_BYTES: usize = 1024 * 1024;
 pub const MAX_PENDING_BYTES: usize = 8 * 1024 * 1024;
 pub const MAX_APP_PENDING_BYTES: usize = 64 * 1024 * 1024;
 static APP_PENDING: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+pub const MAX_APP_KERNEL_BYTES: usize = 1024 * 1024 * 1024;
+static APP_KERNEL: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+struct KernelMemory(usize);
+
+impl KernelMemory {
+    fn reserve(bytes: usize) -> Option<Self> {
+        use std::sync::atomic::Ordering;
+        let prev = APP_KERNEL.fetch_add(bytes, Ordering::AcqRel);
+        if prev.saturating_add(bytes) > MAX_APP_KERNEL_BYTES {
+            APP_KERNEL.fetch_sub(bytes, Ordering::AcqRel);
+            return None;
+        }
+        Some(Self(bytes))
+    }
+}
+
+impl Drop for KernelMemory {
+    fn drop(&mut self) {
+        APP_KERNEL.fetch_sub(self.0, std::sync::atomic::Ordering::AcqRel);
+    }
+}
 const FUEL_SLICE: u64 = 20_000_000;
 const FUEL_BASE: u64 = 50_000_000;
 const FUEL_PER_PIXEL: u64 = 4_000;
@@ -157,6 +179,7 @@ struct HostData {
     session: Option<SessionCtx>,
     stopped: Option<String>,
     progress: Option<ProgressFn>,
+    cancel: Option<Arc<std::sync::atomic::AtomicBool>>,
     debt: u64,
     budget: u64,
 }
@@ -222,20 +245,12 @@ fn kernel_call(caller: &mut Caller<'_, HostData>, mem: &Memory, op: &str, args: 
     };
     let names = spec.reads;
     let refs = names.iter().map(|n| kernels::ImageRef::parse(args.get(*n), n)).collect::<Result<Vec<_>, _>>().map_err(OpError::invalid)?;
-    let pixels = refs.iter().map(|r| (r.width * r.height) as u64).max().unwrap_or(0);
-    let cost = kernels::cost(op, args, pixels);
-    if cost > caller.data().budget {
-        return Err(OpError::new(Code::Budget, "this kernel call is larger than the plugin's remaining budget"));
-    }
-    charge(caller, cost);
+    let image_bytes = refs.iter().filter_map(kernels::ImageRef::bytes).fold(0usize, usize::saturating_add);
+    let _held = KernelMemory::reserve(image_bytes.saturating_mul(3))
+        .ok_or_else(|| OpError::new(Code::Budget, "plugins are using too much memory for image work right now; try again"))?;
     let data = mem.data(&*caller);
     let region = |ptr: usize, bytes: Option<usize>| bytes.and_then(|b| ptr.checked_add(b).and_then(|end| data.get(ptr..end)));
     let floats = |raw: &[u8]| raw.chunks_exact(4).map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]])).collect::<Vec<f32>>();
-    let mut images = Vec::with_capacity(refs.len());
-    for r in &refs {
-        let raw = region(r.ptr, r.bytes()).ok_or_else(|| OpError::invalid("an image lies outside the plugin's memory"))?;
-        images.push(kernels::Image { width: r.width, height: r.height, px: floats(raw) });
-    }
     let splats = match op {
         "kernel.splat" => {
             let pts = args.get("points").ok_or_else(|| OpError::invalid("points is required"))?;
@@ -246,7 +261,27 @@ fn kernel_call(caller: &mut Caller<'_, HostData>, mem: &Memory, op: &str, args: 
         }
         _ => Vec::new(),
     };
-    let out = kernels::run(op, args, &mut images, &splats).map_err(|why| OpError::invalid(format!("{op}: {why}")))?;
+    let pixels = refs.iter().map(|r| (r.width * r.height) as u64).max().unwrap_or(0);
+    let height = refs.first().map_or(0, |r| r.height as u64);
+    let cost = kernels::cost(op, args, pixels, height, &splats);
+    if cost > kernels::MAX_CALL_COST {
+        return Err(OpError::new(Code::Budget, "this kernel call is too large for one call; split the image into tiles"));
+    }
+    if cost > caller.data().budget {
+        return Err(OpError::new(Code::Budget, "this kernel call is larger than the plugin's remaining budget"));
+    }
+    let data = mem.data(&*caller);
+    let region = |ptr: usize, bytes: Option<usize>| bytes.and_then(|b| ptr.checked_add(b).and_then(|end| data.get(ptr..end)));
+    let mut images = Vec::with_capacity(refs.len());
+    for r in &refs {
+        let raw = region(r.ptr, r.bytes()).ok_or_else(|| OpError::invalid("an image lies outside the plugin's memory"))?;
+        images.push(kernels::Image { width: r.width, height: r.height, px: floats(raw) });
+    }
+    charge(caller, cost);
+    let stop = caller.data().cancel.clone().unwrap_or_default();
+    let out = kernels::run_until(stop, op, args, &mut images, &splats).map_err(|why| {
+        if why == "cancelled" { OpError::new(Code::Cancelled, "cancelled") } else { OpError::invalid(format!("{op}: {why}")) }
+    })?;
     if spec.writes {
         let (Some(r), Some(img)) = (refs.first(), images.first()) else { return Err(OpError::new(Code::Internal, "kernel image missing")) };
         let mut bytes = Vec::with_capacity(img.px.len() * 4);
@@ -300,7 +335,7 @@ fn job_call(caller: &mut Caller<'_, HostData>, op: &str, args: &Value) -> Result
         }
         "job.cancel" => {
             let id = args.get("job").and_then(Value::as_u64).ok_or_else(|| OpError::invalid("job.cancel: job is required"))?;
-            let mine = board.list().into_iter().any(|j| j.id == id && j.plugin == inv.plugin);
+            let mine = board.owner(id).as_ref() == Some(&inv.plugin);
             Ok(serde_json::json!({ "cancelled": mine && board.cancel(id, true) }))
         }
         _ => Err(OpError::new(Code::NotFound, format!("this app has no operation {op}"))),
@@ -312,6 +347,7 @@ fn run_job(p: &Plugin, log: LogFn, ticket: &Arc<Ticket>, input: &[u8], grants: &
         let mut inst = instantiate(p, MAX_TRANSFORM_MEMORY, log, None)?;
         let t = ticket.clone();
         inst.store.data_mut().progress = Some(Arc::new(move |v, note| t.progress(v, note)));
+        inst.store.data_mut().cancel = Some(ticket.cancel.clone());
         inst.reset.call(&mut inst.store, ()).map_err(|e| map_err(e, &inst.store))?;
         let ptr = write_scratch(&mut inst, input)?;
         let f = inst.func::<(i32, i32), i32>("craft_job")?;
@@ -398,13 +434,7 @@ fn linker(engine: &Engine) -> Linker<HostData> {
         let data = caller.data_mut();
         let Some(session) = data.session.as_ref() else { return Code::Denied as i64 };
         let Some(inv) = session.inv.as_ref() else { return Code::Stale as i64 };
-        let authorization = crate::api::check_args(session.api.contract(), &op, &args).and_then(|()| {
-            if session.api.authorizes_on_owner_thread() {
-                crate::api::authorize_preflight(session.api.contract(), session.grants.as_ref(), inv, &op)
-            } else {
-                authorize(session.api.contract(), session.grants.as_ref(), inv, &op, &args)
-            }
-        });
+        let authorization = crate::api::authorize_call(session.api.as_ref(), session.grants.as_ref(), inv, &op, &args);
         let outcome = authorization.and_then(|()| crate::api::contain(&op, || session.api.call(inv, &op, args)));
         let (bytes, ret) = match outcome {
             Ok(v) => {
@@ -470,7 +500,7 @@ struct Inst {
 
 fn instantiate(p: &Plugin, max_memory: usize, log: LogFn, session: Option<SessionCtx>) -> Result<Inst, PluginError> {
     let limits = StoreLimitsBuilder::new().memory_size(max_memory).memories(1).tables(4).table_elements(100_000).instances(1).build();
-    let mut store = Store::new(&p.engine, HostData { limits, plugin: p.id.clone(), log, pending: None, session, stopped: None, progress: None, debt: 0, budget: 0 });
+    let mut store = Store::new(&p.engine, HostData { limits, plugin: p.id.clone(), log, pending: None, session, stopped: None, progress: None, cancel: None, debt: 0, budget: 0 });
     store.limiter(|d| &mut d.limits);
     store.set_fuel(FUEL_BASE).map_err(|e| PluginError::Load(e.to_string()))?;
     let instance: Instance = linker(&p.engine).instantiate_and_start(&mut store, &p.module).map_err(|e| PluginError::Load(e.to_string()))?;
@@ -688,9 +718,11 @@ impl Session {
         if grants.stopped(&inv.plugin, inv.version) {
             return Err(PluginError::Stopped("this plugin has been turned off".into()));
         }
+        crate::api::take_panicked();
         crate::api::contain("begin", || api.begin(&inv)).map_err(|e| PluginError::Failed(e.code as i32, e.message))?;
         let result = self.run_event(&inv, event, grants.as_ref());
         let still_ok = !grants.stopped(&inv.plugin, inv.version) && grants.generation(&inv.plugin) == inv.grant_generation && !inv.cancelled();
+        let result = if crate::api::take_panicked() && result.is_ok() { Err(PluginError::Failed(Code::Internal as i32, "the app failed while serving this plugin; the change was rolled back".into())) } else { result };
         let commit = result.is_ok() && still_ok;
         let _ = crate::api::contain("finish", || {
             api.finish(&inv, commit);
@@ -733,6 +765,7 @@ impl Session {
         if let Some(s) = inst.store.data_mut().session.as_mut() {
             s.inv = Some(inv.clone());
         }
+        inst.store.data_mut().cancel = Some(inv.cancel.clone());
         inst.store.set_fuel(FUEL_BASE).map_err(|e| PluginError::Trap(e.to_string()))?;
         inst.reset.call(&mut inst.store, ()).map_err(|e| map_err(e, &inst.store))?;
         let bytes = serde_json::to_vec(event).map_err(|e| PluginError::InvalidOutput(e.to_string()))?;

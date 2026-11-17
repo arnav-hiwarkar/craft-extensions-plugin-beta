@@ -94,7 +94,6 @@ pub(crate) fn known_categories<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<Ca
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct Image {
     pub url: String,
     pub sha256: String,
@@ -126,7 +125,6 @@ impl ImageRole {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct Attestation {
     pub verified: bool,
     pub signer_workflow: String,
@@ -134,7 +132,6 @@ pub struct Attestation {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct Downloads {
     pub count: u64,
     pub date: String,

@@ -36,6 +36,20 @@ pub struct JobInfo {
 }
 
 impl JobInfo {
+    fn clone_meta(&self) -> Self {
+        Self {
+            id: self.id,
+            plugin: self.plugin.clone(),
+            contribution: self.contribution.clone(),
+            label: self.label.clone(),
+            progress: self.progress,
+            note: self.note.clone(),
+            cancellable: self.cancellable,
+            state: JobState::Running,
+            delivered: self.delivered,
+        }
+    }
+
     pub fn event(&self) -> Value {
         match &self.state {
             JobState::Done(result) => json!({"event":"job","job":self.id,"ok":true,"result":result}),
@@ -127,9 +141,17 @@ impl JobBoard {
     }
 
     pub fn list(&self) -> Vec<JobInfo> {
-        let mut v: Vec<JobInfo> = self.lock().iter().map(|(j, _)| j.clone()).collect();
+        let mut v: Vec<JobInfo> = self
+            .lock()
+            .iter()
+            .map(|(j, _)| JobInfo { state: if matches!(j.state, JobState::Done(_)) { JobState::Done(Value::Null) } else { j.state.clone() }, ..j.clone_meta() })
+            .collect();
         v.reverse();
         v
+    }
+
+    pub fn owner(&self, id: u64) -> Option<ExtensionId> {
+        self.lock().iter().find(|(j, _)| j.id == id).map(|(j, _)| j.plugin.clone())
     }
 
     pub fn running(&self) -> usize {
@@ -156,7 +178,11 @@ impl JobBoard {
         for (j, _) in self.lock().iter_mut() {
             if j.state.finished() && !j.delivered {
                 j.delivered = true;
-                out.push(j.clone());
+                let state = match &mut j.state {
+                    JobState::Done(v) => JobState::Done(std::mem::take(v)),
+                    other => other.clone(),
+                };
+                out.push(JobInfo { state, ..j.clone_meta() });
             }
         }
         out

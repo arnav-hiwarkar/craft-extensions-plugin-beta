@@ -325,10 +325,12 @@ impl Helper {
             self.kill();
             return Err(PluginError::Stopped(e.message));
         }
+        crate::api::take_panicked();
         crate::api::contain("begin", || self.api.begin(&inv)).map_err(|e| PluginError::Failed(e.code as i32, e.message))?;
         let id = self.next_id;
         self.next_id += 1;
         let result = self.run(&inv, id, event).and_then(|()| self.check(&inv).map_err(|e| PluginError::Stopped(e.message)));
+        let result = if crate::api::take_panicked() && result.is_ok() { Err(PluginError::Failed(Code::Internal as i32, "the app failed while serving this plugin; the change was rolled back".into())) } else { result };
         let commit = result.is_ok();
         let _ = crate::api::contain("finish", || {
             self.api.finish(&inv, commit);
@@ -370,7 +372,7 @@ impl Helper {
                         if self.api.contract().op(&op).is_none() {
                             return Err(OpError::new(Code::NotFound, format!("this app has no operation {op}")));
                         }
-                        crate::api::check_args(self.api.contract(), &op, &msg["args"])?;
+                        crate::api::authorize_call(self.api.as_ref(), self.grants.as_ref(), inv, &op, &msg["args"])?;
                         crate::api::contain(&op, || self.api.call(inv, &op, msg["args"].clone()))
                     });
                     let stopped = self.check(inv).is_err();

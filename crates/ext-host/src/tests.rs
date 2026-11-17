@@ -532,7 +532,7 @@ fn a_session_starts_a_background_job_and_gets_its_result_as_an_event() {
     assert_eq!(done[0].event(), json!({"event":"job","job":1,"ok":true,"result":{"done":true}}));
 }
 
-struct PanickyApp(AppContract);
+struct PanickyApp(AppContract, Mutex<Vec<bool>>);
 
 impl AppApi for PanickyApp {
     fn contract(&self) -> &AppContract {
@@ -545,13 +545,15 @@ impl AppApi for PanickyApp {
         let empty: Vec<u8> = Vec::new();
         Ok(json!(empty[std::hint::black_box(3)]))
     }
-    fn finish(&self, _: &Invocation, _: bool) {}
+    fn finish(&self, _: &Invocation, commit: bool) {
+        self.1.lock().unwrap().push(commit);
+    }
 }
 
 #[test]
 fn an_adapter_panic_fails_the_plugin_call_instead_of_the_app() {
     let (_, app, grants) = session_fixture();
-    let contract = AppContract {
+    let contract = || AppContract {
         app: app.contract.app.clone(),
         display_name: "TestCraft",
         provided: Provided::new(&[("testcraft.session", 1, 0)]),
@@ -567,9 +569,21 @@ fn an_adapter_panic_fails_the_plugin_call_instead_of_the_app() {
              (if (result i32) (i64.lt_s (local.get $r) (i64.const 0)) (then (i32.wrap_i64 (local.get $r))) (else (i32.const 0))))"#,
         r#"(import "craft" "call" (func $call (param i32 i32 i32 i32) (result i64)))"#,
     );
-    let mut s = Session::new(&p, Arc::new(PanickyApp(contract)), grants, log()).unwrap();
+    let mut s = Session::new(&p, Arc::new(PanickyApp(contract(), Mutex::new(vec![]))), grants.clone(), log()).unwrap();
     assert!(matches!(s.dispatch(inv(1), &json!({"event":"command"})), Err(PluginError::Failed(-7, _))));
     assert!(s.dispatch(inv(1), &json!({"event":"command"})).is_err(), "the session survives and runs again");
+
+    let ignores_errors = module(
+        r#"(data (i32.const 16) "doc.fill")
+           (func (export "craft_event") (param i32 i32) (result i32)
+             (drop (call $call (i32.const 16) (i32.const 8) (i32.const 0) (i32.const 0)))
+             (i32.const 0))"#,
+        r#"(import "craft" "call" (func $call (param i32 i32 i32 i32) (result i64)))"#,
+    );
+    let app = Arc::new(PanickyApp(contract(), Mutex::new(vec![])));
+    let mut s = Session::new(&ignores_errors, app.clone(), grants, log()).unwrap();
+    assert!(matches!(s.dispatch(inv(1), &json!({"event":"command"})), Err(PluginError::Failed(-7, _))));
+    assert_eq!(*app.1.lock().unwrap(), vec![false], "a half-applied edit is rolled back even when the plugin ignores the error");
 }
 
 #[test]

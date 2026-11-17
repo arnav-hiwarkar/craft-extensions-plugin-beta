@@ -61,6 +61,7 @@ type Cancels = Arc<Mutex<BTreeMap<u64, Arc<AtomicBool>>>>;
 /// and finish from there. The event that started it has already ended.
 pub struct Job {
     id: u64,
+    finished: bool,
     out: Out,
     cancel: Arc<AtomicBool>,
     cancels: Cancels,
@@ -80,17 +81,22 @@ impl Job {
         self.out.send(&json!({"type":"progress","job":self.id,"value":fraction,"note":note}));
     }
     /// Finishes with a result; the plugin's session receives it as a `job` event.
-    pub fn finish(self, result: Value) {
+    pub fn finish(mut self, result: Value) {
+        self.finished = true;
         self.out.send(&json!({"type":"finish","job":self.id,"result":result}));
     }
     /// Finishes with an error message.
-    pub fn fail(self, message: &str) {
+    pub fn fail(mut self, message: &str) {
+        self.finished = true;
         self.out.send(&json!({"type":"finish","job":self.id,"error":message}));
     }
 }
 
 impl Drop for Job {
     fn drop(&mut self) {
+        if !self.finished {
+            self.out.send(&json!({"type":"finish","job":self.id,"error":"the helper dropped this job without finishing it"}));
+        }
         self.cancels.lock().unwrap_or_else(std::sync::PoisonError::into_inner).remove(&self.id);
     }
 }
@@ -151,7 +157,7 @@ impl Host {
         let id = self.call("job.start", json!({"label": label}))?["job"].as_u64().ok_or_else(|| CallError::from_reply(-7, "job.start returned no id".into()))?;
         let cancel = Arc::new(AtomicBool::new(false));
         self.cancels.lock().unwrap_or_else(std::sync::PoisonError::into_inner).insert(id, cancel.clone());
-        Ok(Job { id, out: self.out.clone(), cancel, cancels: self.cancels.clone() })
+        Ok(Job { id, finished: false, out: self.out.clone(), cancel, cancels: self.cancels.clone() })
     }
 }
 
@@ -245,5 +251,6 @@ mod tests {
         assert_eq!(lines[2], json!({"type":"done","id":7,"code":0}));
         assert!(lines.contains(&json!({"type":"progress","job":3,"value":0.5,"note":"half"})));
         assert!(lines.contains(&json!({"type":"finish","job":3,"result":{"tiles":4}})));
+        assert_eq!(lines.iter().filter(|l| l["type"] == "finish").count(), 1, "a finished job reports once");
     }
 }

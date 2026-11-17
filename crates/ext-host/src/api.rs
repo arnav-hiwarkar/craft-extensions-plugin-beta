@@ -157,8 +157,28 @@ pub trait AppApi: Send + Sync {
     fn finish(&self, inv: &Invocation, commit: bool);
 }
 
+thread_local! {
+    static PANICKED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
 pub fn contain<T>(what: &str, f: impl FnOnce() -> Result<T, OpError>) -> Result<T, OpError> {
-    std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)).unwrap_or_else(|_| Err(OpError::new(Code::Internal, format!("the app failed while running {what}"))))
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)).unwrap_or_else(|_| {
+        PANICKED.with(|p| p.set(true));
+        Err(OpError::new(Code::Internal, format!("the app failed while running {what}")))
+    })
+}
+
+pub(crate) fn take_panicked() -> bool {
+    PANICKED.with(|p| p.replace(false))
+}
+
+pub fn authorize_call(api: &dyn AppApi, grants: &dyn Grants, inv: &Invocation, op: &str, args: &Value) -> Result<(), OpError> {
+    check_args(api.contract(), op, args)?;
+    if api.authorizes_on_owner_thread() {
+        authorize_preflight(api.contract(), grants, inv, op)
+    } else {
+        authorize(api.contract(), grants, inv, op, args)
+    }
 }
 
 pub trait Grants: Send + Sync {

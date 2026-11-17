@@ -7,7 +7,9 @@ pub const MAX_CONVOLVE: usize = 15;
 pub const MAX_SPLATS: usize = 1_000_000;
 pub const MAX_CURVE: usize = 4096;
 
-pub fn cost(op: &str, args: &Value, pixels: u64) -> u64 {
+pub const MAX_CALL_COST: u64 = 50_000_000_000;
+
+pub fn cost(op: &str, args: &Value, pixels: u64, height: u64, splats: &[f32]) -> u64 {
     let radius = args.get("radius").and_then(Value::as_f64).unwrap_or(1.0).clamp(1.0, MAX_RADIUS as f64) as u64;
     let per_pixel = match op {
         "kernel.blur" | "kernel.morphology" => 4 * radius,
@@ -17,7 +19,31 @@ pub fn cost(op: &str, args: &Value, pixels: u64) -> u64 {
         "kernel.noise" => 8 * args.get("octaves").and_then(Value::as_u64).unwrap_or(1).clamp(1, 12),
         _ => 4,
     };
-    pixels.saturating_mul(per_pixel).saturating_add(10_000)
+    let splat_work: u64 = if op == "kernel.splat" {
+        let count = (splats.len() / 8) as u64;
+        let area: u64 = splats.chunks_exact(8).map(|s| {
+            let r = if s[2].is_finite() { s[2].clamp(0.0, MAX_RADIUS) as u64 } else { 0 };
+            (2 * r + 1).pow(2).min(pixels)
+        }).fold(0u64, u64::saturating_add);
+        height.saturating_mul(count).saturating_add(area.saturating_mul(4))
+    } else {
+        0
+    };
+    pixels.saturating_mul(per_pixel).saturating_add(splat_work).saturating_add(10_000)
+}
+
+thread_local! {
+    static STOP: std::cell::RefCell<Option<std::sync::Arc<std::sync::atomic::AtomicBool>>> = const { std::cell::RefCell::new(None) };
+}
+
+pub fn run_until(stop: std::sync::Arc<std::sync::atomic::AtomicBool>, op: &str, args: &Value, images: &mut [Image], splats: &[f32]) -> Result<Value, String> {
+    STOP.with(|s| *s.borrow_mut() = Some(stop.clone()));
+    let out = run(op, args, images, splats);
+    STOP.with(|s| *s.borrow_mut() = None);
+    if stop.load(std::sync::atomic::Ordering::Relaxed) {
+        return Err("cancelled".into());
+    }
+    out
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -89,11 +115,15 @@ fn rows(out: &mut [f32], width: usize, f: impl Fn(usize, &mut [f32]) + Sync) {
     }
     let height = out.len() / stride;
     let per = height.div_ceil(threads()).max(1);
+    let stop = STOP.with(|s| s.borrow().clone());
     std::thread::scope(|s| {
         for (band, chunk) in out.chunks_mut(per * stride).enumerate() {
-            let f = &f;
+            let (f, stop) = (&f, &stop);
             s.spawn(move || {
                 for (i, row) in chunk.chunks_mut(stride).enumerate() {
+                    if stop.as_ref().is_some_and(|s| s.load(std::sync::atomic::Ordering::Relaxed)) {
+                        return;
+                    }
                     f(band * per + i, row);
                 }
             });
@@ -935,6 +965,16 @@ mod tests {
         hsl_range(&mut wrap, [340.0, 30.0], [0.0, 1.0], [0.0, 1.0], 0.0).unwrap();
         assert_eq!((wrap.px[0], wrap.px[4], wrap.px[8]), (1.0, 0.0, 1.0));
         assert!(hsl_range(&mut wrap, [0.0, 400.0], [0.0, 1.0], [0.0, 1.0], 0.0).is_err());
+    }
+
+    #[test]
+    fn splats_are_charged_for_their_count_and_area_and_a_stop_flag_ends_a_kernel() {
+        let few = cost("kernel.splat", &json!({}), 1000, 10, &[0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]);
+        let many: Vec<f32> = (0..1000).flat_map(|_| [0.0, 0.0, 512.0, 1.0, 1.0, 1.0, 1.0, 1.0]).collect();
+        assert!(cost("kernel.splat", &json!({}), 1000, 10, &many) > few * 100);
+        let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+        let mut images = [Image::new(64, 64)];
+        assert_eq!(run_until(stop, "kernel.blur", &json!({"radius": 4.0}), &mut images, &[]).unwrap_err(), "cancelled");
     }
 
     #[test]
