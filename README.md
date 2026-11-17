@@ -1,6 +1,6 @@
 # craft-extensions
 
-Start with the [local documentation handoff](START-HERE.md), [current architecture](docs/plugins/architecture.md), and [post-call decisions](docs/plugins/design-sessions/post-call-reconciliation.md). This local bundle includes newer confirmed choices than the upstream snapshot. Code remains at `a6c5fae`; upstream documentation was captured at `98a1510`. No source update, build, or test was performed during this preparation.
+Start with the [local documentation handoff](START-HERE.md), [current architecture](docs/plugins/architecture.md), and [post-call decisions](docs/plugins/design-sessions/post-call-reconciliation.md). This local bundle includes newer confirmed choices than the upstream snapshot. Upstream main `964c715` was merged on 2026-11-17; its documentation is preserved unaltered under `docs/plugins/sources/github-main` (identical to `98a1510`), and its CI changes are not carried because this private beta runs only `plugin-beta.yml`.
 
 One place to find, install and switch **themes, plug-ins and resources** for the Craft App Suite,
 shared by every app and reachable from each of them. The target design embeds management in every app, with an optional launcher.

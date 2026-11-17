@@ -7,7 +7,7 @@ version = "0.1.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 rust-version = "1.90"
-repository = "https://github.com/Jeremy8776/craft-extensions"
+repository = "https://github.com/storytold/craft-extensions"
 
 [workspace.dependencies]
 craft-ext-core = { path = "crates/ext-core" }
