@@ -2,6 +2,7 @@ use crate::{Action, Badge, Model, NativeWarning, Primary, Problem, ProblemKind, 
 use craft_ext_core::{
     id::AppId,
     listing::{CATEGORIES, Category},
+    project::{PluginRef, Status},
     tier::Tier,
 };
 
@@ -98,6 +99,33 @@ pub fn category_word(category: Category) -> Word {
         Category::ImportExport => Word::CategoryImportExport,
         Category::AiAnalysis => Word::CategoryAiAnalysis,
         Category::Resources => Word::CategoryResources,
+    }
+}
+
+pub fn project_word(status: &Status) -> Word {
+    match status {
+        Status::Ready { .. } => Word::ProjectReady,
+        Status::NeedsEnable { .. } => Word::ProjectNeedsSetUp,
+        Status::NeedsOtherVersion { .. } => Word::ProjectNeedsOtherVersion,
+        Status::Downloadable => Word::ProjectDownloadable,
+        Status::Unavailable { .. } => Word::ProjectUnavailable,
+    }
+}
+
+pub fn project_tone(status: &Status) -> Tone {
+    match status {
+        Status::Ready { .. } => Tone::Good,
+        Status::NeedsEnable { .. } | Status::Downloadable => Tone::Info,
+        Status::NeedsOtherVersion { .. } => Tone::Warn,
+        Status::Unavailable { .. } => Tone::Bad,
+    }
+}
+
+pub fn project_fix(app: &AppId, plugin: &PluginRef, status: &Status) -> Option<(Word, Action)> {
+    match status {
+        Status::Downloadable | Status::NeedsOtherVersion { .. } => Some((Word::ActionInstall, Action::InstallMissing { app: app.clone(), refs: vec![plugin.clone()] })),
+        Status::NeedsEnable { .. } => Some((Word::ActionSetUp, Action::SetUp { id: plugin.id.clone(), app: app.clone() })),
+        Status::Ready { .. } | Status::Unavailable { .. } => None,
     }
 }
 

@@ -1,6 +1,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 use super::*;
-use craft_ext_core::project::PluginRef;
+use craft_ext_core::project::{PluginRef, Status};
 use craft_ext_store::{Store, state::Origin};
 use ed25519_dalek::{Signer, SigningKey};
 use serde_json::{Value, json};
@@ -477,4 +477,31 @@ fn categories_follow_the_managed_apps_and_have_words() {
     for row in craft_ext_core::listing::CATEGORIES {
         assert_eq!(category_word(row.category).english(), row.english);
     }
+}
+
+#[test]
+fn a_project_status_has_one_word_one_tone_and_at_most_one_fix() {
+    let grain = PluginRef {
+        id: id("io.github.alice.grain"),
+        version: Version::new(1, 2, 0),
+        sha256: None,
+        source: craft_ext_core::project::Source::Catalogue,
+        name: "Grain".into(),
+        contributions: vec!["run".into()],
+        state_versions: None,
+    };
+    let statuses = [
+        Status::Ready { version: Version::new(1, 2, 0) },
+        Status::NeedsEnable { version: Version::new(1, 2, 0), reason: "turned off".into() },
+        Status::NeedsOtherVersion { installed: Version::new(1, 0, 0), wanted: Version::new(1, 2, 0), reason: "older".into() },
+        Status::Downloadable,
+        Status::Unavailable { reason: "withdrawn".into() },
+    ];
+    assert_eq!(statuses.each_ref().map(|s| project_word(s).english()), ["Ready", "Installed, needs setting up", "Needs another version", "Available to download", "Not available"]);
+    assert_eq!(statuses.each_ref().map(project_tone), [Tone::Good, Tone::Info, Tone::Warn, Tone::Info, Tone::Bad]);
+    let install = Some((Word::ActionInstall, Action::InstallMissing { app: app(), refs: vec![grain.clone()] }));
+    assert_eq!(
+        statuses.each_ref().map(|s| project_fix(&app(), &grain, s)),
+        [None, Some((Word::ActionSetUp, Action::SetUp { id: grain.id.clone(), app: app() })), install.clone(), install, None]
+    );
 }

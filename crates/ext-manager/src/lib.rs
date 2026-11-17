@@ -11,7 +11,7 @@ mod worker;
 pub use detail::{AppPanel, ContributionRow, Detail, GrantRow, PermissionRow, VersionRow};
 pub use flow::{Flow, FlowKind, NativeWarning, Setup, SetupContribution, SetupPermission, Step};
 pub use problems::{Fix, Problem, ProblemKind};
-pub use view::{Look, Press, Tone, category_word};
+pub use view::{Look, Press, Tone, category_word, project_fix, project_tone, project_word};
 pub use rank::{MAX_DOWNLOAD_BOOST, SCORE_DESCRIPTION, SCORE_EXACT_NAME, SCORE_NAME_CONTAINS, SCORE_NAME_PREFIX, SCORE_NAME_WORD, SCORE_SUMMARY, SCORE_TAG, SCORE_TAG_CONTAINS};
 pub use words::{WORDS, Word};
 pub use worker::{REFRESH_AFTER_SECONDS, Snapshot, UpdateRow, WATCH_INTERVAL};
