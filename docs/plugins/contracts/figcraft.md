@@ -6,7 +6,7 @@ Generated from the `figcraft` adapter by `<app>-cli plugin contract`. Do not edi
 
 | Contract | Version |
 |---|---|
-| `figcraft.session` | 1.1 |
+| `figcraft.session` | 1.2 |
 | `resource.font` | 1.0 |
 | `craft-theme` | 1.0 |
 
@@ -226,6 +226,47 @@ Typed arguments (schema version 1; unknown arguments are refused):
 | Argument | Type | Required | Meaning |
 |---|---|---|---|
 | `ops` | array of ≤ 20000 × draw operation | no | The plugin's whole overlay; omitted or empty clears it |
+
+### `project.data.get` (Query)
+
+Read one of this plugin's keys kept in the document or on a layer (`target: {node: id}` or `{layer: id}`)
+
+Permission: document.read:document
+
+```json
+// args
+{key, target?}
+// result
+the stored JSON value, or null
+```
+
+Typed arguments (schema version 1; unknown arguments are refused):
+
+| Argument | Type | Required | Meaning |
+|---|---|---|---|
+| `key` | text, 1–64 characters | yes | One of the plugin's own keys |
+| `target` | a layer or node: {"layer": id} or {"node": id}; absent means the document | no | Where the data lives |
+
+### `project.data.set` (Edit)
+
+Keep one key of this plugin's data in the document or on a layer; saved in the .figcraft file, kept when the plugin is missing, undone with the event (null deletes)
+
+Permission: document.edit:document
+
+```json
+// args
+{key, value, target?}
+// result
+null
+```
+
+Typed arguments (schema version 1; unknown arguments are refused):
+
+| Argument | Type | Required | Meaning |
+|---|---|---|---|
+| `key` | text, 1–64 characters | yes | One of the plugin's own keys |
+| `value` | any JSON; null deletes the key | yes | Saved with the document, even when this plugin is not installed |
+| `target` | a layer or node: {"layer": id} or {"node": id}; absent means the document | no | Where the data lives |
 
 ### `page.add` (Edit)
 

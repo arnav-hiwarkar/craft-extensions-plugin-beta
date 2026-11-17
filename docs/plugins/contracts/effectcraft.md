@@ -7,7 +7,7 @@ Generated from the `effectcraft` adapter by `<app>-cli plugin contract`. Do not 
 | Contract | Version |
 |---|---|
 | `raster.filter` | 1.0 |
-| `effectcraft.session` | 1.2 |
+| `effectcraft.session` | 1.3 |
 | `resource.preset` | 1.0 |
 | `resource.lut` | 1.0 |
 | `craft-theme` | 1.0 |
@@ -333,6 +333,47 @@ Permission: `document.edit:document`
 // result
 object
 ```
+
+### `project.data.get` (Query)
+
+Read one of this plugin's keys kept with the project, or on a layer of the captured composition (`target: {layer: id}`).
+
+Permission: `document.read:document`
+
+```json
+// args
+{key,target?}
+// result
+the stored JSON value, or null
+```
+
+Typed arguments (schema version 1; unknown arguments are refused):
+
+| Argument | Type | Required | Meaning |
+|---|---|---|---|
+| `key` | text, 1–64 characters | yes | One of the plugin's own keys |
+| `target` | a layer or node: {"layer": id} or {"node": id}; absent means the document | no | Where the data lives |
+
+### `project.data.set` (Edit)
+
+Keep one key of this plugin's data with the project or on a layer; saved in the .ecproj, kept when the plugin is missing, undone with the event (null deletes).
+
+Permission: `document.edit:document`
+
+```json
+// args
+{key,value,target?}
+// result
+null
+```
+
+Typed arguments (schema version 1; unknown arguments are refused):
+
+| Argument | Type | Required | Meaning |
+|---|---|---|---|
+| `key` | text, 1–64 characters | yes | One of the plugin's own keys |
+| `value` | any JSON; null deletes the key | yes | Saved with the document, even when this plugin is not installed |
+| `target` | a layer or node: {"layer": id} or {"node": id}; absent means the document | no | Where the data lives |
 
 ### `selection.get` (Query)
 

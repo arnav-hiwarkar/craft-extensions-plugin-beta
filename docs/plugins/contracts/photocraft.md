@@ -1,16 +1,18 @@
 # PhotoCraft plugin contract
 
-Refreshed from literal adapter metadata by `scripts/photocraft-contract-source.py` without compiling PhotoCraft. The Rust adapter remains authoritative.
+Generated from the `photocraft` adapter by `<app>-cli plugin contract`. Do not edit by hand.
 
 ## Contracts provided
 
 | Contract | Version |
 |---|---|
-| `photocraft.session` | 1.1 |
 | `raster.filter` | 1.0 |
+| `photocraft.session` | 1.2 |
 | `resource.preset` | 1.0 |
 | `resource.lut` | 1.0 |
 | `craft-theme` | 1.0 |
+
+A contribution declaring `contract = "name@major.minor"` works here when the major matches and this minor is equal or higher.
 
 ## Where contributions appear
 
@@ -181,6 +183,47 @@ Permission: free
 // result
 {"tool": "gradient", "phase": "update", "at": [120.5, 40.0], "start": [10.0, 10.0], "modifiers": {"shift": true}, "zoom": 0.5}
 ```
+
+### `project.data.get` (Query)
+
+Read one of this plugin's keys kept in the document or on a layer (`target: {layer: id}`).
+
+Permission: document.read:document
+
+```json
+// args
+{"key": "rig", "target": {"layer": 7}}
+// result
+the stored JSON value, or null
+```
+
+Typed arguments (schema version 1; unknown arguments are refused):
+
+| Argument | Type | Required | Meaning |
+|---|---|---|---|
+| `key` | text, 1–64 characters | yes | One of the plugin's own keys |
+| `target` | a layer or node: {"layer": id} or {"node": id}; absent means the document | no | Where the data lives |
+
+### `project.data.set` (Edit)
+
+Keep one key of this plugin's data in the document or on a layer; saved in .pcraft, kept when the plugin is missing, undone with the event (null deletes). Writing data records the plugin in the document's references.
+
+Permission: document.edit:document
+
+```json
+// args
+{"key": "rig", "value": {"bones": 3}, "target": {"layer": 7}}
+// result
+null
+```
+
+Typed arguments (schema version 1; unknown arguments are refused):
+
+| Argument | Type | Required | Meaning |
+|---|---|---|---|
+| `key` | text, 1–64 characters | yes | One of the plugin's own keys |
+| `value` | any JSON; null deletes the key | yes | Saved with the document, even when this plugin is not installed |
+| `target` | a layer or node: {"layer": id} or {"node": id}; absent means the document | no | Where the data lives |
 
 ### `layer.rename` (Edit)
 
@@ -522,7 +565,7 @@ Permission: free
 | `init` | `{"event":"init","contribution"}` | no | After the plugin loads and whenever plugins reload; draw panels here |
 | `command` | `{"event":"command","id","params"}` | no | A command contribution ran (menu, `photocraft-cli run --cmd`, automation) |
 | `ui` | `{"event":"ui","surface","rev","widget","value"}` | no | A panel or window widget changed (see the UI reference for values) |
-| `tool` | `{"event":"tool","tool","phase":"begin&#124;update&#124;commit&#124;cancel","at":[x,y],"start":[x,y],"modifiers":{shift,alt,ctrl,cmd},"button","pressure","zoom"}` | no | A gesture of your selected tool, in image pixels; `zoom` is screen points per image pixel. Escape sends `cancel` |
+| `tool` | `{"event":"tool","tool","phase":"begin|update|commit|cancel","at":[x,y],"start":[x,y],"modifiers":{shift,alt,ctrl,cmd},"button","pressure","zoom"}` | no | A gesture of your selected tool, in image pixels; `zoom` is screen points per image pixel. Escape sends `cancel` |
 | `files.picked` | `{"event":"files.picked","request","handle","name"} or {…,"cancelled":true}` | no | The answer to `files.pick` |
 | `app` | `{"event":"app","name","payload"}` | yes | document.opened, selection.changed (layers or pixels) |
 | `dispose` | `{"event":"dispose"}` | no | Reserved lifecycle event; beta shutdown does not guarantee guest notification |
