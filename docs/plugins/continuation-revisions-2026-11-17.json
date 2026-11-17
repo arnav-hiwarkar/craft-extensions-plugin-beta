@@ -1,0 +1,43 @@
+{
+  "recorded": "2026-11-17",
+  "workspace": "/Users/ash/Projects/plugin-beta",
+  "shared_head_note": "craft-extensions records the pre-handoff source/research head; the commit containing this JSON is the continuation commit. Other heads include the policy-pointer commit.",
+  "repositories": {
+    "craft-extensions": {
+      "branch": "plugin-beta",
+      "head": "6b11e73752b105fa00eedfc93ebcb9fe49e88b29",
+      "github": "git@github.com:arnav-hiwarkar/craft-extensions-plugin-beta.git",
+      "forgejo": "forgejo:ash/craft-extensions-plugin-beta.git"
+    },
+    "effectcraft": {
+      "branch": "plugin-beta",
+      "head": "8ef696be3d947ba5c5e9d9100d28f6badc7e8f0c",
+      "github": "git@github.com:arnav-hiwarkar/effectcraft-plugin-beta.git",
+      "forgejo": "forgejo:ash/effectcraft-plugin-beta.git"
+    },
+    "photocraft": {
+      "branch": "plugin-beta",
+      "head": "482c42fb9b4587d23e29fab7cbdef1411614f1f1",
+      "github": "git@github.com:arnav-hiwarkar/photocraft-plugin-beta.git",
+      "forgejo": "forgejo:ash/photocraft-plugin-beta.git"
+    },
+    "figcraft": {
+      "branch": "plugin-beta",
+      "head": "90eeb14c62dc9dd84c472e159fd05bb9177c3788",
+      "github": "git@github.com:arnav-hiwarkar/figcraft-plugin-beta.git",
+      "forgejo": "forgejo:ash/figcraft-plugin-beta.git"
+    },
+    "craft-launcher": {
+      "branch": "plugin-beta",
+      "head": "c2e807d33edeb48f6807c4e2854d207e6d4e536d",
+      "github": "git@github.com:arnav-hiwarkar/craft-launcher-plugin-beta.git",
+      "forgejo": "forgejo:ash/craft-launcher-plugin-beta.git"
+    },
+    "craft-plugins": {
+      "branch": "main",
+      "head": "4efbf2974257d844a6038e67d791d327f99b12ec",
+      "github": "git@github.com:arnav-hiwarkar/craft-plugins.git",
+      "forgejo": "forgejo:ash/craft-plugins.git"
+    }
+  }
+}

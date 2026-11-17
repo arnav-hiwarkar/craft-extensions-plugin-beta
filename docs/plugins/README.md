@@ -5,6 +5,11 @@ one adapter in each app, and the signed catalogue in `craft-plugins`.
 
 ## Current guides
 
+For continued implementation and upstream integration, apply the
+[suite replacement rule](suite-replacement-rule.md) and start with the
+[2026-11-17 continuation record](continuation-2026-11-17.md). The rule's final
+end state supersedes earlier proposals to retain parallel per-app plugin systems.
+
 | Guide | For |
 |---|---|
 | [Workflow atlas and mind map](maps.md) | Visual map of roles, ownership and every main lifecycle |

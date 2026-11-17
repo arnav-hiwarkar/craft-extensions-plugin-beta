@@ -1,5 +1,12 @@
 # Craft plugin beta status
 
+Continuation on 2026-11-17 starts from the
+[Mac handoff](docs/plugins/continuation-2026-11-17.md) and the user-directed
+[suite replacement rule](docs/plugins/suite-replacement-rule.md). Inspect each app,
+migrate useful capabilities and flows into the shared platform, then remove the
+superseded plugin implementations in coordination with upstream/UI work. This
+handoff does not add runtime verification or update the installed artifacts.
+
 2026-11-14. Source for the shared platform (this repository), the three app adapters
 (EffectCraft, PhotoCraft, FigCraft), the launcher integration and 15 examples is in place
 on the `plugin-beta` branches. The latest recorded build and automated verification

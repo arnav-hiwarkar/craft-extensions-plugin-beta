@@ -123,6 +123,13 @@ full-access consent. Native Python is not sandboxed merely because it is Python.
 Legacy JSX can remain a separate compatibility route, but its evaluator must not
 become a hidden Wasm host operation.
 
+The user's [2026-11-17 replacement rule](suite-replacement-rule.md) now requires
+that route to be temporary for plugin migration. Inspect and port useful behavior,
+then remove superseded plugin implementations per app. Retain general scripting
+or expression utilities only where non-plugin features still require them, without
+leaving a plugin permission bypass. Coordinate that removal with upstream/UI work
+and preserve affected project data.
+
 Development tooling should explain what failed: unavailable operation, wrong
 contract/UI level, missing native platform, denied grant, stale object/surface,
 invalid pixel layout, missing asset, timeout or helper/device failure. Add an
