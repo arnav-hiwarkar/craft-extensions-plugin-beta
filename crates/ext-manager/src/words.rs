@@ -96,6 +96,7 @@ words! {
     ProblemConsentPending "plugins.manager.problem.consent-pending" "Waiting for your approval",
     ProblemNativeConsentPending "plugins.manager.problem.native-consent-pending" "Waiting for your approval of full access",
     ProblemUncleanExit "plugins.manager.problem.unclean-exit" "Was running when the app last quit unexpectedly",
+    ProblemCannotLoad "plugins.manager.problem.cannot-load" "Could not load",
     NoticeInstalled "plugins.manager.notice.installed" "Installed",
     NoticeUpdated "plugins.manager.notice.updated" "Updated",
     NoticeRolledBack "plugins.manager.notice.rolled-back" "Switched version",

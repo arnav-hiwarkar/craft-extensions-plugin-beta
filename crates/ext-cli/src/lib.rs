@@ -60,7 +60,7 @@ impl Args {
         if self.pos.len() == n { Ok(()) } else { Err(Usage("wrong number of arguments; use --help".into()).into()) }
     }
 }
-const HELP: &str = "plugin search <q> [--kind k]\nplugin info|versions|permissions|report <id>\nplugin list|updates|refresh\nplugin install <id> [--version req] [--with-deps|--no-deps]\nplugin install-file <path>\nplugin setup <id> [--enable c1,c2|--all] [--grant permission] [--full-access]\nplugin enable|disable <id> <contribution>\nplugin grant|revoke <id> <permission>\nplugin update <id>|--all\nplugin rollback <id> <version>\nplugin pin <id> <req>\nplugin unpin <id>\nplugin remove <id> [--force]\nplugin project <references.json> (apps: plugin project <project-file> extracts references)\nAll commands accept --json and --help. Install never enables; setup grants only named permissions.";
+const HELP: &str = "plugin search <q> [--kind k]\nplugin info|versions|permissions|report <id>\nplugin list|updates|refresh\nplugin install <id> [--version req] [--with-deps|--no-deps]\nplugin install-file <path>\nplugin setup <id> [--enable c1,c2|--all] [--grant permission] [--full-access]\nplugin enable|disable <id> <contribution>\nplugin grant|revoke <id> <permission>\nplugin update <id>|--all\nplugin rollback <id> <version>\nplugin pin <id> <req>\nplugin unpin <id>\nplugin remove <id> [--force]\nplugin resume <id> (turns a plugin stopped after repeated crashes back on)\nplugin project <references.json> (apps: plugin project <project-file> extracts references)\nAll commands accept --json and --help. Install never enables; setup grants only named permissions.";
 pub fn emit(out: &mut dyn Write, v: &Value, json: bool) -> std::io::Result<()> {
     if json {
         writeln!(out, "{}", serde_json::to_string(v)?)
@@ -239,6 +239,7 @@ fn plugin(m: &Manager, args: &[String]) -> Result<Value> {
         "unpin",
         "remove",
         "report",
+        "resume",
     ]
     .contains(&cmd)
     {
@@ -336,6 +337,15 @@ fn plugin(m: &Manager, args: &[String]) -> Result<Value> {
                 m.revoke(&id, &p)?
             }
             Ok(json!("Permission changed"))
+        }
+        "resume" => {
+            a.arity(2)?;
+            let app = m.app.as_ref().ok_or("choose an app")?;
+            if !m.store.state()?.apps.get(app).and_then(|s| s.get(&id)).is_some_and(|s| s.quarantine.is_some()) {
+                return Err(format!("{id} is not turned off").into());
+            }
+            m.store.clear_quarantine(app, &id)?;
+            Ok(json!(format!("Turned {id} back on")))
         }
         "rollback" => {
             a.arity(3)?;
@@ -468,6 +478,12 @@ permissions=["clipboard.read"]
         assert!(state.apps[&app][&id].enabled.is_empty());
         assert_eq!(run_plugin(&m, &args("setup io.github.alice.test --all --grant clipboard.read"), &mut out, &mut vec![]), 0);
         assert!(m.store.state().unwrap().apps[&app][&id].enabled.contains("data"));
+        assert_eq!(run_plugin(&m, &args("resume io.github.alice.test"), &mut vec![], &mut vec![]), 1, "a plugin that was not stopped has nothing to resume");
+        m.store.quarantine(&app, &id, Version::new(1, 0, 0), "stopped after 3 failures in a row").unwrap();
+        let mut said = vec![];
+        assert_eq!(run_plugin(&m, &args("resume io.github.alice.test"), &mut said, &mut vec![]), 0);
+        assert_eq!(String::from_utf8(said).unwrap(), "Turned io.github.alice.test back on\n");
+        assert!(m.store.state().unwrap().apps[&app][&id].quarantine.is_none());
     }
     #[test]
     fn setup_all_enables_only_contracts_this_app_provides() {

@@ -47,14 +47,9 @@ impl PluginManager {
     }
 
     pub fn show(&mut self, ui: &mut Ui, words: &dyn Words) {
-        self.show_with_app_problems(ui, words, |_| false);
-    }
-
-    pub fn show_with_app_problems(&mut self, ui: &mut Ui, words: &dyn Words, app_problems: impl FnOnce(&mut Ui) -> bool) {
         let ctx = ui.ctx().clone();
         self.session.poll(&ctx, words);
         let mut actions = vec![];
-        let mut hook = Some(app_problems);
         let available = ui.available_rect_before_wrap();
         let bottom = available.bottom().min(ui.clip_rect().bottom());
         let full = Rect::from_min_size(available.min, vec2(available.width(), (bottom - available.top()).max(MIN_HEIGHT)));
@@ -67,7 +62,7 @@ impl PluginManager {
         if rest.width() + SIDEBAR_WIDTH >= SPLIT_FROM {
             let list = rest.with_max_x(rest.right() - DETAIL_WIDTH - GAP);
             let pane = rest.with_min_x(list.right() + GAP);
-            ui.scope_builder(UiBuilder::new().max_rect(list).id_salt("craft-plugin-list"), |ui| main(ui, model, &mut self.search, words, &mut actions, &mut hook, &mut self.install_file));
+            ui.scope_builder(UiBuilder::new().max_rect(list).id_salt("craft-plugin-list"), |ui| main(ui, model, &mut self.search, words, &mut actions, &mut self.install_file));
             ui.painter().vline(list.right() + GAP / 2.0, full.y_range(), ui.visuals().widgets.noninteractive.bg_stroke);
             ui.scope_builder(UiBuilder::new().max_rect(pane).id_salt("craft-plugin-detail"), |ui| match model.detail() {
                 Some(d) => detail::pane(ui, model, d, words, &mut actions),
@@ -83,7 +78,7 @@ impl PluginManager {
                 }
             });
         } else {
-            ui.scope_builder(UiBuilder::new().max_rect(rest).id_salt("craft-plugin-list"), |ui| main(ui, model, &mut self.search, words, &mut actions, &mut hook, &mut self.install_file));
+            ui.scope_builder(UiBuilder::new().max_rect(rest).id_salt("craft-plugin-list"), |ui| main(ui, model, &mut self.search, words, &mut actions, &mut self.install_file));
         }
         ui.advance_cursor_after_rect(full);
         self.session.apply(actions, &ctx, words);
@@ -107,7 +102,7 @@ fn sidebar(ui: &mut Ui, model: &Model, words: &dyn Words, actions: &mut Vec<Acti
     }
 }
 
-fn main<F: FnOnce(&mut Ui) -> bool>(ui: &mut Ui, model: &Model, search: &mut String, words: &dyn Words, actions: &mut Vec<Action>, hook: &mut Option<F>, install_file: &mut Option<bool>) {
+fn main(ui: &mut Ui, model: &Model, search: &mut String, words: &dyn Words, actions: &mut Vec<Action>, install_file: &mut Option<bool>) {
     toolbar(ui, model, search, words, actions, install_file);
     if let Some(error) = model.catalogue_error() {
         ui.add_space(8.0);
@@ -120,11 +115,10 @@ fn main<F: FnOnce(&mut Ui) -> bool>(ui: &mut Ui, model: &Model, search: &mut Str
             ui.add_space(6.0);
             skeleton(ui, SKELETON_ROWS);
         } else if model.tab() == Tab::Problems {
-            let drew = hook.take().is_some_and(|h| h(ui));
             for problem in model.problems() {
                 problem_card(ui, model, problem, words, actions);
             }
-            if !drew && model.problems().is_empty() {
+            if model.problems().is_empty() {
                 empty(ui, words.word(Tab::Problems.empty()));
             }
         } else if model.rows().is_empty() {
@@ -271,7 +265,7 @@ pub(crate) fn primary(ui: &mut Ui, model: &Model, row: &Row, words: &dyn Words, 
 
 fn problem_reason(kind: &ProblemKind) -> Option<String> {
     match kind {
-        ProblemKind::Quarantined { reason } | ProblemKind::KillListed { reason } => Some(reason.clone()),
+        ProblemKind::Quarantined { reason } | ProblemKind::KillListed { reason } | ProblemKind::CannotLoad { reason } => Some(reason.clone()),
         ProblemKind::Incompatible { reasons } => Some(reasons.join("; ")),
         ProblemKind::NoHelper | ProblemKind::ConsentPending { .. } | ProblemKind::UncleanExit => None,
     }

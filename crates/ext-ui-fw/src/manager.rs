@@ -30,7 +30,6 @@ const IMAGES_PER_PASS: usize = 48;
 
 pub struct PluginManager<'a> {
     state: &'a mut ManagerState,
-    problems: Option<Box<dyn FnMut(&mut Ui) + 'a>>,
     app_name: Box<dyn Fn(&AppId) -> Label + 'a>,
     install_file: bool,
 }
@@ -64,16 +63,11 @@ impl Pending {
 
 impl<'a> PluginManager<'a> {
     pub fn new(state: &'a mut ManagerState) -> Self {
-        PluginManager { state, problems: None, app_name: Box::new(|app| Label::from(app.to_string())), install_file: false }
+        PluginManager { state, app_name: Box::new(|app| Label::from(app.to_string())), install_file: false }
     }
 
     pub fn install_file(mut self) -> Self {
         self.install_file = true;
-        self
-    }
-
-    pub fn problems(mut self, rows: impl FnMut(&mut Ui) + 'a) -> Self {
-        self.problems = Some(Box::new(rows));
         self
     }
 
@@ -83,7 +77,7 @@ impl<'a> PluginManager<'a> {
     }
 
     pub fn show(self, ui: &mut Ui) -> PluginManagerOutput {
-        let PluginManager { state, mut problems, app_name, install_file } = self;
+        let PluginManager { state, app_name, install_file } = self;
         state.poll();
         request_images(state);
         post_notices(ui, state);
@@ -105,7 +99,7 @@ impl<'a> PluginManager<'a> {
                     sidebar(ui, model, &pending);
                     Divider::vertical().show(ui);
                     Stack::new().fill().scroll(Scroll::vertical()).label(label(model.tab().word())).show(ui, |ui, _| match model.tab() {
-                        Tab::Problems => problem_list(ui, model, names, &pending, problems.as_mut()),
+                        Tab::Problems => problem_list(ui, model, names, &pending),
                         tab => plugin_list(ui, model, tab, &pending),
                     });
                     Divider::vertical().show(ui);
@@ -298,10 +292,7 @@ fn plugin_row<'r>(ctx: &egui::Context, model: &'r Model, tab: Tab, row: &'r Plug
     })
 }
 
-fn problem_list(ui: &mut Ui, model: &Model, names: &dyn Fn(&AppId) -> Label, pending: &RefCell<Pending>, app_rows: Option<&mut Box<dyn FnMut(&mut Ui) + '_>>) {
-    if let Some(rows) = app_rows {
-        Stack::new().show(ui, |ui, _| rows(ui));
-    }
+fn problem_list(ui: &mut Ui, model: &Model, names: &dyn Fn(&AppId) -> Label, pending: &RefCell<Pending>) {
     let problems = model.problems();
     let keys: Vec<usize> = (0..problems.len()).collect();
     let source = keyed(&keys, |k| *k);
@@ -320,7 +311,7 @@ fn problem_list(ui: &mut Ui, model: &Model, names: &dyn Fn(&AppId) -> Label, pen
 fn problem_row<'r>(model: &Model, names: &dyn Fn(&AppId) -> Label, problem: &'r Problem, pending: &'r RefCell<Pending>) -> ListRow<'r> {
     let name = model.name_of(&problem.id);
     let reason = match &problem.kind {
-        ProblemKind::Quarantined { reason } | ProblemKind::KillListed { reason } => reason.clone(),
+        ProblemKind::Quarantined { reason } | ProblemKind::KillListed { reason } | ProblemKind::CannotLoad { reason } => reason.clone(),
         ProblemKind::Incompatible { reasons } => reasons.join("; "),
         ProblemKind::NoHelper | ProblemKind::ConsentPending { .. } | ProblemKind::UncleanExit => String::new(),
     };

@@ -22,6 +22,15 @@ impl JobState {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Status<'a> {
+    Working,
+    Note(&'a str),
+    Done,
+    Failed(&'a str),
+    Cancelled,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct JobInfo {
     pub id: u64,
@@ -49,6 +58,16 @@ impl JobInfo {
             state: JobState::Running,
             delivered: self.delivered,
             document: self.document.clone(),
+        }
+    }
+
+    pub fn status(&self) -> Status<'_> {
+        match &self.state {
+            JobState::Running if self.note.is_empty() => Status::Working,
+            JobState::Running => Status::Note(&self.note),
+            JobState::Done(_) => Status::Done,
+            JobState::Failed(why) => Status::Failed(why),
+            JobState::Cancelled => Status::Cancelled,
         }
     }
 
@@ -168,6 +187,10 @@ impl JobBoard {
         })
     }
 
+    pub fn stop(&self, id: u64) -> bool {
+        self.cancel(id, true)
+    }
+
     pub fn cancel_plugin(&self, plugin: &ExtensionId) {
         for (j, c) in self.lock().iter() {
             if &j.plugin == plugin && !j.state.finished() {
@@ -279,6 +302,12 @@ mod tests {
         let board = JobBoard::new();
         let t = board.admit(&id("io.github.a.b"), "c", "Save", false, None).unwrap();
         assert!(!board.cancel(t.id, false));
-        assert!(board.cancel(t.id, true));
+        assert_eq!(board.list()[0].status(), Status::Working);
+        assert!(board.stop(t.id), "the person can always stop a job");
+        t.progress(None, "saving");
+        assert_eq!(board.list()[0].status(), Status::Note("saving"));
+        t.finish(JobState::Failed("disk full".into()));
+        assert_eq!(board.list()[0].status(), Status::Cancelled);
+        assert!(!board.stop(t.id), "a finished job cannot be stopped");
     }
 }

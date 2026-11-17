@@ -335,6 +335,28 @@ fn unclean_exit_and_pending_consent_are_problems() {
 }
 
 #[test]
+fn a_contribution_that_cannot_load_is_a_problem_until_the_app_reports_it_fixed() {
+    let f = Fixture::new();
+    let plugin = installed(&f, "1.0.0", &[]);
+    let mut m = f.model();
+    assert_eq!(m.set_load_problems(app(), vec![(plugin.clone(), "Glow: no native helper for this computer".into())]), vec![Effect::Changed]);
+    assert_eq!(
+        m.problems(),
+        &[Problem {
+            app: app(),
+            id: plugin.clone(),
+            version: Some(Version::new(1, 0, 0)),
+            kind: ProblemKind::CannotLoad { reason: "Glow: no native helper for this computer".into() },
+            fix: None,
+        }]
+    );
+    assert_eq!(m.count(Tab::Problems), 1);
+    assert_eq!(m.set_load_problems(app(), vec![(plugin, "Glow: no native helper for this computer".into())]), vec![], "an unchanged report is not a change");
+    m.set_load_problems(app(), vec![]);
+    assert_eq!(m.problems(), &[]);
+}
+
+#[test]
 fn turning_off_after_a_crash_quarantines_and_replaces_the_unclean_exit_row() {
     let f = Fixture::new();
     let plugin = installed(&f, "1.0.0", &[]);

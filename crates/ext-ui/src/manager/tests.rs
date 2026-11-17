@@ -1,8 +1,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 use super::*;
 use craft_ext_core::{contract::Provided, id::AppId};
-use craft_ext_manager::{Action, AppTarget, Tab, Word};
-use std::time::{Duration, Instant};
+use craft_ext_manager::{AppTarget, Word};
 
 fn temp_root(name: &str) -> std::path::PathBuf {
     let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
@@ -20,42 +19,6 @@ fn config(root: &std::path::Path, apps: &[&str]) -> Config {
 
 fn english(word: Word) -> String {
     word.english().to_string()
-}
-
-fn frame(ctx: &egui::Context, draw: impl FnMut(&mut egui::Ui)) {
-    let mut draw = draw;
-    ctx.run_ui(egui::RawInput::default(), |ui| {
-        egui::CentralPanel::default().show(ui, |ui| draw(ui));
-    })
-    .drop_without_applying_deltas();
-}
-
-#[test]
-fn app_problems_draw_only_on_the_problems_tab_and_count_as_problems() {
-    let root = temp_root("app-problems");
-    let mut page = PluginManager::new(config(&root, &["effectcraft"]));
-    let deadline = Instant::now() + Duration::from_secs(20);
-    while !page.model().loaded() && Instant::now() < deadline {
-        page.model_mut().poll();
-        std::thread::sleep(Duration::from_millis(20));
-    }
-    assert!(page.model().loaded());
-    let ctx = egui::Context::default();
-    let mut calls = 0;
-    for tab in [Tab::Discover, Tab::Problems, Tab::Installed, Tab::Problems, Tab::Updates] {
-        page.model_mut().apply(Action::SetTab(tab));
-        frame(&ctx, |ui| {
-            page.show_with_app_problems(ui, &english, |ui| {
-                calls += 1;
-                ui.label("Resume a paused plugin");
-                true
-            })
-        });
-    }
-    assert_eq!(calls, 2);
-    assert_eq!(page.model().tab(), Tab::Updates);
-    assert_eq!(page.model().rows(), []);
-    std::fs::remove_dir_all(root).unwrap();
 }
 
 #[test]

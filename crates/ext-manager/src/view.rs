@@ -58,7 +58,7 @@ impl ProblemKind {
     pub fn tone(&self) -> Tone {
         match self {
             ProblemKind::KillListed { .. } | ProblemKind::NoHelper => Tone::Bad,
-            ProblemKind::Quarantined { .. } | ProblemKind::Incompatible { .. } | ProblemKind::UncleanExit => Tone::Warn,
+            ProblemKind::Quarantined { .. } | ProblemKind::Incompatible { .. } | ProblemKind::UncleanExit | ProblemKind::CannotLoad { .. } => Tone::Warn,
             ProblemKind::ConsentPending { .. } => Tone::Info,
         }
     }

@@ -15,6 +15,7 @@ pub enum ProblemKind {
     Incompatible { reasons: Vec<String> },
     ConsentPending { native: bool },
     UncleanExit,
+    CannotLoad { reason: String },
 }
 
 impl ProblemKind {
@@ -27,6 +28,7 @@ impl ProblemKind {
             ProblemKind::ConsentPending { native: true } => Word::ProblemNativeConsentPending,
             ProblemKind::ConsentPending { native: false } => Word::ProblemConsentPending,
             ProblemKind::UncleanExit => Word::ProblemUncleanExit,
+            ProblemKind::CannotLoad { .. } => Word::ProblemCannotLoad,
         }
     }
 }
@@ -63,7 +65,7 @@ pub struct Problem {
     pub fix: Option<Fix>,
 }
 
-pub(crate) fn find(view: &View<'_>, unclean: &BTreeMap<AppId, Vec<ExtensionId>>) -> Vec<Problem> {
+pub(crate) fn find(view: &View<'_>, unclean: &BTreeMap<AppId, Vec<ExtensionId>>, cannot_load: &BTreeMap<AppId, Vec<(ExtensionId, String)>>) -> Vec<Problem> {
     let mut out = vec![];
     let state = &view.snapshot.state;
     for target in &view.config.apps {
@@ -102,6 +104,10 @@ pub(crate) fn find(view: &View<'_>, unclean: &BTreeMap<AppId, Vec<ExtensionId>>)
             }
             let version = view.active(app, id);
             out.push(Problem { app: app.clone(), id: id.clone(), version, kind: ProblemKind::UncleanExit, fix: version.map(|_| Fix::TurnOff) });
+        }
+        for (id, reason) in cannot_load.get(app).into_iter().flatten() {
+            let fix = view.update(id, Some(app)).map(Fix::Update);
+            out.push(Problem { app: app.clone(), id: id.clone(), version: view.active(app, id), kind: ProblemKind::CannotLoad { reason: reason.clone() }, fix });
         }
     }
     out

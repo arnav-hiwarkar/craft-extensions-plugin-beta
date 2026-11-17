@@ -298,6 +298,7 @@ pub struct Model {
     queued: Vec<(ExtensionId, AppId, FlowKind, Option<VersionReq>)>,
     cancelled: std::collections::BTreeSet<ExtensionId>,
     unclean: BTreeMap<AppId, Vec<ExtensionId>>,
+    cannot_load: BTreeMap<AppId, Vec<(ExtensionId, String)>>,
     rows: Vec<Row>,
     problems: Vec<Problem>,
     detail: Option<Detail>,
@@ -323,6 +324,7 @@ impl Model {
             queued: Vec::new(),
             cancelled: std::collections::BTreeSet::new(),
             unclean: BTreeMap::new(),
+            cannot_load: BTreeMap::new(),
             rows: vec![],
             problems: vec![],
             detail: None,
@@ -401,6 +403,15 @@ impl Model {
         vec![Effect::Changed]
     }
 
+    pub fn set_load_problems(&mut self, app: AppId, problems: Vec<(ExtensionId, String)>) -> Vec<Effect> {
+        if self.cannot_load.get(&app) == Some(&problems) {
+            return vec![];
+        }
+        self.cannot_load.insert(app, problems);
+        self.rebuild();
+        vec![Effect::Changed]
+    }
+
     fn about(&self, word: Word, id: &ExtensionId, detail: impl Into<String>, error: bool) -> Effect {
         Effect::Notice(Notice { word, plugin: Some(id.clone()), subject: self.name_of(id), detail: detail.into(), error })
     }
@@ -418,7 +429,7 @@ impl Model {
     fn rebuild(&mut self) {
         let view = self.view();
         let rows = view.rows(self.tab, &self.query);
-        let problems = problems::find(&view, &self.unclean);
+        let problems = problems::find(&view, &self.unclean, &self.cannot_load);
         let mut counts = [0; 4];
         for tab in [Tab::Discover, Tab::Installed, Tab::Updates] {
             counts[tab as usize] = if tab == self.tab { rows.len() } else { view.rows(tab, &self.query).len() };
