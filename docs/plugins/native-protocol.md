@@ -42,6 +42,7 @@ and handle the documented result sizes of operations they call.
 | `event` | `id`, `event` | One event to execute. `id` is the host event sequence number. |
 | `result` | `id`, `ok` | Successful reply to a helper `call`; `ok` is the operation's JSON result. |
 | `result` | `id`, `error` | Failed operation; `error` has numeric `error` and text `message`. |
+| `cancel` | `job` | The person cancelled a background job; stop it and send `finish`, or stop sending records for it. |
 
 ### Helper to host
 
@@ -51,6 +52,31 @@ and handle the documented result sizes of operations they call.
 | `call` | `id`, `op`, `args` | Invoke a known app-contract operation. The host echoes the call ID in its result. |
 | `log` | `level`, `text` | Diagnostic record; numeric level is clamped to 0 through 3. |
 | `done` | `id`, `code`, optional `message` | Finish the current event. The ID must match that event; code 0 requests success, nonzero reports failure. |
+| `progress` | optional `job`, `value` (0..1 or null), `note` | Progress for a background job, or without `job` for the running event. Accepted at any time. |
+| `finish` | `job`, `result` or `error` | A background job ended; the host delivers it to the session as a `job` event. Accepted at any time. |
+
+Background jobs start with the host-handled call `job.start {label, cancellable}`, which returns
+`{"job": id}`. The event that started a job ends normally; the helper keeps working on its own
+thread and sends `progress` and `finish` records whenever it likes. The host reads them between
+events on its supervision tick. A helper that exits fails its running jobs.
+
+## Restricted mode
+
+`[native] mode = "restricted"` runs the helper under the operating system's confinement:
+
+- **macOS:** a Seatbelt profile through `/usr/bin/sandbox-exec`.
+- **Linux:** bubblewrap (`bwrap`), with every namespace unshared.
+
+In this mode the helper can do only the following:
+
+- read its release folder and system libraries;
+- write only its private data folder, which is also its working folder;
+- open no network connection;
+- start no other program; `fork` is refused.
+
+When confinement cannot be applied (Windows today, or Linux without `bwrap`), the helper does not
+start, and the manager says why. It never runs unconfined in place of a restricted start. Consent
+uses the wording from `NativeMode::sentence`. `examples/quietgrain` is a restricted helper.
 
 The host accepts calls while it is processing an event. A helper should use distinct
 call IDs and match each result before using it. Event IDs and call IDs are separate

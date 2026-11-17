@@ -342,6 +342,13 @@ fn handle(event: Event) -> Result<(), String> {
 `at` is in composition pixels (EffectCraft), image pixels (PhotoCraft) or document units
 (FigCraft). Overlays are cleared when the gesture ends.
 
+### Fast image work and tests
+
+Use the [host kernels](compute-and-jobs.md) for heavy pixel work (blur, bilateral, blend, curves,
+resample, splats). They run natively and multi-threaded. `cargo test` on your own computer runs the
+same kernel code directly, so you can unit-test a whole effect without the app (see
+`examples/lightwell`).
+
 ### State
 
 A module instance lives on its own worker thread and keeps its memory between events (for example
@@ -445,8 +452,10 @@ EffectCraft and PhotoCraft, and `page.list`, `node.children` and `node.update` i
 
 ## 10. Native helpers
 
-A native package runs a helper executable outside the sandbox. It has **full access to the
-person's computer**. The person must give separate consent ("Native: full access to your
+A native package runs a helper executable outside the sandbox. By default it has **full access to
+the person's computer**. With `mode = "restricted"` it runs confined instead: no network, no files
+outside its own folder, and no other programs (see the [protocol reference](native-protocol.md#restricted-mode)).
+Prefer restricted whenever the helper only computes. The person must give separate consent ("Native: full access to your
 computer" in the setup sheet, `--full-access` on the CLI). Consent is per version: an update asks
 again.
 
@@ -461,8 +470,12 @@ executables = { "linux-x86_64" = "bin/helper-linux-x86_64", "macos-aarch64" = "b
 - With a distinct path for each platform, one universal archive carries every helper. If several
   platforms share one path, publish one archive per platform.
 - An app shows the package as unavailable when there is no helper for its platform.
-- Native packages support commands, panels, tools and event hooks, not effects. Contributions need
-  no `module`.
+- Native helpers serve commands, panels, tools and event hooks. Effects always run sandboxed: a
+  contribution with a `module` runs in the sandbox even inside a native package, so one package can
+  ship sandboxed effects next to its helper.
+- Write helpers with the `craft-native` crate (`crates/native-sdk`). It runs the protocol loop and
+  gives typed host calls, logging, progress, and background jobs that report from worker threads
+  and see cancels. Do not write the JSON lines yourself.
 - The helper still needs the permissions its operations require. `examples/native-system-stamp`
   declares `document.edit:document` and needs `--full-access` as well.
 
@@ -512,8 +525,8 @@ The full workflow, vendor registration and store rules are in
   Memory is lost on reload, Resume and quit. You can only write ordinary document content through
   edit operations.
 - **No network or clipboard.** The permissions parse, but no operation uses them.
-- **No long-running work.** An event may hold the document for about 5 s and must finish within 8
-  or 9 s, within its fuel. There are no background jobs.
+- **Events stay short.** An event may hold the document for about 5 s and must finish within 8 or
+  9 s. Put long work in a [background job](compute-and-jobs.md#jobs) instead.
 - **Extra event fields come from helpers, not the `Event` enum.** `Event::Tool` carries `phase`
   and `at`, and `Event::Command` carries `id`, so existing matches keep compiling. While handling an
   event, `craft_guest::tool_details()` returns `modifiers` (all apps) and `button`, `pressure`,
