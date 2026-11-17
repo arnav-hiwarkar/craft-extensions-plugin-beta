@@ -13,7 +13,7 @@ names = [
     "README.md", "maps.md", "coverage.md", "formats-and-versioning.md",
     "native-protocol.md", "installation-and-testing.md", "author-guide.md",
     "how-it-works.md", "adapter-guide.md", "capabilities.md", "cli-reference.md",
-    "store-and-distribution.md", "user-guide.md", "ui.md", "framework-integration.md",
+    "store-and-distribution.md", "manager.md", "user-guide.md", "ui.md", "framework-integration.md",
     "maintainer-guide.md",
     "community-comparison-and-backlog.md", "community-nzo-review.md", "community-ecscripts-review.md",
     "community-bouncraft-review.md",

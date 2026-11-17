@@ -29,6 +29,7 @@ end state supersedes earlier proposals to retain parallel per-app plugin systems
 | [Native helper protocol](native-protocol.md) | JSON-line records, errors, deadlines and process lifecycle |
 | [CLI reference](cli-reference.md) | `<app>-cli plugin …` and `craft-ext` |
 | [Store and distribution](store-and-distribution.md) | Catalogue format, signing, vendors, tiers, reports, kill list, local test catalogues |
+| [Plugin Manager model](manager.md) | The shared manager model apps and the launcher draw: tabs, search, details, flows, problems, words |
 | [Maintainer guide](maintainer-guide.md) | Listing admission, signed publication and incident response |
 | [User guide](user-guide.md) | Finding, installing, setting up and removing plugins |
 | [Testing beside normal Mac apps](installation-and-testing.md) | Separate catalogue trust, stores, preferences and launch methods |

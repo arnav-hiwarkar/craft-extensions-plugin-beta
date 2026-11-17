@@ -4,9 +4,12 @@ How plugins are listed, signed, found, installed, reported and withdrawn. Each s
 it is **implemented** in source or **planned/deferred**. Nothing marked planned works today.
 
 Main sources: `crates/ext-core/src/catalogue.rs` (format, freshness, search, resolution),
+`crates/ext-core/src/listing.rs` (schema 1.1 listing fields, limits, category taxonomy),
+`crates/ext-core/src/review.rs` (permission widening, lookalike names),
 `crates/ext-store/src/catalogue.rs` (signature check, fetch, download, test key),
 `crates/ext-store/src/store.rs` and `manager.rs` (install, revocations), `crates/ext-cli/src/catalogue.rs`
-(maintainer commands), `crates/ext-core/src/tier.rs` (tiers), and the catalogue repository
+and `catalogue/submission.rs` (maintainer commands, submission checks), `crates/ext-core/src/tier.rs`
+(tiers), `crates/ext-manager` (the [Plugin Manager model](manager.md)), and the catalogue repository
 `craft-plugins/` (`README.md`, `SUBMITTING.md`, `MAINTAINERS.md`).
 
 ## Status at a glance
@@ -14,6 +17,9 @@ Main sources: `crates/ext-core/src/catalogue.rs` (format, freshness, search, res
 | Topic | Status |
 |---|---|
 | Signed catalogue (`index.json` + `index.json.sig`, ed25519) | Implemented |
+| Listing schema 1.1 (description, categories, icon, screenshots, homepage, changelog, attestation, downloads, featured) | Implemented in source; no published listing uses it yet |
+| `craft-ext catalogue check-submission` | Implemented in source; the CI workflow that runs it is described, not added |
+| Build attestation (Built from source badge) | Implemented: recorded by online `catalogue build` and reported by `check-submission` |
 | Package files bound by SHA-256 and size | Implemented |
 | Serial rollback protection and 30-day expiry | Implemented |
 | `craft-ext catalogue keygen / check / build / sign` | Implemented |
@@ -23,12 +29,13 @@ Main sources: `crates/ext-core/src/catalogue.rs` (format, freshness, search, res
 | Anonymous browsing and installs | Implemented (there are no accounts) |
 | Report a plugin (`plugin report` → GitHub issue URL) | Implemented |
 | Kill list (`advisory`, `block-new`, `disable`) | Implemented |
-| GitHub stars in search ranking | Implemented (fetched at build time, dated) |
+| GitHub stars and release download counts in ranking | Implemented (fetched at online build time, dated) |
 | User accounts and sign-in | Not implemented. No account sign-ins in the first release ([decision record](draft/decisions.md)) |
 | Reviews and ratings | Not implemented and not designed. They would need accounts |
 | TUF (threshold and offline root keys) | Deferred; post-beta target ([beta-design.md](beta-design.md#b8-catalogue-and-store-policy-craft-plugins)) |
 | Web builds and web store integration | Deferred ([beta-design.md](beta-design.md#b12-evidence-limits-and-deferred-items)) |
 | Automatic labelling of reports (bot or CI) | Not implemented. Triage is manual |
+| Automatic labelling of submissions | The `check-submission` verdict is ready for a workflow to apply; no workflow exists yet |
 
 ## Catalogue format (implemented)
 
@@ -39,9 +46,11 @@ overrides it for mirrors and tests, and signatures still apply.
 
 ```text
 dist/
-  index.json            schema, serial, issued, expires, vendors, packages (one row each), revocations
+  index.json            schema, schema_minor, serial, issued, expires, vendors, packages (one row each),
+                        revocations, featured
   index.json.sig        hex ed25519 signature over the exact bytes of index.json
   packages/<id>.json    every listed release of one package, fetched on demand
+  media/<id>/<file>.png icons and screenshots kept in the catalogue repository
 ```
 
 - **One signature per snapshot.** Only `index.json` is signed. Each package row carries
@@ -75,12 +84,75 @@ dist/
   slower, older refresh cannot replace a newer cache. Every later read re-verifies the signature;
   an older cache in the two-file layout is still read until the next refresh.
 
+## Listing schema 1.1 (implemented in source)
+
+Schema 1.1 adds optional listing fields. It is additive in both directions:
+
+- **Old apps read new catalogues.** `SCHEMA` stays `1`. A 1.0 app refuses any index whose `schema`
+  differs from `1` (`fresh` in `crates/ext-core/src/catalogue.rs`), so raising it would cut every
+  installed app off the store. The 1.0 index, package row, release and package-file structs never
+  used `deny_unknown_fields`, so a 1.0 reader ignores the new fields. The test
+  `a_1_0_reader_reads_a_1_1_index` parses a 1.1 index with a copy of the 1.0 shape.
+- **New apps read old catalogues.** Every new field has a serde default, so a 1.0 index parses with
+  empty values (`a_1_1_reader_reads_1_0_and_tolerates_unknown_categories`).
+- **`schema_minor`** records `1` for 1.1 and is absent (0) in 1.0. Empty new fields are not written,
+  so a listing that uses none of them serialises exactly as in 1.0.
+- **Forward tolerance.** An app drops category keys it does not know instead of refusing the index,
+  so a later taxonomy addition stays readable. Contribution `kinds` are still a closed enum: a new
+  contribution kind in the index would make 1.0 and 1.1 apps refuse it, so a new kind needs a
+  schema decision of its own.
+- **The index size cap is unchanged** (8 MiB, enforced by old apps too). Descriptions live in the
+  index because search ranks them; `catalogue build` refuses an index over the cap.
+
+| Field | Where | Limit, refused when exceeded |
+|---|---|---|
+| `summary` | package row (existing; `listing.toml` may override the manifest's) | 140 characters, one line, no invisible formatting |
+| `description` | package row (`listing.toml`, else the manifest's) | 8 KiB |
+| `categories` | package row | at most 2, each from the taxonomy and valid for one of the plugin's apps |
+| `tags` | package row (existing) | at most 10, each at most 32 characters |
+| `icon` | package row | PNG, square, at most 256 KiB, sides at most 4096 px |
+| `screenshots` | package row | at most 6 PNGs, each at most 2 MiB |
+| `homepage` | package row | an `https://` address |
+| `license` | package row (existing) | not empty |
+| `downloads` | package row and each release | `{count, date}`; the row sums the releases |
+| `changelog` | release | 4 KiB |
+| `attestation` | release | `{verified, signer_workflow, source_commit}`; the commit must equal the release commit |
+| `featured` | index | at most 24 listed ids, each once |
+
+An image is `{url, sha256, size, width, height}`. Its `url` is either a `.png` path inside the
+catalogue (`media/<id>/<file>.png`, copied there by `catalogue build` from `plugins/<id>/media/`) or
+a `.png` asset of the package's own GitHub release. The build checks a repository file's size,
+digest and PNG dimensions; the manager checks them again after download (`Catalogue::media`).
+
+Validation (`PackageSummary::check_listing`, `Release::check_listing`, `Index::check_listing`) runs
+in `catalogue build`, `catalogue check` and `check-submission`. A bad value is refused with the field
+named, for example `io.github.alice.test: icon: is 65x64; an icon must be square`; nothing is
+clamped. Apps do not re-validate listing fields, so one maintainer mistake cannot hide the whole
+store; the signed index is trusted as published.
+
+The category taxonomy is one table, `CATEGORIES` in `crates/ext-core/src/listing.rs`:
+
+| Key | Name | Apps |
+|---|---|---|
+| `effects-filters` | Effects & filters | EffectCraft, PhotoCraft |
+| `generators` | Generators | all |
+| `color-looks` | Color & looks | all |
+| `text-titles` | Text & titles | all |
+| `motion-animation` | Motion & animation | EffectCraft, FigCraft |
+| `3d-particles` | 3D & particles | EffectCraft |
+| `utilities` | Utilities | all |
+| `panels-workflow` | Panels & workflow | all |
+| `import-export` | Import & export | all |
+| `ai-analysis` | AI & analysis | all |
+| `resources` | Resources | all |
+
 ## Signing and key handling (implemented)
 
 | Command | What it does |
 |---|---|
 | `craft-ext catalogue keygen --repo <dir> --out <file>` | Generates a random ed25519 seed, writes it as hex to a new file (mode 0600 on Unix; refuses to overwrite), and prints the public key for `TRUSTED_KEYS`. |
 | `craft-ext catalogue check --repo <dir> [--offline] [--only <id>]` | Validates the repository (below) and prints the manual checklist. |
+| `craft-ext catalogue check-submission --repo <dir> --id <id> [--offline]` | Runs the [automated submission checks](#automated-submission-checks-implemented-in-source) for one listing change and prints a verdict. |
 | `craft-ext catalogue build --repo <dir> [--offline]` | Writes `dist/packages/<id>.json` first and `dist/index.json` last, with `serial` = previous + 1, and deletes any old `index.json.sig`. |
 | `craft-ext catalogue build --local-assets <dir> --out <dir>` | Builds an unsigned test catalogue from local `.craftplugin` files (see [Local test catalogues](#local-test-catalogues-implemented)). |
 | `craft-ext catalogue sign --repo <dir> --key <file>` | Checks that `index.json` parses and is fresh, then writes `index.json.sig`. Signs `<dir>/index.json` if present, else `<dir>/dist/index.json`. |
@@ -101,9 +173,14 @@ every three weeks, because signed metadata expires after 30 days.
 ```text
 craft-plugins/
   vendors/<github-login>.toml               login, github_id, name, tier, url?, verified_how?
-  plugins/<id>/listing.toml                 id, vendor, repo, repo_id, tags, licence_reviewed?, monetisation_reviewed?
-  plugins/<id>/releases/<version>.toml      core Release record, made by `craft-ext pack --release-record`
+  plugins/<id>/listing.toml                 id, vendor, repo, repo_id, tags, licence_reviewed?, monetisation_reviewed?,
+                                            summary?, description?, categories?, icon?, screenshots?, homepage?,
+                                            signer_workflow?
+  plugins/<id>/media/                       icon and screenshot PNGs named by path in listing.toml
+  plugins/<id>/releases/<version>.toml      core Release record, made by `craft-ext pack --release-record`,
+                                            plus an optional changelog
   revocations.toml                          [[revocation]] entries: the kill list
+  featured.toml                             ids = [...]: the curated featured list
   examples/pending/                         example listings excluded from builds
   .github/ISSUE_TEMPLATE/report.yml         the Report plugin form
   dist/                                     built and signed output
@@ -117,7 +194,12 @@ craft-plugins/
   `crates/ext-core/src/id.rs`) unless the vendor tier is official;
 - an `io.github.<login>.…` id whose `<login>` differs from the vendor login (other domains only get a
   warning to review `verified_how`);
-- unknown fields in a release record or asset (no trust or payment fields can be added);
+- unknown fields in a release record or asset (no trust or payment fields can be added; `changelog`
+  is the only author field added in 1.1, and attestations and download counts are written by the
+  build, never by the author);
+- a listing field that breaks a [schema 1.1 limit](#listing-schema-11-implemented-in-source), a
+  featured id that is not listed, or a media file whose size, digest or PNG size differs from its
+  record;
 - a release whose id, version or source differs from the listing, a non-OSI licence term, an asset
   URL that is not `https://github.com/<owner>/<repo>/releases/download/<tag>/<file>` of the listed
   repository and tag, or an invalid digest or size;
@@ -129,11 +211,54 @@ Online (without `--offline`) it also checks with the GitHub API that the reposit
 numeric id equals `repo_id`, its owner's numeric id and login equal the vendor's `github_id` and
 `login`, its detected licence equals the manifest (or `licence_reviewed` explains why GitHub found
 none), the tag resolves to the recorded commit, and each asset downloads, unpacks and carries the
-recorded manifest. `GITHUB_TOKEN` is used when set.
+recorded manifest. `GITHUB_TOKEN` is used when set. It also records each release's download count
+from the GitHub release (dated) and, when the listing names a `signer_workflow`, the release's build
+attestation. A named workflow whose attestation does not verify stops the build. Offline builds keep
+the counts and attestations already published.
 
-What automation cannot prove (source-to-build provenance, free behaviour, sensible permissions,
-impersonation) is the maintainer's manual checklist in `craft-plugins/MAINTAINERS.md`. One maintainer
-reviews and merges; there is no bot, no CI and no second approval.
+What automation still cannot prove (free behaviour, sensible permission reasons, intent) stays on the
+maintainer's checklist in `craft-plugins/MAINTAINERS.md`. Today one maintainer reviews and merges;
+no CI runs the checks yet. The [submission checks](#automated-submission-checks-implemented-in-source)
+are written so that a workflow can leave only labelled submissions for a person.
+
+## Automated submission checks (implemented in source)
+
+`craft-ext catalogue check-submission --repo <dir> --id <id>` checks one listing change against the
+published `dist/` and prints a report: one row per check, the verdict (`pass`, `needs-review` or
+`fail`), and any attestations it verified. A `fail` verdict exits non-zero. Every check that cannot
+run (no network, `--offline`, `gh` missing, a GitHub API error) reports `fail`, never `pass`.
+
+| Check | Fails | Needs review |
+|---|---|---|
+| `schema` | The listing, releases, sizes or media break the repository rules or the 1.1 limits | |
+| `names` | The published index cannot be read | The name or id tail looks like another listing (case, `0`/`o`, `1`/`l`/`i`, `rn`/`m` and similar, edit distance 1 from 5 characters and 2 from 9) |
+| `permissions` | | A new release adds a permission no earlier permission covers, adds a native helper, or turns a restricted helper into full access |
+| `source` | Repository not public, owner or numeric ids differ, licence differs, tag not at the commit, or an asset's digest, size or manifest differs | |
+| `immutable-release` | A new GitHub release is not immutable, so its assets could be swapped after listing | |
+| `attestation` | `gh attestation verify --repo <repo> --signer-workflow <repo>/<workflow>` refuses an asset, names another commit, or cannot run; or a native listing, or one from a verified or official vendor, names no `signer_workflow` | |
+
+New releases are those missing from the published `dist/packages/<id>.json`. A brand-new listing is
+compared with nothing, so only a native helper marks it for review; its permissions are shown to every
+person at setup.
+
+The intended workflow (not added to `craft-plugins`; adding it needs the owner's approval):
+
+1. On a pull request that touches `plugins/<id>/`, check out the pull request without running its
+   code, install `craft-ext` from a pinned release and `gh`, and run
+   `craft-ext catalogue check-submission --repo . --id <id> --json` with a read-only token.
+2. On `fail`, fail the job and comment the failing rows. On `needs-review`, add the `needs-review`
+   label and comment the rows. On `pass` for an existing community vendor, mark the pull request
+   ready to merge.
+3. A maintainer reviews only labelled pull requests. Signing stays a local maintainer step with the
+   offline key: `catalogue build` (online, so it records attestations and download counts), then
+   `catalogue sign`.
+
+## Featured list (implemented in source)
+
+`featured.toml` in the catalogue repository lists up to 24 ids by hand. `catalogue build` copies it
+into the signed index as `featured`, refusing unknown or repeated ids. It is the one place human taste
+enters ranking: the manager shows a Featured badge and can offer a featured shelf. It needs no
+accounts.
 
 ## Makers and vendor identity (implemented)
 
@@ -156,12 +281,20 @@ Tiers are never read from a package. The host assigns them from where the packag
 | `local` | Not reviewed (local file) | Installed from a file, or not in the catalogue. |
 | `dev` | Development | Installed by `craft-ext dev` into the separate development store `<store>/development`. |
 
+Badges beside the tier are derived by the catalogue build, never by the package. **Built from
+source** means the newest release has a verified attestation (`attestation.verified`), recorded by
+`catalogue build` after `gh attestation verify` proved that the listed repository's workflow built
+those bytes at the release commit. The app never calls GitHub; it trusts the signed index and checks
+the digests it already checks. Native: full access and Native: restricted come from the manifest.
+
 Grants are bound to a package's origin. If a package with the same id arrives from a different origin
 (for example a local file after a catalogue install), every app's grants, consent and enablement for
 it are cleared (`Store::install_bytes`, `set_active`).
 
-Search ranks matches first, then official, verified and community vendors, then GitHub stars, then
-id. Stars are fetched by `catalogue build` and shown with their date.
+The CLI search ranks matches first, then official, verified and community vendors, then GitHub stars,
+then id. The [Plugin Manager model](manager.md#search-and-sorting) ranks name over summary over tags
+over description, then adds tier and download boosts. Stars and download counts are fetched by an
+online `catalogue build` and shown with their date.
 
 ## Anonymous installs (implemented)
 
@@ -172,7 +305,8 @@ the author's public release asset. The app sends no identity to the catalogue.
 ## Reviews and ratings (not implemented)
 
 No source implements user reviews or ratings, and the beta design does not specify them. They would
-need accounts, which are not in the first release. GitHub stars are the only popularity signal.
+need accounts, which are not in the first release. GitHub stars and GitHub release download counts
+are the only popularity signals.
 
 ## Reports and the kill list
 

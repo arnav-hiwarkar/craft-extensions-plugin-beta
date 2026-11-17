@@ -16,7 +16,7 @@ owner of each domain and the compatibility rule a reader can rely on.
 | Form patch | `schema: 1`, `base_rev`, increasing `rev` | Applies only to the matching form revision; validation is atomic. Unsupported or stale patches are refused. |
 | Panel tree and draw list | UI levels 1.0 and 1.1 | `ext-core::ui::tree`; session contract minor carries the UI level. UI 1.0 remains supported. |
 | Surface revision | Host-assigned `rev` | Identifies the tree shown. Every widget event carries it; stale or closed-surface replies are rejected. It is not a package version. |
-| Catalogue index/package metadata | JSON, `schema: 1` | `ext-core::catalogue`; signed index binds hashed per-package metadata. |
+| Catalogue index/package metadata | JSON, `schema: 1`, `schema_minor: 1` (listing 1.1) | `ext-core::catalogue` and `ext-core::listing`; signed index binds hashed per-package metadata. 1.1 fields are optional and ignored by 1.0 apps ([schema 1.1](store-and-distribution.md#listing-schema-11-implemented-in-source)). |
 | Catalogue serial and validity | Increasing serial, `issued`, `expires` | Highest accepted serial is retained. Older serial, future-issued or expired metadata cannot authorize new installs. |
 | Local store | `store-v2.json`, `schema: 2` | `ext-store::state`; per-app active/pending version, contributions, grants, consent and pins. |
 | Grant generation | Per-plugin app setup counter | Invalidates captured work when access changes. It must not be reset to revive an old invocation. |
