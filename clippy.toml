@@ -2,3 +2,8 @@ allow-unwrap-in-tests = true
 allow-expect-in-tests = true
 allow-panic-in-tests = true
 allow-indexing-slicing-in-tests = true
+disallowed-methods = [
+    { path = "ureq::get", reason = "use craft_ext_store::catalogue::http(): one agent with platform roots and a timeout" },
+    { path = "ureq::post", reason = "use craft_ext_store::catalogue::http(): one agent with platform roots and a timeout" },
+    { path = "ureq::agent", reason = "use craft_ext_store::catalogue::http(): one agent with platform roots and a timeout" },
+]

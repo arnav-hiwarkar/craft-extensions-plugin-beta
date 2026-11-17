@@ -34,6 +34,8 @@ These come from building this platform; each is backed by a check where one exis
 - **Hand results over once.** Lists show metadata; payloads move to their consumer and are dropped.
 - **Serve forward-compatible data.** Structs read from the catalogue or other signed data accept unknown
   fields; strictness belongs in the authoring checks (`craft-ext check`, `check-submission`).
+- **One HTTP agent.** All network calls use `craft_ext_store::catalogue::http()` (platform roots, a
+  timeout); clippy's `disallowed-methods` refuses bare `ureq` calls.
 - **Multi-step writes either finish or restore.** Snapshot the prior state and put it back on failure.
 - **Fail closed.** A check that cannot run (confinement, signature, attestation) refuses; it never runs the
   unprotected path quietly.

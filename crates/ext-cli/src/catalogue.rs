@@ -106,7 +106,7 @@ fn github(repo: &str, suffix: &str) -> Result<Value> {
     if slug.split('/').count() != 2 {
         return Err("repository must name an owner and repository".into());
     }
-    let mut request = ureq::get(&format!("https://api.github.com/repos/{slug}{suffix}")).header("User-Agent", "craft-ext-cli");
+    let mut request = craft_ext_store::catalogue::http().get(&format!("https://api.github.com/repos/{slug}{suffix}")).header("User-Agent", "craft-ext-cli");
     if let Ok(token) = std::env::var("GITHUB_TOKEN") {
         request = request.header("Authorization", &format!("Bearer {token}"));
     }
@@ -173,7 +173,7 @@ fn check_online(l: &Listing, v: &VendorRecord, r: &Release) -> Result<OnlineFact
     if repo["id"].as_u64() != Some(l.repo_id) {
         return Err("repository numeric id differs".into());
     }
-    let mut request = ureq::get(&format!("https://api.github.com/users/{}", v.login)).header("User-Agent", "craft-ext-cli");
+    let mut request = craft_ext_store::catalogue::http().get(&format!("https://api.github.com/users/{}", v.login)).header("User-Agent", "craft-ext-cli");
     if let Ok(token) = std::env::var("GITHUB_TOKEN") {
         request = request.header("Authorization", &format!("Bearer {token}"));
     }

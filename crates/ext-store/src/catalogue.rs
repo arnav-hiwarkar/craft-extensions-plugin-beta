@@ -205,6 +205,18 @@ impl Catalogue {
     }
 }
 #[cfg(feature = "net")]
+pub const DOWNLOAD_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(120);
+
+#[cfg(feature = "net")]
+pub fn http() -> &'static ureq::Agent {
+    static AGENT: std::sync::OnceLock<ureq::Agent> = std::sync::OnceLock::new();
+    AGENT.get_or_init(|| {
+        let tls = ureq::tls::TlsConfig::builder().root_certs(ureq::tls::RootCerts::PlatformVerifier).build();
+        ureq::Agent::config_builder().tls_config(tls).timeout_global(Some(DOWNLOAD_TIMEOUT)).user_agent("craft-plugins").build().into()
+    })
+}
+
+#[cfg(feature = "net")]
 fn get(url: &str, max: u64) -> Result<Vec<u8>> {
     use std::io::Read;
     let mut b = vec![];
@@ -219,7 +231,7 @@ fn get(url: &str, max: u64) -> Result<Vec<u8>> {
         }
         return Ok(b);
     }
-    let mut response = ureq::get(url).call().map_err(error)?;
+    let mut response = http().get(url).call().map_err(error)?;
     response.body_mut().as_reader().take(max.saturating_add(1)).read_to_end(&mut b).map_err(error)?;
     if b.len() as u64 > max {
         return Err(error("the download is too large"));
