@@ -1,7 +1,3 @@
-//! Host compute kernels (`kernel.*`): prebuilt, multi-threaded image functions a sandboxed plugin
-//! runs on images in its own memory. They have no document access, so they need no permission and
-//! work in filters, sessions and jobs alike. Every image is premultiplied RGBA `f32`, row-major,
-//! little-endian, addressed as `{"ptr", "width", "height"}` in the guest's memory.
 
 use serde_json::{Value, json};
 
@@ -11,8 +7,6 @@ pub const MAX_CONVOLVE: usize = 15;
 pub const MAX_SPLATS: usize = 1_000_000;
 pub const MAX_CURVE: usize = 4096;
 
-/// Work units charged as fuel per kernel call, so heavy kernels still count against the event or
-/// job budget even though they run natively.
 pub fn cost(op: &str, args: &Value, pixels: u64) -> u64 {
     let radius = args.get("radius").and_then(Value::as_f64).unwrap_or(1.0).clamp(1.0, MAX_RADIUS as f64) as u64;
     let per_pixel = match op {
@@ -25,7 +19,6 @@ pub fn cost(op: &str, args: &Value, pixels: u64) -> u64 {
     pixels.saturating_mul(per_pixel).saturating_add(10_000)
 }
 
-/// One image a kernel reads or writes, copied out of guest memory and back.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Image {
     pub width: usize,
@@ -62,7 +55,6 @@ impl Image {
     }
 }
 
-/// Where an image lives in guest memory.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ImageRef {
     pub ptr: usize,
@@ -89,7 +81,6 @@ fn threads() -> usize {
     std::thread::available_parallelism().map_or(1, |n| n.get()).min(8)
 }
 
-/// Runs `f(y, row)` for every output row on a few threads.
 fn rows(out: &mut [f32], width: usize, f: impl Fn(usize, &mut [f32]) + Sync) {
     let stride = width * 4;
     if stride == 0 {
@@ -275,7 +266,6 @@ fn per_pixel(img: &mut Image, f: impl Fn([f32; 4]) -> [f32; 4] + Sync) {
     });
 }
 
-/// 4×5 row-major matrix on straight (unpremultiplied) RGBA; the fifth column is an offset.
 pub fn color_matrix(img: &mut Image, m: &[f32]) -> Result<(), String> {
     if m.len() != 20 {
         return Err("matrix must have 20 values (4 rows of r, g, b, a, offset)".into());
@@ -301,8 +291,6 @@ fn lookup(curve: &[f32], v: f32) -> f32 {
     curve[i] * (1.0 - f) + curve[i + 1] * f
 }
 
-/// Sampled curves (2..=4096 evenly spaced values over 0..1) applied to straight colour: `rgb` to all
-/// three colour channels first, then each of `r`, `g`, `b`, `a`.
 pub fn curves(img: &mut Image, args: &Value) -> Result<(), String> {
     let mut list = Vec::new();
     for k in ["rgb", "r", "g", "b", "a"] {
@@ -359,7 +347,6 @@ fn blend_channel(mode: &str, b: f32, s: f32) -> f32 {
     }
 }
 
-/// Composites `src` over `img` (same size) with a separable blend mode and opacity.
 pub fn blend(img: &mut Image, src: &Image, mode: &str, opacity: f32) -> Result<(), String> {
     if !BLEND_MODES.contains(&mode) {
         return Err(format!("mode must be one of {}", BLEND_MODES.join(", ")));
@@ -379,7 +366,6 @@ pub fn blend(img: &mut Image, src: &Image, mode: &str, opacity: f32) -> Result<(
             for c in 0..3 {
                 let (b, sc) = (unb(d[c], ab), unb(s[c], s[3]));
                 let mixed = blend_channel(mode, b, sc);
-                // Porter-Duff source-over with the mixed colour where both are present.
                 d[c] = (1.0 - as_) * d[c] + as_ * ((1.0 - ab) * sc + ab * mixed);
             }
             d[3] = as_ + ab * (1.0 - as_);
@@ -413,7 +399,6 @@ fn value_noise(x: f32, y: f32, z: f32, seed: u32) -> f32 {
     v
 }
 
-/// Fractal value noise in 0..1, written as opaque grey (`fill`) or multiplied into the image.
 pub fn noise(img: &mut Image, scale: f32, octaves: u32, seed: u32, z: f32, multiply: bool) -> Result<(), String> {
     if !(scale.is_finite() && scale > 0.0) || !(1..=12).contains(&octaves) || !z.is_finite() {
         return Err("scale must be positive and octaves 1..=12".into());
@@ -442,7 +427,6 @@ pub fn noise(img: &mut Image, scale: f32, octaves: u32, seed: u32, z: f32, multi
     Ok(())
 }
 
-/// Bilinear resample of `src` into `dst`'s size, averaging a box of source pixels when shrinking.
 pub fn resample(src: &Image, dst: &mut Image) {
     let (sx, sy) = (src.width as f32 / dst.width as f32, src.height as f32 / dst.height as f32);
     let (tx, ty) = (sx.ceil().max(1.0) as usize, sy.ceil().max(1.0) as usize);
@@ -466,7 +450,6 @@ pub fn resample(src: &Image, dst: &mut Image) {
     });
 }
 
-/// Fills `dst` by sampling `src` through the inverse of the 2×3 affine `m` (dst = m · src).
 pub fn warp_affine(src: &Image, dst: &mut Image, m: &[f32]) -> Result<(), String> {
     if m.len() != 6 {
         return Err("matrix must have 6 values [a, b, c, d, e, f]".into());
@@ -489,8 +472,6 @@ pub fn warp_affine(src: &Image, dst: &mut Image, m: &[f32]) -> Result<(), String
     Ok(())
 }
 
-/// Adds soft discs: each splat is 8 floats `x, y, radius, r, g, b, a, hardness` (straight colour,
-/// hardness 0..1). Splats add light (premultiplied add), which is what particles and glows want.
 pub fn splat(img: &mut Image, splats: &[f32]) -> Result<(), String> {
     if !splats.len().is_multiple_of(8) || splats.len() / 8 > MAX_SPLATS {
         return Err(format!("points must be groups of 8 floats, at most {MAX_SPLATS} groups"));
@@ -527,7 +508,6 @@ pub fn splat(img: &mut Image, splats: &[f32]) -> Result<(), String> {
     Ok(())
 }
 
-/// 256-bin histograms of straight R, G, B and alpha.
 pub fn histogram(img: &Image) -> Value {
     let mut bins = vec![[0u64; 256]; 4];
     for p in img.px.chunks_exact(4) {
@@ -549,7 +529,6 @@ fn clamp_premultiplied(img: &mut Image) {
     }
 }
 
-/// Image arguments a kernel reads (`image` is also written back unless the kernel only reads).
 pub fn inputs(op: &str) -> &'static [&'static str] {
     match op {
         "kernel.blend" => &["image", "src"],
@@ -558,7 +537,6 @@ pub fn inputs(op: &str) -> &'static [&'static str] {
     }
 }
 
-/// Whether the kernel writes `image` back into guest memory.
 pub fn writes(op: &str) -> bool {
     op != "kernel.histogram"
 }
@@ -578,8 +556,6 @@ pub const OPS: &[&str] = &[
     "kernel.histogram",
 ];
 
-/// Runs one kernel. `images` holds the images named by [`inputs`], in that order; `splats` is the
-/// float list for `kernel.splat`. The first `image` entry is the one written back.
 pub fn run(op: &str, args: &Value, images: &mut [Image], splats: &[f32]) -> Result<Value, String> {
     let (image, rest) = match op {
         "kernel.resample" | "kernel.warp_affine" | "kernel.blend" => {

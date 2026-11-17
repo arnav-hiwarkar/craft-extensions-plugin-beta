@@ -1,21 +1,9 @@
-//! Native plugins: never loaded into the app. The host starts the helper executable and speaks the
-//! session protocol as JSON lines over stdin/stdout (beta-design B6).
-//!
-//! Protocol 1 (one JSON object per line, ≤ 1 MiB per line):
-//! - host → helper: `{"type":"hello","protocol":1,"app":"effectcraft","contracts":[["effectcraft.session","1.0"]]}`
-//! - helper → host: `{"type":"ready"}`
-//! - host → helper: `{"type":"event","id":7,"event":{…}}`
-//! - helper → host: `{"type":"call","id":1,"op":"doc.selection","args":{…}}` → host: `{"type":"result","id":1,"ok":…}` or `{"type":"result","id":1,"error":{…}}`
-//! - helper → host: `{"type":"log","level":1,"text":"…"}`
-//! - helper → host: `{"type":"done","id":7,"code":0}` (ends the event's transaction)
-//!
-//! Invariants: the helper gets a clean environment and its own working folder; every call it makes is
-//! checked for full-access consent, enablement and the kill list (permissions are moot: it already has
-//! full access); a stopped plugin's process is killed; timeouts kill the process; output lines are
-//! size-capped. Killing cannot undo effects the helper already caused.
 
 use crate::api::{AppApi, Code, Grants, Invocation, OpError};
+use crate::jobs::{JobBoard, JobState, Ticket};
 use crate::wasm::{LogFn, PluginError};
+use std::collections::BTreeMap;
+use std::path::PathBuf;
 use serde_json::{Value, json};
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::Path;
@@ -29,16 +17,9 @@ use std::time::{Duration, Instant};
 pub const PROTOCOL: u32 = 1;
 const MAX_LINE: u64 = 1024 * 1024;
 const START_TIMEOUT: Duration = Duration::from_secs(10);
-/// Absolute limit for one event, however chatty the helper is.
 const EVENT_TIMEOUT: Duration = Duration::from_secs(60);
-/// Lines buffered from the helper; when full the reader blocks (backpressure), so a flooding helper
-/// cannot grow host memory beyond `QUEUE_LINES * MAX_LINE`.
 const QUEUE_LINES: usize = 64;
 
-/// The current platform key used in `native.executables` (`linux-x86_64`, `macos-aarch64`, …).
-/// Stops every process in the helper's group (the helper started it with `process_group(0)`, so
-/// the group id is its pid). Std has no killpg; the system `kill` does it without unsafe code.
-/// Best effort: a process that left the group on purpose is not covered (native is not a sandbox).
 #[cfg(unix)]
 fn kill_group(pid: u32) {
     for kill in ["/bin/kill", "/usr/bin/kill"] {
@@ -51,13 +32,67 @@ fn kill_group(pid: u32) {
 #[cfg(not(unix))]
 fn kill_group(_pid: u32) {}
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Confinement {
+    Full,
+    Restricted { release: PathBuf, data: PathBuf },
+}
+
+fn seatbelt_quote(p: &Path) -> String {
+    p.to_string_lossy().replace('\\', "\\\\").replace('"', "\\\"")
+}
+
+pub fn seatbelt_profile(exe: &Path, release: &Path, data: &Path) -> String {
+    let (exe, release, data) = (seatbelt_quote(exe), seatbelt_quote(release), seatbelt_quote(data));
+    format!(
+        r#"(version 1)
+(deny default)
+(allow process-exec (literal "{exe}"))
+(allow file-read* (literal "{exe}"))
+(allow file-read-metadata)
+(allow file-read* (literal "/") (subpath "{release}") (subpath "{data}") (subpath "/usr/lib") (subpath "/usr/share") (subpath "/System") (subpath "/Library/Apple") (subpath "/private/var/db/dyld") (subpath "/private/var/db/timezone") (literal "/dev/null") (literal "/dev/random") (literal "/dev/urandom") (literal "/private/etc/localtime"))
+(allow file-write* (subpath "{data}") (literal "/dev/null"))
+(allow sysctl-read)
+(allow mach-lookup (global-name "com.apple.system.opendirectoryd.libinfo") (global-name "com.apple.system.notification_center"))
+(allow ipc-posix-shm-read-data)
+(allow signal (target self))
+"#
+    )
+}
+
+fn confined_command(exe: &Path, confinement: &Confinement) -> Result<Command, String> {
+    let Confinement::Restricted { release, data } = confinement else { return Ok(Command::new(exe)) };
+    if cfg!(target_os = "macos") {
+        let sandbox = Path::new("/usr/bin/sandbox-exec");
+        if !sandbox.exists() {
+            return Err("this Mac has no sandbox-exec, so the restricted helper cannot be confined".into());
+        }
+        let mut c = Command::new(sandbox);
+        c.arg("-p").arg(seatbelt_profile(exe, release, data)).arg(exe);
+        return Ok(c);
+    }
+    if cfg!(target_os = "linux") {
+        let bwrap = ["/usr/bin/bwrap", "/bin/bwrap"].into_iter().map(Path::new).find(|p| p.exists());
+        let Some(bwrap) = bwrap else { return Err("restricted native helpers need bubblewrap (bwrap) on Linux".into()) };
+        let mut c = Command::new(bwrap);
+        c.args(["--unshare-all", "--die-with-parent", "--new-session", "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp"]);
+        for sys in ["/usr", "/lib", "/lib64", "/lib32", "/etc/ld.so.cache", "/etc/localtime"] {
+            if Path::new(sys).exists() {
+                c.args(["--ro-bind", sys, sys]);
+            }
+        }
+        c.arg("--ro-bind").arg(release).arg(release).arg("--bind").arg(data).arg(data).arg("--chdir").arg(data).arg(exe);
+        return Ok(c);
+    }
+    Err("restricted native helpers are not available on this operating system yet".into())
+}
+
 pub fn platform() -> String {
     format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH)
 }
 
 pub struct Helper {
     child: Child,
-    /// The helper was reaped; its pid (and so its group id) must not be signalled again.
     ended: bool,
     stdin: ChildStdin,
     lines: Receiver<Option<Value>>,
@@ -67,11 +102,12 @@ pub struct Helper {
     next_id: u64,
     plugin: ExtensionId,
     version: Version,
+    jobs: Option<Arc<JobBoard>>,
+    live_jobs: BTreeMap<u64, Arc<Ticket>>,
+    progress: Option<crate::wasm::ProgressFn>,
 }
 
 impl Helper {
-    /// Starts `exe` (inside the release folder) with `work` as its working folder. Refuses before
-    /// spawning anything unless the plugin has full-access consent and is not stopped.
     pub fn start(
         plugin: &ExtensionId,
         version: Version,
@@ -81,11 +117,24 @@ impl Helper {
         grants: Arc<dyn Grants>,
         log: LogFn,
     ) -> Result<Self, PluginError> {
+        Self::start_confined(plugin, version, exe, work, api, grants, log, &Confinement::Full)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn start_confined(
+        plugin: &ExtensionId,
+        version: Version,
+        exe: &Path,
+        work: &Path,
+        api: Arc<dyn AppApi>,
+        grants: Arc<dyn Grants>,
+        log: LogFn,
+        confinement: &Confinement,
+    ) -> Result<Self, PluginError> {
         if !grants.full_access(plugin) || grants.stopped(plugin, version) {
-            return Err(PluginError::Stopped("full access has not been allowed for this plugin".into()));
+            return Err(PluginError::Stopped("native code has not been allowed for this plugin".into()));
         }
-        let mut command = Command::new(exe);
-        // Its own process group, so stopping the helper also stops processes it started.
+        let mut command = confined_command(exe, confinement).map_err(PluginError::Load)?;
         #[cfg(unix)]
         std::os::unix::process::CommandExt::process_group(&mut command, 0);
         let mut child = command
@@ -118,7 +167,21 @@ impl Helper {
                 }
             }
         });
-        let mut h = Helper { child, ended: false, stdin, lines: rx, api, grants, log, next_id: 1, plugin: plugin.clone(), version };
+        let mut h = Helper {
+            child,
+            ended: false,
+            stdin,
+            lines: rx,
+            api,
+            grants,
+            log,
+            next_id: 1,
+            plugin: plugin.clone(),
+            version,
+            jobs: None,
+            live_jobs: BTreeMap::new(),
+            progress: None,
+        };
         let contracts: Vec<(String, String)> =
             h.api.contract().provided.contracts.iter().map(|(n, l)| (n.to_string(), l.to_string())).collect();
         h.send(&json!({"type":"hello","protocol":PROTOCOL,"app":h.api.contract().app.as_str(),"contracts":contracts}))?;
@@ -137,30 +200,101 @@ impl Helper {
         self.stdin.write_all(&line).and_then(|()| self.stdin.flush()).map_err(|_| PluginError::Trap("the helper stopped".into()))
     }
 
+    pub fn set_jobs(&mut self, board: Arc<JobBoard>) {
+        self.jobs = Some(board);
+    }
+
+    pub fn set_progress(&mut self, progress: crate::wasm::ProgressFn) {
+        self.progress = Some(progress);
+    }
+
+    fn handle_async(&mut self, msg: &Value) -> bool {
+        let job = msg["job"].as_u64();
+        match (msg["type"].as_str(), job) {
+            (Some("progress"), Some(id)) => {
+                if let Some(t) = self.live_jobs.get(&id) {
+                    t.progress(msg["value"].as_f64().map(|v| v as f32), msg["note"].as_str().unwrap_or(""));
+                }
+                true
+            }
+            (Some("progress"), None) => {
+                if let Some(p) = &self.progress {
+                    p(msg["value"].as_f64().map(|v| v as f32), msg["note"].as_str().unwrap_or(""));
+                }
+                true
+            }
+            (Some("finish"), Some(id)) => {
+                if let Some(t) = self.live_jobs.remove(&id) {
+                    let state = match msg.get("error") {
+                        Some(e) => JobState::Failed(e.as_str().unwrap_or("the helper reported an error").chars().take(300).collect()),
+                        None => JobState::Done(msg.get("result").cloned().unwrap_or(Value::Null)),
+                    };
+                    t.finish(state);
+                }
+                true
+            }
+            (Some("log"), _) => {
+                (self.log)(self.plugin.as_str(), msg["level"].as_i64().unwrap_or(1).clamp(0, 3) as i32, msg["text"].as_str().unwrap_or(""));
+                true
+            }
+            _ => false,
+        }
+    }
+
+    fn start_job(&mut self, inv: &Invocation, args: &Value) -> Result<Value, OpError> {
+        let board = self.jobs.clone().ok_or_else(|| OpError::new(Code::NotFound, "this app has no jobs list"))?;
+        let label = args["label"].as_str().filter(|l| !l.trim().is_empty()).ok_or_else(|| OpError::invalid("job.start: label is required"))?;
+        let ticket = board.admit(&inv.plugin, &inv.contribution, label, args["cancellable"].as_bool().unwrap_or(true)).map_err(|e| OpError::new(Code::Budget, e))?;
+        let id = ticket.id;
+        self.live_jobs.insert(id, Arc::new(ticket));
+        Ok(json!({ "job": id }))
+    }
+
+    fn fail_jobs(&mut self, why: &str) {
+        for (_, t) in std::mem::take(&mut self.live_jobs) {
+            t.finish(JobState::Failed(why.into()));
+        }
+    }
+
     pub fn kill(&mut self) {
+        self.fail_jobs("the helper stopped");
         if self.ended {
             return;
         }
-        // Before reaping: an unreaped helper keeps its pid, so the group id cannot be reused.
         kill_group(self.child.id());
         let _ = self.child.kill();
         let _ = self.child.wait();
         self.ended = true;
     }
 
-    /// Supervision: call periodically (the adapter does on its tick). Kills the helper as soon as
-    /// consent is withdrawn or the plugin is stopped, even while idle. Returns false once killed.
-    /// Adapters must call this at least every second while the helper is idle.
     pub fn supervise(&mut self) -> bool {
         if !self.grants.full_access(&self.plugin) || self.grants.stopped(&self.plugin, self.version) {
             self.kill();
             return false;
         }
+        loop {
+            match self.lines.try_recv() {
+                Ok(Some(msg)) => {
+                    let _ = self.handle_async(&msg);
+                }
+                Ok(None) => {
+                    self.fail_jobs("the helper stopped");
+                    break;
+                }
+                Err(_) => break,
+            }
+        }
+        let cancelled: Vec<u64> = self.live_jobs.iter().filter(|(_, t)| t.cancel.load(std::sync::atomic::Ordering::Relaxed)).map(|(id, _)| *id).collect();
+        for id in cancelled {
+            if self.send(&json!({"type":"cancel","job":id})).is_ok()
+                && let Some(t) = self.live_jobs.remove(&id)
+            {
+                t.finish(JobState::Cancelled);
+            }
+        }
         match self.child.try_wait() {
             Ok(None) => true,
             _ => {
-                // It exited on its own: stop what it left running. Surviving members keep the
-                // group id reserved, so this cannot reach an unrelated process group.
                 if !self.ended {
                     kill_group(self.child.id());
                     self.ended = true;
@@ -186,7 +320,6 @@ impl Helper {
         Ok(())
     }
 
-    /// One event = one transaction, as for wasm sessions.
     pub fn dispatch(&mut self, inv: Invocation, event: &Value) -> Result<(), PluginError> {
         if let Err(e) = self.check(&inv) {
             self.kill();
@@ -223,12 +356,17 @@ impl Helper {
                 Ok(None) | Err(RecvTimeoutError::Disconnected) => return Err(PluginError::Trap("the helper stopped".into())),
                 Err(RecvTimeoutError::Timeout) => continue,
             };
+            if self.handle_async(&msg) {
+                continue;
+            }
             match msg["type"].as_str() {
-                Some("log") => (self.log)(inv.plugin.as_str(), msg["level"].as_i64().unwrap_or(1).clamp(0, 3) as i32, msg["text"].as_str().unwrap_or("")),
                 Some("call") => {
                     let call_id = msg["id"].clone();
                     let op = msg["op"].as_str().unwrap_or("").to_string();
                     let out = self.check(inv).and_then(|()| {
+                        if op == "job.start" {
+                            return self.start_job(inv, &msg["args"]);
+                        }
                         if self.api.contract().op(&op).is_none() {
                             return Err(OpError::new(Code::NotFound, format!("this app has no operation {op}")));
                         }
@@ -282,7 +420,6 @@ mod final_validation_tests {
     struct RevokedAtFinish(AtomicU64);
     impl Grants for RevokedAtFinish {
         fn generation(&self, _: &ExtensionId) -> u64 {
-            // Initial dispatch and the single queued response are valid; finalization is stale.
             if self.0.fetch_add(1, Ordering::Relaxed) < 2 { 1 } else { 2 }
         }
         fn allowed(&self, _: &ExtensionId, _: &Permission) -> bool { false }
@@ -308,11 +445,11 @@ mod final_validation_tests {
             .stdin(Stdio::piped()).stdout(Stdio::null()).stderr(Stdio::null()).spawn().unwrap();
         let stdin = child.stdin.take().unwrap();
         let (tx, lines) = sync_channel(1);
-        // Prequeue the protocol result so the test has no response timing dependency.
         tx.send(Some(json!({"type":"done", "id":1, "code":0}))).unwrap();
         let mut helper = Helper {
             child, ended: false, stdin, lines, api: app.clone(), grants: Arc::new(RevokedAtFinish(AtomicU64::new(0))),
             log: Arc::new(|_, _, _| {}), next_id: 1, plugin: inv.plugin.clone(), version: inv.version,
+            jobs: None, live_jobs: BTreeMap::new(), progress: None,
         };
         assert!(matches!(helper.dispatch(inv, &json!({})), Err(PluginError::Stopped(_))));
         assert_eq!(*app.commits.lock().unwrap(), vec![false]);
@@ -339,6 +476,7 @@ mod final_validation_tests {
         let mut helper = Helper {
             child, ended: false, stdin, lines, api: app, grants: Arc::new(RevokedAtFinish(AtomicU64::new(0))),
             log: Arc::new(|_, _, _| {}), next_id: 1, plugin: ExtensionId::new("org.example.test").unwrap(), version: Version::new(1, 0, 0),
+            jobs: None, live_jobs: BTreeMap::new(), progress: None,
         };
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
         let pid = loop {
@@ -349,12 +487,41 @@ mod final_validation_tests {
             std::thread::sleep(std::time::Duration::from_millis(20));
         };
         helper.kill();
-        helper.kill(); // a second kill (Drop) must not signal anything again
+        helper.kill();
         let alive = |pid: u32| Command::new("kill").args(["-0", &pid.to_string()]).stderr(Stdio::null()).status().is_ok_and(|s| s.success());
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
         while alive(pid) && std::time::Instant::now() < deadline {
             std::thread::sleep(std::time::Duration::from_millis(50));
         }
         assert!(!alive(pid), "the helper's child process survived");
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_restricted_helper_writes_only_its_data_folder_and_reaches_no_network() {
+        let dir = tempfile::tempdir().unwrap();
+        let (release, data, outside) = (dir.path().join("release"), dir.path().join("data"), dir.path().join("outside"));
+        for d in [&release, &data, &outside] {
+            std::fs::create_dir_all(d).unwrap();
+        }
+        let (release, data, outside) = (release.canonicalize().unwrap(), data.canonicalize().unwrap(), outside.canonicalize().unwrap());
+        let probe = format!(
+            "echo ok > '{d}/in.txt'; echo no > '{o}/out.txt'; exec 3<>/dev/tcp/1.1.1.1/443 && echo net > '{d}/net.txt'; /usr/bin/true && echo exec > '{d}/exec.txt'; exit 0",
+            d = data.display(),
+            o = outside.display()
+        );
+        let mut c = confined_command(Path::new("/bin/bash"), &Confinement::Restricted { release: release.clone(), data: data.clone() }).unwrap();
+        c.arg("-c").arg(&probe).current_dir(&data).stdout(Stdio::null()).stderr(Stdio::null()).status().unwrap();
+        assert!(data.join("in.txt").exists(), "writing the data folder is allowed");
+        assert!(!outside.join("out.txt").exists(), "writing elsewhere is refused");
+        assert!(!data.join("net.txt").exists(), "the network is refused");
+        assert!(!data.join("exec.txt").exists(), "other programs are refused");
+    }
+
+    #[test]
+    fn restricted_profiles_quote_paths() {
+        let p = seatbelt_profile(Path::new("/a/b\"c/helper"), Path::new("/rel"), Path::new("/data"));
+        assert!(p.contains(r#"(literal "/a/b\"c/helper")"#), "{p}");
+        assert!(p.contains("(deny default)"));
     }
 }

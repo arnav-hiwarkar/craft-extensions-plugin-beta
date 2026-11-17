@@ -119,10 +119,10 @@ impl Store {
     }
     pub fn install_bytes(&self, b: &[u8], tier: Tier, origin: Origin) -> Result<Installed> {
         let sha = digest(b);
-        if let Origin::Local { sha256 } = &origin {
-            if sha256 != &sha {
-                return Err(error("local origin digest does not match"));
-            }
+        if let Origin::Local { sha256 } = &origin
+            && sha256 != &sha
+        {
+            return Err(error("local origin digest does not match"));
         }
         let stage = self.root.join("staging").join(format!(
             "{}-{}",
@@ -271,14 +271,18 @@ impl Store {
             let v = a.active.ok_or_else(|| error("choose an active release first"))?;
             let m = self.manifest(s, id, v)?;
             let contribution = m.contributions_for(app).find(|x| x.id == c).ok_or_else(|| error("this contribution is unavailable"))?;
-            if on {
-                if let Some((provided, platform)) = context {
-                    if let Some((_, reason)) = provided.unsupported.iter().find(|(kind, _)| *kind == contribution.kind) {
-                        return Err(error(reason));
-                    }
-                    if let Some(reason) = contribution.contract.check(provided) { return Err(error(reason)); }
-                    if let craft_ext_core::manifest::Compat::Incompatible { reasons } = m.compat(app, provided) { return Err(error(reasons.join("; "))); }
-                    if m.native.as_ref().is_some_and(|n| !n.executables.contains_key(platform)) { return Err(error("no native executable for this platform")); }
+            if on && let Some((provided, platform)) = context {
+                if let Some((_, reason)) = provided.unsupported.iter().find(|(kind, _)| *kind == contribution.kind) {
+                    return Err(error(reason));
+                }
+                if let Some(reason) = contribution.contract.check(provided) {
+                    return Err(error(reason));
+                }
+                if let craft_ext_core::manifest::Compat::Incompatible { reasons } = m.compat(app, provided) {
+                    return Err(error(reasons.join("; ")));
+                }
+                if m.native.as_ref().is_some_and(|n| !n.executables.contains_key(platform)) {
+                    return Err(error("no native executable for this platform"));
                 }
             }
             if on
@@ -320,8 +324,6 @@ impl Store {
             Ok(())
         })
     }
-    /// Stops `v` of `id` in this app after repeated failures, across launches, with a reason the
-    /// manager shows next to "Turn back on".
     pub fn quarantine(&self, app: &AppId, id: &ExtensionId, v: Version, reason: &str) -> Result<()> {
         self.setup(app, id, |a| {
             a.quarantine = Some(crate::state::Quarantine { version: v, reason: reason.chars().take(300).collect(), at: now() });
@@ -329,7 +331,6 @@ impl Store {
             Ok(())
         })
     }
-    /// The person turned a stopped plugin back on.
     pub fn clear_quarantine(&self, app: &AppId, id: &ExtensionId) -> Result<()> {
         self.setup(app, id, |a| {
             a.quarantine = None;
@@ -337,9 +338,6 @@ impl Store {
             Ok(())
         })
     }
-    /// Marks the start of an app run and returns the plugins that were running when the previous
-    /// run ended without [`Store::end_run`] (a crash or a forced quit), so the app can offer to
-    /// start without them. `running` lists the plugins this run starts with.
     pub fn begin_run(&self, app: &AppId, running: &[ExtensionId]) -> Option<Vec<ExtensionId>> {
         let path = self.root().join(format!("running-{}.json", app.as_str()));
         let previous = std::fs::read(&path).ok().and_then(|b| serde_json::from_slice::<Vec<ExtensionId>>(&b).ok());
@@ -347,7 +345,6 @@ impl Store {
         let _ = std::fs::write(&path, serde_json::to_vec(running).unwrap_or_default());
         previous
     }
-    /// Marks a clean exit.
     pub fn end_run(&self, app: &AppId) {
         let _ = std::fs::remove_file(self.root().join(format!("running-{}.json", app.as_str())));
     }

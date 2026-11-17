@@ -9,3 +9,26 @@ upstream plugin/UI changes in this private beta fork, apply the user-directed
 each app's existing capabilities, migrate and verify the flows, then remove the
 superseded implementations. Keep one shared platform and one canonical adapter per
 app, coordinated with the current framework/UI work.
+
+## Engineering rules
+
+These come from building this platform; each is backed by a check where one exists.
+
+- **No code comments.** Names, types, small functions and tests carry the meaning. `cargo xtask comments`
+  fails when a file has more comment lines than `xtask/comment-baseline.json` allows (new files: zero);
+  after removing comments run `cargo xtask comments --lower-baseline`. Rustdoc stays only in
+  `crates/guest`, whose public API is the author documentation and denies missing docs.
+- **Make the right call the only call.** Prefer one function that does the whole safe thing (for example
+  `api::contain`, `JobBoard::admit`, `Store::quarantine`) over several steps every caller must order
+  correctly. Encode limits as constants next to the code that enforces them, and refuse invalid input with
+  a clear error rather than clamping it silently.
+- **Host-handled operations keep the ABI stable.** New sandbox capabilities are `craft.call` operations the
+  host answers itself (`kernel.*`, `job.*`), so ABI v1 modules keep loading and older apps answer `-3`.
+- **Every expensive host action is budgeted.** Work done for a plugin is charged as fuel; work beyond the
+  current slice is carried as debt and counts against the call's total.
+- **Fail closed.** A check that cannot run (confinement, signature, attestation) refuses; it never runs the
+  unprotected path quietly.
+- **Tests call the code as its users do** and assert literal results. A test that would pass if the code
+  returned nothing is rewritten.
+- **Checks for every change:** `cargo xtask comments`, `cargo clippy -p <crate> --all-targets -- -D warnings`,
+  focused `cargo test -p <crate>`, and `python3 scripts/check-plugin-docs.py` for docs.

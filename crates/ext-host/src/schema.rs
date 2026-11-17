@@ -1,34 +1,15 @@
-//! Typed argument schemas for the operations every adapter shares (backlog TYPED-CONTRACTS).
-//!
-//! `OpSpec::args` and `OpSpec::result` are example text for people. The UI family below is the
-//! first family with a structured schema: field names, types, bounds, required fields and
-//! alternatives. The host checks a call's arguments against it before any adapter sees the call
-//! (`api::check_args`, from the Wasm and native entry points), and the generated contract page
-//! and JSON Schema are rendered from the same definition, so the documented shape and the
-//! dispatched shape cannot drift apart.
-//!
-//! A shared schema is the envelope every adapter accepts: unknown fields, wrong types and
-//! out-of-range sizes are refused here, while each adapter keeps its own narrower limits (for
-//! example EffectCraft's 300-character notifications and 48-character panel ids) and the checks
-//! that need app state (declared panels, window counts, UI tree levels).
 
 use serde_json::{Map, Value, json};
 
-/// The type of one argument field.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Ty {
     Bool,
-    /// Text of `min..=max` characters.
     Text { min: usize, max: usize },
-    /// A JSON object whose contents the adapter validates (`what` names it in the docs).
     Object { what: &'static str },
-    /// Any JSON value the adapter validates (`what` names it in the docs).
     Json { what: &'static str },
-    /// An array of at most `max` items the adapter validates (`what` names one item).
     List { max: usize, what: &'static str },
 }
 
-/// One named argument.
 #[derive(Clone, Copy, Debug)]
 pub struct Field {
     pub name: &'static str,
@@ -37,11 +18,9 @@ pub struct Field {
     pub doc: &'static str,
 }
 
-/// A structured operation schema. `one_of` lists fields of which exactly one must be present.
 #[derive(Clone, Copy, Debug)]
 pub struct OpSchema {
     pub op: &'static str,
-    /// Bumped when a field is removed or its meaning changes; adding an optional field is not.
     pub version: u32,
     pub fields: &'static [Field],
     pub one_of: &'static [&'static str],
@@ -52,7 +31,6 @@ const SURFACE_ID: Ty = Ty::Text { min: 1, max: 64 };
 const TREE: Ty = Ty::Json { what: "UI tree (validated at the contribution's UI level)" };
 const PATCH: Ty = Ty::Object { what: "form patch (`craft_ext_core::form::Patch`)" };
 
-/// The UI operation family shared by EffectCraft, PhotoCraft and FigCraft.
 pub static SHARED: &[OpSchema] = &[
     OpSchema {
         op: "ui.notify",
@@ -101,7 +79,6 @@ pub static SHARED: &[OpSchema] = &[
     },
 ];
 
-/// The shared schema for `op`, if it belongs to a typed family.
 pub fn shared(op: &str) -> Option<&'static OpSchema> {
     SHARED.iter().find(|s| s.op == op)
 }
@@ -111,7 +88,6 @@ impl Ty {
         match (self, value) {
             (Ty::Bool, Value::Bool(_)) | (Ty::Object { .. }, Value::Object(_)) | (Ty::Json { .. }, _) => Ok(()),
             (Ty::Text { min, max }, Value::String(s)) => {
-                // Count at most max + 1 characters: a huge string costs no more than a short one.
                 let n = s.chars().take(max.saturating_add(1)).count();
                 if n < min {
                     Err(format!("must have at least {min} characters"))
@@ -159,7 +135,6 @@ impl Ty {
 }
 
 impl OpSchema {
-    /// Check call arguments. `null` (a call with no arguments) counts as `{}`.
     pub fn check(&self, args: &Value) -> Result<(), String> {
         let empty = Map::new();
         let object = match args {
@@ -168,7 +143,6 @@ impl OpSchema {
             _ => return Err("arguments must be an object".into()),
         };
         if let Some(unknown) = object.keys().find(|k| !self.fields.iter().any(|f| f.name == k.as_str())) {
-            // Bound the echoed name: it comes from the guest.
             let shown: String = unknown.chars().take(48).collect();
             return Err(format!("unknown argument `{shown}`"));
         }
@@ -188,7 +162,6 @@ impl OpSchema {
         Ok(())
     }
 
-    /// The arguments as JSON Schema (draft 2020-12), for generated bindings and docs.
     pub fn json_schema(&self) -> Value {
         let properties: Map<String, Value> = self.fields.iter().map(|f| {
             let mut schema = f.ty.json_schema();
@@ -212,7 +185,6 @@ impl OpSchema {
         schema
     }
 
-    /// The field table for the generated contract page.
     pub fn to_markdown(&self) -> String {
         let mut s = format!("Typed arguments (schema version {}; unknown arguments are refused):\n\n| Argument | Type | Required | Meaning |\n|---|---|---|---|\n", self.version);
         for f in self.fields {
@@ -265,7 +237,6 @@ mod tests {
         refused("ui.panel.set", json!({"panel": "notes"}), "exactly one of `tree`, `patch`");
         refused("ui.panel.set", json!({"panel": "notes", "tree": tree, "patch": {}}), "exactly one");
         refused("ui.panel.set", json!({"panel": "notes", "patch": 3}), "`patch` must be an object");
-        // Host-internal staging fields are not guest arguments.
         refused("ui.panel.set", json!({"panel": "notes", "tree": tree, "form_metadata": {}}), "unknown argument");
         refused("ui.window.open", json!({"title": "W", "tree": tree}), "`id` is required");
         refused("ui.window.open", json!({"id": "w", "title": "t".repeat(201), "tree": tree}), "at most 200");

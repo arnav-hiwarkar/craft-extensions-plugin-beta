@@ -9,7 +9,6 @@ use serde_json::{Value, json};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
-/// Shared ABI scaffolding: bump allocator at 1 MiB, reset, abi.
 const ABI: &str = r#"
   (memory (export "memory") 32)
   (global $top (mut i32) (i32.const 1048576))
@@ -32,7 +31,6 @@ fn log() -> LogFn {
 
 #[test]
 fn filter_inverts_and_reuses_instance() {
-    // Inverts RGB of premultiplied pixels assuming alpha 1: c = 1 - c.
     let p = module(
         r#"(func (export "craft_filter") (param $ctx i32) (param $cl i32) (param $px i32) (param $w i32) (param $h i32) (result i32)
              (local $i i32) (local $end i32)
@@ -60,9 +58,7 @@ fn infinite_loop_is_stopped() {
     let p = module(r#"(func (export "craft_filter") (param i32 i32 i32 i32 i32) (result i32) (loop $l (br $l)) (i32.const 0))"#, "");
     let mut f = Filter::new(&p, log()).unwrap();
     let mut px = vec![0.0; 4];
-    // Cancelled at the first slice boundary…
     assert_eq!(f.run(&json!({}), &mut px, 1, 1, &|| Err(PluginError::Cancelled)).unwrap_err(), PluginError::Cancelled);
-    // …and stopped by the fuel budget when nobody cancels.
     let mut f = Filter::new(&p, log()).unwrap();
     assert_eq!(f.run(&json!({}), &mut px, 1, 1, &|| Ok(())).unwrap_err(), PluginError::TooSlow);
 }
@@ -82,7 +78,6 @@ fn host_calls_cost_fuel_so_a_log_loop_is_bounded() {
     let mut f = Filter::new(&p, sink).unwrap();
     let mut px = vec![0.0; 4];
     assert_eq!(f.run(&json!({}), &mut px, 1, 1, &|| Ok(())).unwrap_err(), PluginError::TooSlow);
-    // Free imports allowed millions of calls in this budget; each now costs host-side fuel.
     let calls = count.load(Ordering::Relaxed);
     assert!(calls > 0 && calls < 20_000, "{calls}");
 }
@@ -138,7 +133,6 @@ impl Grants for FakeGrants {
 }
 
 fn session_fixture() -> (Session, Arc<FakeApp>, Arc<FakeGrants>) {
-    // On every event: call "doc.fill" and return its code (>=0 → 0, else the code).
     let p = module(
         r#"(data (i32.const 16) "doc.fill")
            (func (export "craft_event") (param i32 i32) (result i32) (local $r i64)
@@ -189,11 +183,9 @@ fn inv(generation: u64) -> Invocation {
 fn session_permission_checked_on_every_call_and_revocation_rolls_back() {
     let (mut s, app, grants) = session_fixture();
     s.dispatch(inv(1), &json!({"event":"command"})).unwrap();
-    // Revoke: generation moves on, the captured one is stale → denied, rolled back.
     grants.edit.store(false, Ordering::Relaxed);
     grants.generation.store(2, Ordering::Relaxed);
     assert!(s.dispatch(inv(1), &json!({"event":"command"})).is_err());
-    // A fresh invocation under the new generation is denied by the permission itself.
     assert!(matches!(s.dispatch(inv(2), &json!({"event":"command"})), Err(PluginError::Failed(-2, _))));
     assert_eq!(*app.committed.lock().unwrap(), vec![true, false, false]);
 }
@@ -245,7 +237,6 @@ fn owner_thread_authorization_and_recoverable_call_errors() {
     let (_, mut app, grants) = session_fixture();
     Arc::get_mut(&mut app).unwrap().contract.ops[0].requires = needs_edit_on_owner;
     let api = Arc::new(OwnerApp { app: app.clone(), grants: grants.clone() });
-    // The guest handles an op denial, unknown op or invalid args, then completes the event.
     let p = module(
         r#"(data (i32.const 16) "doc.fillunknown!")
        (func (export "craft_event") (param i32 i32) (result i32)
@@ -424,8 +415,6 @@ fn rust_sdk_reference_types_are_supported() {
     filter.run(&json!({}), &mut [0.0, 0.0, 0.0, 1.0], 1, 1, &|| Ok(())).unwrap();
 }
 
-/// A shared-schema call with a malformed argument is refused with -1 before authorization and
-/// before the adapter: the fake adapter would otherwise answer it successfully.
 #[test]
 fn typed_ui_arguments_are_checked_before_the_adapter_sees_them() {
     let run = |args: &str| {
@@ -460,7 +449,6 @@ fn typed_ui_arguments_are_checked_before_the_adapter_sees_them() {
     assert!(matches!(run(r#"{"message":"Done","level":"warn"}"#), Err(PluginError::Failed(-1, _))));
     assert!(matches!(run(r#"{"message":7}"#), Err(PluginError::Failed(-1, _))));
     assert!(matches!(run(r#"{}"#), Err(PluginError::Failed(-1, _))));
-    // The generated page documents the same fields.
     let page = AppContract {
         app: AppId::new("testcraft").unwrap(),
         display_name: "TestCraft",
@@ -476,7 +464,6 @@ fn typed_ui_arguments_are_checked_before_the_adapter_sees_them() {
 
 #[test]
 fn a_filter_runs_a_host_kernel_on_its_own_pixels_and_reports_progress() {
-    // Copies the two pixels to 64 KiB, inverts them there with kernel.color_matrix, copies them back.
     let args = r#"{"image":{"ptr":65536,"width":2,"height":1},"matrix":[-1,0,0,0,1, 0,-1,0,0,1, 0,0,-1,0,1, 0,0,0,1,0]}"#;
     let p = module(
         &format!(
@@ -508,8 +495,6 @@ fn a_filter_runs_a_host_kernel_on_its_own_pixels_and_reports_progress() {
 
 #[test]
 fn a_session_starts_a_background_job_and_gets_its_result_as_an_event() {
-    // craft_event: on any event start a job (the result event is accepted by the same handler).
-    // craft_job: report progress, then return {"done":true}.
     let p = module(
         r#"(data (i32.const 16) "job.start")
            (data (i32.const 32) "{\"label\":\"Upscale\",\"input\":{\"n\":3}}")
@@ -585,4 +570,34 @@ fn an_adapter_panic_fails_the_plugin_call_instead_of_the_app() {
     let mut s = Session::new(&p, Arc::new(PanickyApp(contract)), grants, log()).unwrap();
     assert!(matches!(s.dispatch(inv(1), &json!({"event":"command"})), Err(PluginError::Failed(-7, _))));
     assert!(s.dispatch(inv(1), &json!({"event":"command"})).is_err(), "the session survives and runs again");
+}
+
+#[test]
+#[cfg(unix)]
+fn a_native_helper_runs_a_background_job_after_its_event_ends() {
+    let (_, app, _) = session_fixture();
+    let grants = Arc::new(NativeGrants(AtomicBool::new(true)));
+    let script = r#"read event
+printf '%s\n' '{"type":"call","id":1,"op":"job.start","args":{"label":"Upscale"}}'
+read reply
+printf '%s\n' '{"type":"done","id":1,"code":0}'
+printf '%s\n' '{"type":"progress","job":1,"value":0.5,"note":"half"}'
+printf '%s\n' '{"type":"finish","job":1,"result":{"tiles":4}}'
+while read line; do :; done"#;
+    let mut helper = native_helper(script, app.clone(), grants);
+    let board = crate::jobs::JobBoard::new();
+    helper.set_jobs(board.clone());
+    helper.dispatch(inv(1), &json!({"event":"command"})).unwrap();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    let done = loop {
+        assert!(helper.supervise());
+        let d = board.take_finished();
+        if !d.is_empty() || std::time::Instant::now() > deadline {
+            break d;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    };
+    assert_eq!(done.len(), 1);
+    assert_eq!((done[0].progress, done[0].note.as_str()), (Some(0.5), "half"));
+    assert_eq!(done[0].event(), json!({"event":"job","job":1,"ok":true,"result":{"tiles":4}}));
 }

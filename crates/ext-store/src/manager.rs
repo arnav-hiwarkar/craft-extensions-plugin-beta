@@ -32,6 +32,7 @@ pub struct PermissionSheet {
 }
 pub type InstallResult = (Installed, Compat, PermissionSheet, Vec<(ExtensionId, Version)>);
 pub type Update = (ExtensionId, Version, Version, bool);
+pub type Problem = (ExtensionId, String);
 impl Manager {
     pub fn new(store: Store, app: Option<AppId>, provided: Provided, platform: String) -> Self {
         Self {
@@ -293,7 +294,7 @@ impl Manager {
         let sheet = self.sheet(&installed.manifest);
         Ok((installed, c, sheet, vec![]))
     }
-    pub fn update_check(&self) -> Result<(Vec<Update>, Vec<(ExtensionId, String)>)> {
+    pub fn update_check(&self) -> Result<(Vec<Update>, Vec<Problem>)> {
         let s = self.store.state()?;
         let app = self.app()?;
         let mut out = vec![];
@@ -317,13 +318,13 @@ impl Manager {
                         catalogue::resolve(&candidates, app, &self.provided, a.pin.unwrap_or(VersionReq::Any), |r| {
                             r.asset_for(&self.platform).and_then(|a| index.revocation(id, r.version, &a.sha256)).map(|r| r.severity)
                         })
+                        && r.version > v
+                        && r.asset_for(&self.platform).is_some()
                     {
-                        if r.version > v && r.asset_for(&self.platform).is_some() {
-                            let wide =
-                                r.manifest.permissions_for(app, |c| a.enabled.contains(c)).0.iter().any(|p| !a.grants.iter().any(|g| g.covers(p)))
-                                    || r.manifest.is_native();
-                            out.push((id.clone(), v, r.version, wide));
-                        }
+                        let wide =
+                            r.manifest.permissions_for(app, |c| a.enabled.contains(c)).0.iter().any(|p| !a.grants.iter().any(|g| g.covers(p)))
+                                || r.manifest.is_native();
+                        out.push((id.clone(), v, r.version, wide));
                     }
                 }
             }

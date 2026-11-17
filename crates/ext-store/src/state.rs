@@ -48,13 +48,10 @@ pub struct AppSetup {
     pub grants: BTreeSet<Permission>,
     pub full_access: bool,
     pub grant_generation: u64,
-    /// Set when this app stopped the release after repeated failures. It stays stopped across
-    /// launches until the person turns it back on; a newer release starts clean.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub quarantine: Option<Quarantine>,
 }
 
-/// Why a release was stopped after repeated failures.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Quarantine {
     pub version: Version,

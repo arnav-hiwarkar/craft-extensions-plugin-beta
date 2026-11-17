@@ -1,18 +1,11 @@
-//! Background jobs: long work a session plugin starts with `job.start` and the host runs on its own
-//! thread, in a fresh sandbox, with no document access. The job reports progress, honours cancel,
-//! and hands back one JSON result; the app then delivers `{"event":"job",…}` to the plugin's
-//! session as an ordinary short transaction, where the plugin applies it with normal operations.
-//! So heavy work never holds a transaction, never blocks the UI and never edits a stale document.
 
 use craft_ext_core::id::ExtensionId;
 use serde_json::{Value, json};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 
-/// Jobs running at once for one plugin, and for the whole app.
 pub const MAX_PER_PLUGIN: usize = 4;
 pub const MAX_RUNNING: usize = 16;
-/// Finished jobs kept for the jobs list after delivery.
 const KEEP_FINISHED: usize = 32;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -29,14 +22,12 @@ impl JobState {
     }
 }
 
-/// What the jobs list shows and what the session receives when it finishes.
 #[derive(Clone, Debug, PartialEq)]
 pub struct JobInfo {
     pub id: u64,
     pub plugin: ExtensionId,
     pub contribution: String,
     pub label: String,
-    /// 0..=1, or `None` while the plugin has not reported progress.
     pub progress: Option<f32>,
     pub note: String,
     pub cancellable: bool,
@@ -45,7 +36,6 @@ pub struct JobInfo {
 }
 
 impl JobInfo {
-    /// The event delivered to the plugin's session.
     pub fn event(&self) -> Value {
         match &self.state {
             JobState::Done(result) => json!({"event":"job","job":self.id,"ok":true,"result":result}),
@@ -56,7 +46,6 @@ impl JobInfo {
     }
 }
 
-/// One live job's shared state, held by the board and by the job thread.
 pub struct Ticket {
     pub id: u64,
     pub cancel: Arc<AtomicBool>,
@@ -84,7 +73,6 @@ impl Ticket {
     }
 }
 
-/// Every job of one app. Shared by the sandboxes that start jobs and the UI that lists them.
 #[derive(Default)]
 pub struct JobBoard {
     jobs: Mutex<Vec<(JobInfo, Arc<AtomicBool>)>>,
@@ -106,7 +94,6 @@ impl JobBoard {
         }
     }
 
-    /// Registers a job, refusing when the plugin or the app is at its limit.
     pub fn admit(self: &Arc<Self>, plugin: &ExtensionId, contribution: &str, label: &str, cancellable: bool) -> Result<Ticket, String> {
         let mut jobs = self.lock();
         let running = jobs.iter().filter(|(j, _)| !j.state.finished());
@@ -139,7 +126,6 @@ impl JobBoard {
         Ok(Ticket { id, cancel, board: self.clone() })
     }
 
-    /// Every job, newest first, for a jobs list.
     pub fn list(&self) -> Vec<JobInfo> {
         let mut v: Vec<JobInfo> = self.lock().iter().map(|(j, _)| j.clone()).collect();
         v.reverse();
@@ -150,8 +136,6 @@ impl JobBoard {
         self.lock().iter().filter(|(j, _)| !j.state.finished()).count()
     }
 
-    /// Asks a job to stop. Refused for a job its plugin marked not cancellable unless `force`
-    /// (disabling or removing the plugin always stops its jobs).
     pub fn cancel(&self, id: u64, force: bool) -> bool {
         self.lock().iter().find(|(j, _)| j.id == id && !j.state.finished() && (j.cancellable || force)).is_some_and(|(_, c)| {
             c.store(true, Ordering::Relaxed);
@@ -159,7 +143,6 @@ impl JobBoard {
         })
     }
 
-    /// Stops every running job of `plugin` (it was turned off, removed or revoked).
     pub fn cancel_plugin(&self, plugin: &ExtensionId) {
         for (j, c) in self.lock().iter() {
             if &j.plugin == plugin && !j.state.finished() {
@@ -168,8 +151,6 @@ impl JobBoard {
         }
     }
 
-    /// Finished jobs not yet handed to their sessions; marks them delivered. The app dispatches
-    /// [`JobInfo::event`] to the owning plugin's session for each.
     pub fn take_finished(&self) -> Vec<JobInfo> {
         let mut out = Vec::new();
         for (j, _) in self.lock().iter_mut() {
@@ -181,7 +162,6 @@ impl JobBoard {
         out
     }
 
-    /// Removes finished jobs from the list (the "Clear" button).
     pub fn clear_finished(&self) {
         self.lock().retain(|(j, _)| !(j.state.finished() && j.delivered));
     }

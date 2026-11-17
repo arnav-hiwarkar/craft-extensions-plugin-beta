@@ -40,7 +40,6 @@ fn at(img: &Image<'_>) -> Value {
 
 fn run(op: &str, mut args: Value, img: &mut Image<'_>) -> Result<Value, CallError> {
     args["image"] = at(img);
-    // The host writes the pixels behind this borrow during the call.
     let out = call(op, args);
     std::hint::black_box(&mut img.pixels);
     out

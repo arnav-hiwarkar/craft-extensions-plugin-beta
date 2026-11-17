@@ -1,12 +1,3 @@
-//! The sandbox: wasmi with one locked profile, guest ABI v1 (see beta-design B4).
-//!
-//! Invariants:
-//! - One `Config` for every app; apps cannot loosen it. Unknown imports fail instantiation.
-//! - Fuel runs in slices; between slices the host checks cancel, deadline and (sessions) the grant.
-//! - Every guest pointer range is bounds-checked with checked arithmetic before use.
-//! - Host-held bytes (pending results) are charged to a per-instance budget.
-//! - `craft_reset` runs before every invocation; scratch from `craft_alloc` is the host's until then.
-//! - A trap, budget hit or invalid output never panics the host; the instance is discarded.
 
 use crate::api::{AppApi, Code, Grants, Invocation, OpError, authorize};
 use crate::jobs::{JobBoard, JobState, Ticket};
@@ -19,34 +10,26 @@ pub const ABI_VERSION: i32 = 1;
 pub const MAX_MODULE_BYTES: usize = 32 * 1024 * 1024;
 pub const MAX_TRANSFORM_MEMORY: usize = 512 * 1024 * 1024;
 pub const MAX_SESSION_MEMORY: usize = 64 * 1024 * 1024;
-/// Largest JSON a guest may pass to the host in one call (op name + args, logs).
 pub const MAX_CALL_BYTES: usize = 1024 * 1024;
-/// Host-held pending result budget per instance.
 pub const MAX_PENDING_BYTES: usize = 8 * 1024 * 1024;
-/// Host-held pending result bytes across every plugin instance in the process.
 pub const MAX_APP_PENDING_BYTES: usize = 64 * 1024 * 1024;
 static APP_PENDING: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 const FUEL_SLICE: u64 = 20_000_000;
 const FUEL_BASE: u64 = 50_000_000;
 const FUEL_PER_PIXEL: u64 = 4_000;
 const FUEL_PER_EVENT: u64 = 2_000_000_000;
-/// A background job may run about a thousand times longer than an event (minutes, not seconds).
 const FUEL_PER_JOB: u64 = 2_000_000_000_000;
-/// Largest input or result of one background job.
 pub const MAX_JOB_BYTES: usize = MAX_PENDING_BYTES;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum PluginError {
-    /// The module is malformed, too large, or does not match ABI v1.
     Load(String),
     Trap(String),
     TooSlow,
     TooMuchMemory,
     Cancelled,
-    /// Permission revoked or plugin stopped while running.
     Stopped(String),
     InvalidOutput(String),
-    /// The guest returned a non-zero code.
     Failed(i32, String),
 }
 
@@ -67,9 +50,7 @@ impl std::fmt::Display for PluginError {
 
 impl std::error::Error for PluginError {}
 
-/// Log sink: (plugin id, level 0=debug..3=error, message). Plugin text is untrusted.
 pub type LogFn = Arc<dyn Fn(&str, i32, &str) + Send + Sync>;
-/// Progress sink for `job.progress`: (fraction 0..=1 or unknown, short note). Plugin text is untrusted.
 pub type ProgressFn = Arc<dyn Fn(Option<f32>, &str) + Send + Sync>;
 
 fn engine() -> Engine {
@@ -77,8 +58,6 @@ fn engine() -> Engine {
     c.consume_fuel(true)
         .set_max_recursion_depth(4096)
         .wasm_multi_memory(false)
-        // Rust/LLVM emits reference-types call_indirect encodings, including padded
-        // table indices. Match the author checker and accept modern SDK output.
         .wasm_reference_types(true)
         .wasm_tail_call(false)
         .wasm_custom_page_sizes(false)
@@ -86,7 +65,6 @@ fn engine() -> Engine {
     Engine::new(&c)
 }
 
-/// A validated module, shareable across threads; instantiate per render thread or per session.
 #[derive(Clone)]
 pub struct Plugin {
     engine: Engine,
@@ -121,7 +99,6 @@ impl Plugin {
 }
 
 impl Plugin {
-    /// Optional form description. Runs in a fresh sandbox, with event fuel limits and no app API.
     pub fn describe(&self, log: LogFn, check: &dyn Fn() -> Result<(), PluginError>) -> Result<Option<craft_ext_core::form::Form>, PluginError> {
         if !self.exports("craft_describe") {
             return Ok(None);
@@ -131,7 +108,6 @@ impl Plugin {
         form.validate().map_err(PluginError::InvalidOutput)?;
         Ok(Some(form))
     }
-    /// Optional dynamic update; callers atomically apply the returned patch against their form state.
     pub fn update(
         &self,
         values: &craft_ext_core::form::Values,
@@ -173,24 +149,18 @@ impl Plugin {
     }
 }
 
-/// Per-instance host data.
 struct HostData {
     limits: StoreLimits,
     plugin: String,
     log: LogFn,
     pending: Option<Pending>,
-    /// Present only for sessions: transforms get no `call`.
     session: Option<SessionCtx>,
-    /// Revocation observed during this invocation.
     stopped: Option<String>,
     progress: Option<ProgressFn>,
-    /// Host work charged beyond the current fuel slice; taken from the total between slices.
     debt: u64,
-    /// Fuel left for the whole call, so a kernel too large for it is refused before it runs.
     budget: u64,
 }
 
-/// Pending result bytes, charged to the app-wide budget until taken or dropped.
 struct Pending(Vec<u8>);
 
 impl Pending {
@@ -219,8 +189,6 @@ struct SessionCtx {
     api: Arc<dyn AppApi>,
     grants: Arc<dyn Grants>,
     inv: Option<Invocation>,
-    /// Where `job.start` runs work, with the module it instantiates; absent when the app has no
-    /// jobs list or the plugin exports no `craft_job`.
     jobs: Option<(Arc<JobBoard>, Plugin)>,
 }
 
@@ -234,9 +202,6 @@ fn read_guest(caller: &Caller<'_, HostData>, mem: &Memory, ptr: i32, len: i32) -
     data.get(ptr..end).map(<[u8]>::to_vec).ok_or(Code::Invalid)
 }
 
-/// Fuel charged for each host import call, plus per byte crossing the boundary. Without it a loop
-/// of host calls costs only its own few instructions, so logging or app calls could run unbounded
-/// work inside one fuel slice. Charges drain the current slice; the per-event total still bounds.
 const HOST_CALL_FUEL: u64 = 100_000;
 const HOST_LOG_FUEL: u64 = 10_000;
 const HOST_BYTE_FUEL: u64 = 100;
@@ -251,7 +216,6 @@ fn charge(caller: &mut Caller<'_, HostData>, cost: u64) {
     }
 }
 
-/// Runs one `kernel.*` call on images in the guest's memory.
 fn kernel_call(caller: &mut Caller<'_, HostData>, mem: &Memory, op: &str, args: &Value) -> Result<Value, OpError> {
     if !kernels::OPS.contains(&op) {
         return Err(OpError::new(Code::NotFound, format!("this app has no kernel {op}")));
@@ -295,7 +259,6 @@ fn kernel_call(caller: &mut Caller<'_, HostData>, mem: &Memory, op: &str, args: 
     Ok(out)
 }
 
-/// `job.*` calls the host answers itself.
 fn job_call(caller: &mut Caller<'_, HostData>, op: &str, args: &Value) -> Result<Value, OpError> {
     if op == "job.progress" {
         let value = args.get("value").and_then(Value::as_f64).map(|v| v as f32);
@@ -345,8 +308,6 @@ fn job_call(caller: &mut Caller<'_, HostData>, op: &str, args: &Value) -> Result
     }
 }
 
-/// Runs `craft_job` in a fresh sandbox. It has kernels, logging and progress but no app operations,
-/// so it cannot touch a document; the session applies the result when it is delivered.
 fn run_job(p: &Plugin, log: LogFn, ticket: &Arc<Ticket>, input: &[u8], grants: &dyn Grants, inv: &Invocation) -> JobState {
     let go = || -> Result<Value, PluginError> {
         let mut inst = instantiate(p, MAX_TRANSFORM_MEMORY, log, None)?;
@@ -533,7 +494,6 @@ fn map_err(e: wasmi::Error, store: &Store<HostData>) -> PluginError {
     if text.contains("memory") && (text.contains("limit") || text.contains("grow")) { PluginError::TooMuchMemory } else { PluginError::Trap(text) }
 }
 
-/// Runs `func` with fuel slices, checking `keep_going` between slices.
 fn run_sliced<P: wasmi::WasmParams, R: wasmi::WasmResults>(
     inst: &mut Inst,
     func: &TypedFunc<P, R>,
@@ -581,7 +541,6 @@ fn write_scratch(inst: &mut Inst, bytes: &[u8]) -> Result<i32, PluginError> {
     Ok(ptr)
 }
 
-/// A `raster.filter@1` transform instance. One per render thread; never shared.
 pub struct Filter {
     inst: Option<Inst>,
     plugin: Plugin,
@@ -598,13 +557,10 @@ impl Filter {
         Ok(Self { inst: Some(inst), plugin: p.clone(), log, progress: None })
     }
 
-    /// Where the filter's `job.progress` reports go (the app's progress bar for this render).
     pub fn set_progress(&mut self, progress: ProgressFn) {
         self.progress = Some(progress);
     }
 
-    /// Runs the filter; on any failure the instance is discarded and a fresh one is made for the
-    /// next call, so no state from a failed run survives (B4). `pixels` is changed only on success.
     pub fn run(
         &mut self,
         ctx: &Value,
@@ -622,7 +578,6 @@ impl Filter {
         let out = Self::run_inner(&mut inst, ctx, pixels.len(), &*pixels, width, height, check);
         match out {
             Ok(result) => {
-                // Last check before anything reaches the caller (revocation, cancel, kill list).
                 check()?;
                 pixels.copy_from_slice(&result);
                 self.inst = Some(inst);
@@ -632,8 +587,6 @@ impl Filter {
         }
     }
 
-    /// Runs on premultiplied RGBA f32 pixels and returns the validated result. `ctx` is the B4 JSON
-    /// object. `check` is called between fuel slices (cancel, deadline, kill list).
     fn run_inner(
         inst: &mut Inst,
         ctx: &Value,
@@ -673,7 +626,6 @@ impl Filter {
             out.push(v);
         }
         for px in out.chunks_exact_mut(4) {
-            // Alpha clamps to 0..=1; colour is zeroed where alpha is zero (premultiplied).
             px[3] = px[3].clamp(0.0, 1.0);
             if px[3] == 0.0 {
                 px[0] = 0.0;
@@ -691,7 +643,6 @@ impl Inst {
     }
 }
 
-/// A session plugin instance (commands, panels, tools, event hooks). Driven from one worker thread.
 pub struct Session {
     inst: Inst,
     event: TypedFunc<(i32, i32), i32>,
@@ -709,8 +660,6 @@ impl Session {
         Ok(Self { inst, event, failures: 0, paused: false, plugin: p.clone(), log, jobs: None })
     }
 
-    /// Lets this session start background jobs on `board` (only when the module exports
-    /// `craft_job`). Apps list the board's jobs and deliver finished ones back as `job` events.
     pub fn set_jobs(&mut self, board: Arc<JobBoard>) {
         if !self.plugin.exports("craft_job") {
             return;
@@ -721,8 +670,6 @@ impl Session {
         }
     }
 
-    /// Replaces a failed instance with a fresh one (its in-memory state is lost, by design: B4).
-    /// The app re-sends `init` afterwards.
     fn reinstantiate(&mut self, api: Arc<dyn AppApi>, grants: Arc<dyn Grants>) -> Result<(), PluginError> {
         let jobs = self.jobs.clone().map(|b| (b, self.plugin.clone()));
         let inst = instantiate(&self.plugin, MAX_SESSION_MEMORY, self.log.clone(), Some(SessionCtx { api, grants, inv: None, jobs }))?;
@@ -731,8 +678,6 @@ impl Session {
         Ok(())
     }
 
-    /// Delivers one event as one transaction. Commits only if the guest returned 0, nothing was
-    /// revoked meanwhile, and the grant is still current at commit time.
     pub fn dispatch(&mut self, inv: Invocation, event: &Value) -> Result<(), PluginError> {
         if self.paused {
             return Err(PluginError::Stopped("paused after repeated failures".into()));
@@ -767,7 +712,6 @@ impl Session {
                     e,
                     PluginError::Trap(_) | PluginError::TooSlow | PluginError::TooMuchMemory | PluginError::Cancelled | PluginError::Stopped(_)
                 ) {
-                    // Interrupted mid-run: the guest's memory may be half-updated. Start clean.
                     if matches!(e, PluginError::Trap(_) | PluginError::TooSlow | PluginError::TooMuchMemory) {
                         self.failures += 1;
                         if self.failures >= 3 {
@@ -802,7 +746,6 @@ impl Session {
             if inv2.cancelled() {
                 return Err(PluginError::Cancelled);
             }
-            // Live check between slices, so pure computation also stops after revocation.
             if grants.stopped(&inv2.plugin, inv2.version) || grants.generation(&inv2.plugin) != inv2.grant_generation {
                 return Err(PluginError::Stopped("permissions changed while this was running".into()));
             }
@@ -818,7 +761,6 @@ impl Session {
     }
 }
 
-/// Convenience used by tests and `craft-ext test`: an error-to-code mapping for CLI exit codes.
 pub fn code_of(e: &PluginError) -> i32 {
     match e {
         PluginError::Cancelled => Code::Cancelled as i32,

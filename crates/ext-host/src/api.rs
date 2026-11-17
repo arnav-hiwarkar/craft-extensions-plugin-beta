@@ -1,19 +1,3 @@
-//! Form ABI: optional `craft_describe() -> i32` and `craft_update(ptr,len) -> i32` return zero
-//! after `craft.result(ptr,len) -> i32` copies one JSON response (Form or Patch) into bounded host
-//! storage. Update input is `{"values":...,"rev":n}`; filter `params` is `form::Values`.
-//! See `wasm::Plugin::{describe,update}` for fuel-limited, isolated execution. Apps apply patches
-//! with `Form::apply_patch`; rejected/stale patches leave values and presentation state unchanged.
-//! What an app adapter implements, and what the host checks before the adapter runs anything.
-//!
-//! Invariants:
-//! - Plugins reach an app only through [`AppApi::call`] with an op the adapter listed in its
-//!   [`AppContract`]. Unknown ops are refused. Management, undo/history, settings and plugin-management
-//!   ops are never listed, so they are unreachable by construction.
-//! - The host computes the permissions an op needs from its real arguments (`OpSpec::requires`) and
-//!   checks the grant on every call and again before commit. Owner-thread adapters defer the full
-//!   check to their owning thread before execution; the worker performs only preflight checks.
-//! - One session event (command, tool gesture, UI event) = one transaction = one undo step, opened with
-//!   [`AppApi::begin`] and closed with [`AppApi::finish`]; `finish(false)` must roll back.
 
 use craft_ext_core::contract::Provided;
 use craft_ext_core::id::{AppId, ExtensionId};
@@ -25,7 +9,6 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
 
-/// Error codes shared by the ABI, the native protocol, the CLI and MCP.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(i32)]
 pub enum Code {
@@ -69,48 +52,34 @@ impl std::error::Error for OpError {}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum OpKind {
-    /// Reads only.
     Query,
-    /// Changes the document inside the event's transaction.
     Edit,
-    /// Host UI (panels, windows, notifications).
     Ui,
-    /// Side effect after commit (network, files).
     Effect,
 }
 
-/// One operation an app offers plugins.
 pub struct OpSpec {
     pub id: &'static str,
     pub kind: OpKind,
     pub summary: &'static str,
-    /// Example arguments (JSON text) for the generated docs.
     pub args: &'static str,
-    /// Example result (JSON text) for the generated docs.
     pub result: &'static str,
-    /// Permissions needed for these arguments. Must be total: return every permission the call needs.
     pub requires: fn(&Value) -> Vec<Permission>,
-    /// Human description of the permission rule, for docs ("document.edit at the target's scope").
     pub permission_rule: &'static str,
 }
 
-/// An event the app can send to sessions.
 pub struct EventSpec {
     pub name: &'static str,
     pub summary: &'static str,
     pub payload: &'static str,
-    /// Whether receiving it needs `app.events`.
     pub needs_app_events: bool,
 }
 
-/// Where contributions appear in this app.
 pub struct SlotSpec {
     pub kind: &'static str,
     pub summary: &'static str,
 }
 
-/// Everything an app offers plugins. Rendered to `docs/plugins/contracts/<app>.md` by
-/// `<app>-cli plugin contract` so authors can discover it.
 pub struct AppContract {
     pub app: AppId,
     pub display_name: &'static str,
@@ -118,7 +87,6 @@ pub struct AppContract {
     pub ops: Vec<OpSpec>,
     pub events: Vec<EventSpec>,
     pub slots: Vec<SlotSpec>,
-    /// Notes on data conversion and limits (colour, units, time).
     pub notes: &'static str,
 }
 
@@ -131,7 +99,6 @@ impl AppContract {
         self.ops.iter().find(|o| o.id == id)
     }
 
-    /// The reference page plugin makers read.
     pub fn to_markdown(&self) -> String {
         let mut s = String::new();
         let _ = writeln!(s, "# {} plugin contract\n", self.display_name);
@@ -163,22 +130,16 @@ impl AppContract {
     }
 }
 
-/// Who is calling and under what captured scope. Created by the host per event or render.
 #[derive(Clone, Debug)]
 pub struct Invocation {
     pub app: AppId,
     pub plugin: ExtensionId,
     pub version: Version,
     pub contribution: String,
-    /// Grant generation captured at the start; a different current value means revoked.
     pub grant_generation: u64,
     pub cancel: Arc<AtomicBool>,
     pub deadline: Option<Instant>,
-    /// Undo label: "<contribution label> · <plugin name>".
     pub label: String,
-    /// Permissions the invoking contribution declared (required ∪ optional). A grant to the package
-    /// is usable only for permissions this contribution declared, so one contribution can never
-    /// borrow another's rights.
     pub declared: Arc<[Permission]>,
 }
 
@@ -188,43 +149,25 @@ impl Invocation {
     }
 }
 
-/// The app side. Implemented once per app by its adapter crate.
 pub trait AppApi: Send + Sync {
     fn contract(&self) -> &AppContract;
-    /// Opt in when `OpSpec::requires` reads app state (for example selection).
-    /// The worker skips `requires`; `call` must marshal to the owning thread and call
-    /// `authorize` there with live grants before executing the operation.
     fn authorizes_on_owner_thread(&self) -> bool { false }
-    /// Opens the event's transaction and captures scope (selection, document, revision).
     fn begin(&self, inv: &Invocation) -> Result<(), OpError>;
-    /// Runs one op inside the open transaction. Owner-thread adapters must authorize on that
-    /// thread before execution. Return Err for a recoverable Denied/NotFound/Invalid operation;
-    /// do not abort the transaction. The guest may handle the error and continue.
-    /// Revocation, generation changes and stopped plugins stop the invocation.
     fn call(&self, inv: &Invocation, op: &str, args: Value) -> Result<Value, OpError>;
-    /// Commits (one labelled undo step) or rolls back. Effects queued by ops run only after commit.
     fn finish(&self, inv: &Invocation, commit: bool);
 }
 
-/// Runs `f` (an adapter entry point) so a panic in app code becomes an internal error for this one
-/// plugin call instead of taking the app down. The adapter's lints forbid panics; this is the
-/// backstop for a dependency or an overlooked index.
 pub fn contain<T>(what: &str, f: impl FnOnce() -> Result<T, OpError>) -> Result<T, OpError> {
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)).unwrap_or_else(|_| Err(OpError::new(Code::Internal, format!("the app failed while running {what}"))))
 }
 
-/// Live grant state, implemented over `craft_ext_store::GrantView` by the adapter.
 pub trait Grants: Send + Sync {
-    /// Current grant generation of `plugin` in this app (changes on every grant or revoke).
     fn generation(&self, plugin: &ExtensionId) -> u64;
     fn allowed(&self, plugin: &ExtensionId, permission: &Permission) -> bool;
-    /// Kill-listed or disabled in this app.
     fn stopped(&self, plugin: &ExtensionId, version: Version) -> bool;
-    /// Native helper consent.
     fn full_access(&self, plugin: &ExtensionId) -> bool;
 }
 
-/// The one authorization function used for every host call (wasm and native).
 pub fn authorize(contract: &AppContract, grants: &dyn Grants, inv: &Invocation, op: &str, args: &Value) -> Result<(), OpError> {
     authorize_preflight(contract, grants, inv, op)?;
     let spec = contract.op(op).ok_or_else(|| OpError::new(Code::NotFound, format!("this app has no operation {op}")))?;
@@ -239,9 +182,6 @@ pub fn authorize(contract: &AppContract, grants: &dyn Grants, inv: &Invocation, 
     Ok(())
 }
 
-/// Check a guest call's arguments against the shared typed schema of its operation, when the app
-/// offers the operation and it belongs to a typed family ([`crate::schema`]). Runs before
-/// authorization and before the adapter sees the call, on every guest entry point.
 pub fn check_args(contract: &AppContract, op: &str, args: &Value) -> Result<(), OpError> {
     match crate::schema::shared(op) {
         Some(schema) if contract.op(op).is_some() => schema.check(args).map_err(|why| OpError::invalid(format!("{op}: {why}"))),
@@ -249,7 +189,6 @@ pub fn check_args(contract: &AppContract, op: &str, args: &Value) -> Result<(), 
     }
 }
 
-/// Checks independent of arguments/app state; deliberately never evaluates `requires`.
 pub(crate) fn authorize_preflight(contract: &AppContract, grants: &dyn Grants, inv: &Invocation, op: &str) -> Result<(), OpError> {
     if inv.cancelled() {
         return Err(OpError::new(Code::Cancelled, "cancelled"));
