@@ -10,7 +10,8 @@ For continued implementation and upstream integration, apply the
 [2026-11-17 continuation record](continuation-2026-11-17.md). The
 [upstream integration ledger](upstream-integration-2026-11-17.md) pins the merged upstream
 refs and separates source-complete from verified work. The rule's final
-end state supersedes earlier proposals to retain parallel per-app plugin systems.
+end state supersedes earlier proposals to retain parallel per-app plugin systems. The
+[2026-11-17 completion program](program-2026-11-17.md) lists the phases now in progress.
 
 | Guide | For |
 |---|---|
@@ -19,6 +20,7 @@ end state supersedes earlier proposals to retain parallel per-app plugin systems
 | [Community comparison and follow-up backlog](community-comparison-and-backlog.md) | Existing community workflows, capability gaps and proposed priorities |
 | [SDK strategy and capability roadmap](sdk-strategy-and-capability-roadmap.md) | Integration analysis and acceptance workflows from public Craft, Blender and Adobe ecosystems |
 | [Author guide](author-guide.md) | Writing, building, testing and packing a plugin |
+| [Compute kernels and background jobs](compute-and-jobs.md) | Fast host image functions for sandboxed plugins; long work with progress and cancel |
 | [How it works](how-it-works.md) | Components, lifecycle, sandbox, native helpers, permission checks, undo, safe mode |
 | [Adapter guide](adapter-guide.md) | Connecting an app to the platform |
 | [Capabilities](capabilities.md) | What each app offers: contribution kinds, operations and permissions, what is not available |

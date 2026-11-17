@@ -85,6 +85,8 @@ mod filter;
 mod form;
 pub use form::*;
 mod host;
+pub mod job;
+pub mod kernel;
 mod session;
 pub mod ui;
 
@@ -97,7 +99,7 @@ pub use session::{Event, ToolDetails, command_params, current_event_json, tool_d
 /// Runtime glue for the macros. Not part of the author API.
 #[doc(hidden)]
 pub mod __private {
-    pub use crate::entry::{ABI_VERSION, alloc, describe_entry, filter_entry, reset, session_entry, update_entry};
+    pub use crate::entry::{ABI_VERSION, alloc, describe_entry, filter_entry, job_entry, reset, session_entry, update_entry};
 }
 
 /// Exports shared by every plugin kind: `craft_abi`, `craft_alloc` and `craft_reset`.
@@ -164,6 +166,20 @@ macro_rules! session {
         #[unsafe(no_mangle)]
         pub extern "C" fn craft_event(ev: i32, ev_len: i32) -> i32 {
             $crate::__private::session_entry(ev, ev_len, $entry)
+        }
+    };
+}
+
+/// Exports a background job entry, `craft_job`, next to a [`session!`] in the same module.
+///
+/// `$entry` is a function `fn(JsonValue) -> Result<JsonValue, String>` that receives the input given
+/// to [`job::start`] and returns the result delivered in [`Event::Job`].
+#[macro_export]
+macro_rules! job {
+    ($entry:path) => {
+        #[unsafe(no_mangle)]
+        pub extern "C" fn craft_job(ptr: i32, len: i32) -> i32 {
+            $crate::__private::job_entry(ptr, len, $entry)
         }
     };
 }

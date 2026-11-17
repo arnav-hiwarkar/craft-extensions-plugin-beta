@@ -473,3 +473,76 @@ fn typed_ui_arguments_are_checked_before_the_adapter_sees_them() {
     .to_markdown();
     assert!(page.contains("| `message` | text, ≤ 4000 characters | yes |"), "{page}");
 }
+
+#[test]
+fn a_filter_runs_a_host_kernel_on_its_own_pixels_and_reports_progress() {
+    // Copies the two pixels to 64 KiB, inverts them there with kernel.color_matrix, copies them back.
+    let args = r#"{"image":{"ptr":65536,"width":2,"height":1},"matrix":[-1,0,0,0,1, 0,-1,0,0,1, 0,0,-1,0,1, 0,0,0,1,0]}"#;
+    let p = module(
+        &format!(
+            r#"(data (i32.const 16) "kernel.color_matrix")
+               (data (i32.const 48) "job.progress")
+               (data (i32.const 64) "{{\"value\":0.5}}")
+               (data (i32.const 1024) "{}")
+               (func (export "craft_filter") (param $ctx i32) (param $cl i32) (param $px i32) (param $w i32) (param $h i32) (result i32) (local $r i64)
+                 (memory.copy (i32.const 65536) (local.get $px) (i32.const 32))
+                 (drop (call $call (i32.const 48) (i32.const 12) (i32.const 64) (i32.const 13)))
+                 (local.set $r (call $call (i32.const 16) (i32.const 19) (i32.const 1024) (i32.const {})))
+                 (if (i64.lt_s (local.get $r) (i64.const 0)) (then (return (i32.wrap_i64 (local.get $r)))))
+                 (memory.copy (local.get $px) (i32.const 65536) (i32.const 32))
+                 (i32.const 0))"#,
+            args.replace('"', "\\\""),
+            args.len()
+        ),
+        r#"(import "craft" "call" (func $call (param i32 i32 i32 i32) (result i64)))"#,
+    );
+    let mut f = Filter::new(&p, log()).unwrap();
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let s2 = seen.clone();
+    f.set_progress(Arc::new(move |v, _| s2.lock().unwrap().push(v)));
+    let mut px = vec![0.25, 0.5, 0.75, 1.0, 0.0, 0.0, 0.0, 0.0];
+    f.run(&json!({"params":{}}), &mut px, 2, 1, &|| Ok(())).unwrap();
+    assert_eq!(px, vec![0.75, 0.5, 0.25, 1.0, 0.0, 0.0, 0.0, 0.0]);
+    assert_eq!(*seen.lock().unwrap(), vec![Some(0.5)]);
+}
+
+#[test]
+fn a_session_starts_a_background_job_and_gets_its_result_as_an_event() {
+    // craft_event: on any event start a job (the result event is accepted by the same handler).
+    // craft_job: report progress, then return {"done":true}.
+    let p = module(
+        r#"(data (i32.const 16) "job.start")
+           (data (i32.const 32) "{\"label\":\"Upscale\",\"input\":{\"n\":3}}")
+           (data (i32.const 128) "job.progress")
+           (data (i32.const 144) "{\"value\":1}")
+           (data (i32.const 160) "{\"done\":true}")
+           (func (export "craft_event") (param i32 i32) (result i32) (local $r i64)
+             (local.set $r (call $call (i32.const 16) (i32.const 9) (i32.const 32) (i32.const 35)))
+             (if (result i32) (i64.lt_s (local.get $r) (i64.const 0)) (then (i32.wrap_i64 (local.get $r))) (else (i32.const 0))))
+           (func (export "craft_job") (param i32 i32) (result i32)
+             (drop (call $call (i32.const 128) (i32.const 12) (i32.const 144) (i32.const 11)))
+             (drop (call $take (i32.const 4096) (i32.const 64)))
+             (call $result (i32.const 160) (i32.const 13)))"#,
+        r#"(import "craft" "call" (func $call (param i32 i32 i32 i32) (result i64)))
+           (import "craft" "take" (func $take (param i32 i32) (result i32)))
+           (import "craft" "result" (func $result (param i32 i32) (result i32)))"#,
+    );
+    let (_, app, grants) = session_fixture();
+    let mut s = Session::new(&p, app, grants, log()).unwrap();
+    let board = crate::jobs::JobBoard::new();
+    s.dispatch(inv(1), &json!({"event":"command"})).unwrap_err();
+    s.set_jobs(board.clone());
+    s.dispatch(inv(1), &json!({"event":"command"})).unwrap();
+    let started = std::time::Instant::now();
+    let done = loop {
+        let d = board.take_finished();
+        if !d.is_empty() || started.elapsed().as_secs() > 20 {
+            break d;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    };
+    assert_eq!(done.len(), 1);
+    assert_eq!(done[0].label, "Upscale");
+    assert_eq!(done[0].progress, Some(1.0));
+    assert_eq!(done[0].event(), json!({"event":"job","job":1,"ok":true,"result":{"done":true}}));
+}

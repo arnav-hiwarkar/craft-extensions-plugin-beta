@@ -21,6 +21,7 @@ names = [
     "compiled-host-and-blender-extension-lessons.md", "adobe-extension-and-plugin-requirements.md",
     "sdk-strategy-and-capability-roadmap.md",
     "suite-replacement-rule.md", "continuation-2026-11-17.md", "upstream-integration-2026-11-17.md",
+    "program-2026-11-17.md", "compute-and-jobs.md",
 ]
 files = [guide_root / name for name in names] + [root / "STATUS.md", root / "TESTING.md"]
 errors = []

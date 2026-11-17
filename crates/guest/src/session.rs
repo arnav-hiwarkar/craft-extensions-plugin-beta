@@ -45,6 +45,13 @@ pub enum Event {
         /// The event's payload.
         payload: Value,
     },
+    /// A background job this plugin started has finished.
+    Job {
+        /// The id [`crate::job::start`] returned.
+        job: u64,
+        /// Its result, failure or cancellation.
+        outcome: crate::job::Outcome,
+    },
     /// Reserved unload notification. Beta revocation and shutdown may stop the worker
     /// immediately without delivering it; never rely on this event for cleanup.
     Dispose,
@@ -68,6 +75,16 @@ impl Event {
             },
             Some("tool") => text("phase").map(|phase| Self::Tool { phase, at: field("at") }),
             Some("app") => text("name").map(|name| Self::App { name, payload: field("payload") }),
+            Some("job") => obj.get("job").and_then(Value::as_u64).map(|job| {
+                let outcome = if obj.get("ok").and_then(Value::as_bool) == Some(true) {
+                    crate::job::Outcome::Done(field("result"))
+                } else if obj.get("cancelled").and_then(Value::as_bool) == Some(true) {
+                    crate::job::Outcome::Cancelled
+                } else {
+                    crate::job::Outcome::Failed(text("error").unwrap_or_default())
+                };
+                Self::Job { job, outcome }
+            }),
             _ => None,
         };
         event.unwrap_or(Self::Unknown(value))

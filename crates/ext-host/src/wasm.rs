@@ -8,7 +8,9 @@
 //! - `craft_reset` runs before every invocation; scratch from `craft_alloc` is the host's until then.
 //! - A trap, budget hit or invalid output never panics the host; the instance is discarded.
 
-use crate::api::{AppApi, Code, Grants, Invocation, authorize};
+use crate::api::{AppApi, Code, Grants, Invocation, OpError, authorize};
+use crate::jobs::{JobBoard, JobState, Ticket};
+use crate::kernels;
 use serde_json::Value;
 use std::sync::Arc;
 use wasmi::{Caller, Config, Engine, Instance, Linker, Memory, Module, Store, StoreLimits, StoreLimitsBuilder, TypedFunc, TypedResumableCall};
@@ -28,6 +30,10 @@ const FUEL_SLICE: u64 = 20_000_000;
 const FUEL_BASE: u64 = 50_000_000;
 const FUEL_PER_PIXEL: u64 = 4_000;
 const FUEL_PER_EVENT: u64 = 2_000_000_000;
+/// A background job may run about a thousand times longer than an event (minutes, not seconds).
+const FUEL_PER_JOB: u64 = 2_000_000_000_000;
+/// Largest input or result of one background job.
+pub const MAX_JOB_BYTES: usize = MAX_PENDING_BYTES;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum PluginError {
@@ -63,6 +69,8 @@ impl std::error::Error for PluginError {}
 
 /// Log sink: (plugin id, level 0=debug..3=error, message). Plugin text is untrusted.
 pub type LogFn = Arc<dyn Fn(&str, i32, &str) + Send + Sync>;
+/// Progress sink for `job.progress`: (fraction 0..=1 or unknown, short note). Plugin text is untrusted.
+pub type ProgressFn = Arc<dyn Fn(Option<f32>, &str) + Send + Sync>;
 
 fn engine() -> Engine {
     let mut c = Config::default();
@@ -175,6 +183,11 @@ struct HostData {
     session: Option<SessionCtx>,
     /// Revocation observed during this invocation.
     stopped: Option<String>,
+    progress: Option<ProgressFn>,
+    /// Host work charged beyond the current fuel slice; taken from the total between slices.
+    debt: u64,
+    /// Fuel left for the whole call, so a kernel too large for it is refused before it runs.
+    budget: u64,
 }
 
 /// Pending result bytes, charged to the app-wide budget until taken or dropped.
@@ -206,6 +219,9 @@ struct SessionCtx {
     api: Arc<dyn AppApi>,
     grants: Arc<dyn Grants>,
     inv: Option<Invocation>,
+    /// Where `job.start` runs work, with the module it instantiates; absent when the app has no
+    /// jobs list or the plugin exports no `craft_job`.
+    jobs: Option<(Arc<JobBoard>, Plugin)>,
 }
 
 fn read_guest(caller: &Caller<'_, HostData>, mem: &Memory, ptr: i32, len: i32) -> Result<Vec<u8>, Code> {
@@ -227,7 +243,139 @@ const HOST_BYTE_FUEL: u64 = 100;
 
 fn charge(caller: &mut Caller<'_, HostData>, cost: u64) {
     if let Ok(left) = caller.get_fuel() {
+        if cost > left {
+            let d = caller.data_mut();
+            d.debt = d.debt.saturating_add(cost - left);
+        }
         let _ = caller.set_fuel(left.saturating_sub(cost));
+    }
+}
+
+/// Runs one `kernel.*` call on images in the guest's memory.
+fn kernel_call(caller: &mut Caller<'_, HostData>, mem: &Memory, op: &str, args: &Value) -> Result<Value, OpError> {
+    if !kernels::OPS.contains(&op) {
+        return Err(OpError::new(Code::NotFound, format!("this app has no kernel {op}")));
+    }
+    let names = kernels::inputs(op);
+    let refs = names.iter().map(|n| kernels::ImageRef::parse(args.get(*n), n)).collect::<Result<Vec<_>, _>>().map_err(OpError::invalid)?;
+    let pixels = refs.iter().map(|r| (r.width * r.height) as u64).max().unwrap_or(0);
+    let cost = kernels::cost(op, args, pixels);
+    if cost > caller.data().budget {
+        return Err(OpError::new(Code::Budget, "this kernel call is larger than the plugin's remaining budget"));
+    }
+    charge(caller, cost);
+    let data = mem.data(&*caller);
+    let region = |ptr: usize, bytes: Option<usize>| bytes.and_then(|b| ptr.checked_add(b).and_then(|end| data.get(ptr..end)));
+    let floats = |raw: &[u8]| raw.chunks_exact(4).map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]])).collect::<Vec<f32>>();
+    let mut images = Vec::with_capacity(refs.len());
+    for r in &refs {
+        let raw = region(r.ptr, r.bytes()).ok_or_else(|| OpError::invalid("an image lies outside the plugin's memory"))?;
+        images.push(kernels::Image { width: r.width, height: r.height, px: floats(raw) });
+    }
+    let splats = match op {
+        "kernel.splat" => {
+            let pts = args.get("points").ok_or_else(|| OpError::invalid("points is required"))?;
+            let ptr = pts.get("ptr").and_then(Value::as_u64).and_then(|p| usize::try_from(p).ok());
+            let count = pts.get("count").and_then(Value::as_u64).and_then(|c| usize::try_from(c).ok()).filter(|c| *c <= kernels::MAX_SPLATS);
+            let (Some(ptr), Some(count)) = (ptr, count) else { return Err(OpError::invalid("points needs ptr and count (at most 1000000)")) };
+            floats(region(ptr, count.checked_mul(32)).ok_or_else(|| OpError::invalid("points lie outside the plugin's memory"))?)
+        }
+        _ => Vec::new(),
+    };
+    let out = kernels::run(op, args, &mut images, &splats).map_err(|why| OpError::invalid(format!("{op}: {why}")))?;
+    if kernels::writes(op) {
+        let at = names.iter().position(|n| *n == "image").unwrap_or(0);
+        let (Some(r), Some(img)) = (refs.get(at), images.get(at)) else { return Err(OpError::new(Code::Internal, "kernel image missing")) };
+        let mut bytes = Vec::with_capacity(img.px.len() * 4);
+        for v in &img.px {
+            bytes.extend_from_slice(&(if v.is_finite() { *v } else { 0.0 }).to_le_bytes());
+        }
+        mem.write(&mut *caller, r.ptr, &bytes).map_err(|_| OpError::invalid("an image lies outside the plugin's memory"))?;
+    }
+    Ok(out)
+}
+
+/// `job.*` calls the host answers itself.
+fn job_call(caller: &mut Caller<'_, HostData>, op: &str, args: &Value) -> Result<Value, OpError> {
+    if op == "job.progress" {
+        let value = args.get("value").and_then(Value::as_f64).map(|v| v as f32);
+        let note = args.get("note").and_then(Value::as_str).unwrap_or("");
+        if let Some(p) = caller.data().progress.clone() {
+            p(value, note);
+        }
+        return Ok(Value::Null);
+    }
+    let data = caller.data();
+    let Some(session) = data.session.as_ref() else { return Err(OpError::denied("jobs can only be started from a session event")) };
+    let Some(inv) = session.inv.as_ref() else { return Err(OpError::new(Code::Stale, "no event is running")) };
+    let Some((board, module)) = session.jobs.as_ref() else {
+        return Err(OpError::new(Code::NotFound, "background jobs need a craft_job export and an app with a jobs list"));
+    };
+    match op {
+        "job.start" => {
+            if session.grants.stopped(&inv.plugin, inv.version) || session.grants.generation(&inv.plugin) != inv.grant_generation {
+                return Err(OpError::denied("permissions changed while this was running"));
+            }
+            let label = args.get("label").and_then(Value::as_str).filter(|l| !l.trim().is_empty()).ok_or_else(|| OpError::invalid("job.start: label is required"))?;
+            let input = serde_json::to_vec(args.get("input").unwrap_or(&Value::Null)).map_err(|e| OpError::invalid(e.to_string()))?;
+            if input.len() > MAX_JOB_BYTES {
+                return Err(OpError::new(Code::Budget, "job.start: input is larger than 8 MiB"));
+            }
+            let cancellable = args.get("cancellable").and_then(Value::as_bool).unwrap_or(true);
+            let ticket = Arc::new(board.admit(&inv.plugin, &inv.contribution, label, cancellable).map_err(|e| OpError::new(Code::Budget, e))?);
+            let id = ticket.id;
+            let (module, log, grants, inv) = (module.clone(), data.log.clone(), session.grants.clone(), inv.clone());
+            let worker = ticket.clone();
+            let spawned = std::thread::Builder::new().name(format!("plugin-job-{id}")).spawn(move || {
+                let state = run_job(&module, log, &worker, &input, grants.as_ref(), &inv);
+                worker.finish(state);
+            });
+            if spawned.is_err() {
+                ticket.finish(JobState::Failed("the app could not start a worker thread".into()));
+            }
+            Ok(serde_json::json!({ "job": id }))
+        }
+        "job.cancel" => {
+            let id = args.get("job").and_then(Value::as_u64).ok_or_else(|| OpError::invalid("job.cancel: job is required"))?;
+            let mine = board.list().into_iter().any(|j| j.id == id && j.plugin == inv.plugin);
+            Ok(serde_json::json!({ "cancelled": mine && board.cancel(id, true) }))
+        }
+        _ => Err(OpError::new(Code::NotFound, format!("this app has no operation {op}"))),
+    }
+}
+
+/// Runs `craft_job` in a fresh sandbox. It has kernels, logging and progress but no app operations,
+/// so it cannot touch a document; the session applies the result when it is delivered.
+fn run_job(p: &Plugin, log: LogFn, ticket: &Arc<Ticket>, input: &[u8], grants: &dyn Grants, inv: &Invocation) -> JobState {
+    let go = || -> Result<Value, PluginError> {
+        let mut inst = instantiate(p, MAX_TRANSFORM_MEMORY, log, None)?;
+        let t = ticket.clone();
+        inst.store.data_mut().progress = Some(Arc::new(move |v, note| t.progress(v, note)));
+        inst.reset.call(&mut inst.store, ()).map_err(|e| map_err(e, &inst.store))?;
+        let ptr = write_scratch(&mut inst, input)?;
+        let f = inst.func::<(i32, i32), i32>("craft_job")?;
+        let cancel = ticket.cancel.clone();
+        let code = run_sliced(&mut inst, &f, (ptr, input.len() as i32), FUEL_PER_JOB, &|_| {
+            if cancel.load(std::sync::atomic::Ordering::Relaxed) {
+                return Err(PluginError::Cancelled);
+            }
+            if grants.stopped(&inv.plugin, inv.version) || grants.generation(&inv.plugin) != inv.grant_generation {
+                return Err(PluginError::Stopped("permissions changed while this was running".into()));
+            }
+            Ok(())
+        })?;
+        if code != 0 {
+            return Err(PluginError::Failed(code, String::new()));
+        }
+        match inst.store.data_mut().pending.take() {
+            Some(bytes) => serde_json::from_slice(&bytes.0).map_err(|e| PluginError::InvalidOutput(e.to_string())),
+            None => Ok(Value::Null),
+        }
+    };
+    match go() {
+        Ok(v) => JobState::Done(v),
+        Err(PluginError::Cancelled) => JobState::Cancelled,
+        Err(e) => JobState::Failed(e.to_string()),
     }
 }
 
@@ -260,6 +408,32 @@ fn linker(engine: &Engine) -> Linker<HostData> {
             },
             Err(c) => return c as i64,
         };
+        let host = if op.starts_with("kernel.") {
+            Some(kernel_call(&mut caller, &mem, &op, &args))
+        } else if op.starts_with("job.") {
+            Some(job_call(&mut caller, &op, &args))
+        } else {
+            None
+        };
+        if let Some(outcome) = host {
+            let (bytes, ret) = match outcome {
+                Ok(v) => {
+                    let b = serde_json::to_vec(&v).unwrap_or_default();
+                    let n = b.len() as i64;
+                    (b, n)
+                }
+                Err(e) => (serde_json::to_vec(&e.to_json()).unwrap_or_default(), e.code as i64),
+            };
+            let data = caller.data_mut();
+            data.pending = None;
+            return match Pending::reserve(bytes) {
+                Some(p) => {
+                    data.pending = Some(p);
+                    ret
+                }
+                None => Code::Budget as i64,
+            };
+        }
         let data = caller.data_mut();
         let Some(session) = data.session.as_ref() else { return Code::Denied as i64 };
         let Some(inv) = session.inv.as_ref() else { return Code::Stale as i64 };
@@ -335,7 +509,7 @@ struct Inst {
 
 fn instantiate(p: &Plugin, max_memory: usize, log: LogFn, session: Option<SessionCtx>) -> Result<Inst, PluginError> {
     let limits = StoreLimitsBuilder::new().memory_size(max_memory).memories(1).tables(4).table_elements(100_000).instances(1).build();
-    let mut store = Store::new(&p.engine, HostData { limits, plugin: p.id.clone(), log, pending: None, session, stopped: None });
+    let mut store = Store::new(&p.engine, HostData { limits, plugin: p.id.clone(), log, pending: None, session, stopped: None, progress: None, debt: 0, budget: 0 });
     store.limiter(|d| &mut d.limits);
     store.set_fuel(FUEL_BASE).map_err(|e| PluginError::Load(e.to_string()))?;
     let instance: Instance = linker(&p.engine).instantiate_and_start(&mut store, &p.module).map_err(|e| PluginError::Load(e.to_string()))?;
@@ -369,6 +543,8 @@ fn run_sliced<P: wasmi::WasmParams, R: wasmi::WasmResults>(
     let mut left = total_fuel;
     let first = left.min(FUEL_SLICE);
     left -= first;
+    inst.store.data_mut().debt = 0;
+    inst.store.data_mut().budget = total_fuel;
     inst.store.set_fuel(first).map_err(|e| PluginError::Trap(e.to_string()))?;
     let mut call = func.call_resumable(&mut inst.store, params).map_err(|e| map_err(e, &inst.store))?;
     loop {
@@ -377,11 +553,14 @@ fn run_sliced<P: wasmi::WasmParams, R: wasmi::WasmResults>(
             TypedResumableCall::HostTrap(_) => return Err(PluginError::Trap("host call failed".into())),
             TypedResumableCall::OutOfFuel(more) => {
                 keep_going(inst.store.data())?;
+                let debt = std::mem::take(&mut inst.store.data_mut().debt);
+                left = left.checked_sub(debt).ok_or(PluginError::TooSlow)?;
                 if left == 0 {
                     return Err(PluginError::TooSlow);
                 }
                 let slice = left.min(FUEL_SLICE);
                 left -= slice;
+                inst.store.data_mut().budget = left.saturating_add(slice);
                 inst.store.set_fuel(slice).map_err(|e| PluginError::Trap(e.to_string()))?;
                 call = more.resume(&mut inst.store).map_err(|e| map_err(e, &inst.store))?;
             }
@@ -406,6 +585,7 @@ pub struct Filter {
     inst: Option<Inst>,
     plugin: Plugin,
     log: LogFn,
+    progress: Option<ProgressFn>,
 }
 
 impl Filter {
@@ -414,7 +594,12 @@ impl Filter {
             return Err(PluginError::Load("missing export craft_filter".into()));
         }
         let inst = instantiate(p, MAX_TRANSFORM_MEMORY, log.clone(), None)?;
-        Ok(Self { inst: Some(inst), plugin: p.clone(), log })
+        Ok(Self { inst: Some(inst), plugin: p.clone(), log, progress: None })
+    }
+
+    /// Where the filter's `job.progress` reports go (the app's progress bar for this render).
+    pub fn set_progress(&mut self, progress: ProgressFn) {
+        self.progress = Some(progress);
     }
 
     /// Runs the filter; on any failure the instance is discarded and a fresh one is made for the
@@ -432,6 +617,7 @@ impl Filter {
             Some(i) => i,
             None => instantiate(&self.plugin, MAX_TRANSFORM_MEMORY, self.log.clone(), None)?,
         };
+        inst.store.data_mut().progress = self.progress.clone();
         let out = Self::run_inner(&mut inst, ctx, pixels.len(), &*pixels, width, height, check);
         match out {
             Ok(result) => {
@@ -512,19 +698,33 @@ pub struct Session {
     pub paused: bool,
     plugin: Plugin,
     log: LogFn,
+    jobs: Option<Arc<JobBoard>>,
 }
 
 impl Session {
     pub fn new(p: &Plugin, api: Arc<dyn AppApi>, grants: Arc<dyn Grants>, log: LogFn) -> Result<Self, PluginError> {
-        let inst = instantiate(p, MAX_SESSION_MEMORY, log.clone(), Some(SessionCtx { api, grants, inv: None }))?;
+        let inst = instantiate(p, MAX_SESSION_MEMORY, log.clone(), Some(SessionCtx { api, grants, inv: None, jobs: None }))?;
         let event = inst.func::<(i32, i32), i32>("craft_event")?;
-        Ok(Self { inst, event, failures: 0, paused: false, plugin: p.clone(), log })
+        Ok(Self { inst, event, failures: 0, paused: false, plugin: p.clone(), log, jobs: None })
+    }
+
+    /// Lets this session start background jobs on `board` (only when the module exports
+    /// `craft_job`). Apps list the board's jobs and deliver finished ones back as `job` events.
+    pub fn set_jobs(&mut self, board: Arc<JobBoard>) {
+        if !self.plugin.exports("craft_job") {
+            return;
+        }
+        self.jobs = Some(board.clone());
+        if let Some(s) = self.inst.store.data_mut().session.as_mut() {
+            s.jobs = Some((board, self.plugin.clone()));
+        }
     }
 
     /// Replaces a failed instance with a fresh one (its in-memory state is lost, by design: B4).
     /// The app re-sends `init` afterwards.
     fn reinstantiate(&mut self, api: Arc<dyn AppApi>, grants: Arc<dyn Grants>) -> Result<(), PluginError> {
-        let inst = instantiate(&self.plugin, MAX_SESSION_MEMORY, self.log.clone(), Some(SessionCtx { api, grants, inv: None }))?;
+        let jobs = self.jobs.clone().map(|b| (b, self.plugin.clone()));
+        let inst = instantiate(&self.plugin, MAX_SESSION_MEMORY, self.log.clone(), Some(SessionCtx { api, grants, inv: None, jobs }))?;
         self.event = inst.func::<(i32, i32), i32>("craft_event")?;
         self.inst = inst;
         Ok(())

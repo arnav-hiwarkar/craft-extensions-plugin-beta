@@ -137,6 +137,17 @@ pub(crate) fn take(_dst: &mut [u8]) -> i32 {
     -3
 }
 
+
+#[cfg(target_arch = "wasm32")]
+pub(crate) fn result(bytes: &[u8]) -> i32 {
+    // SAFETY: live immutable bytes; host copies a bounded range.
+    unsafe { craft_result(ptr_of(bytes), len_of(bytes)) }
+}
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn result(_bytes: &[u8]) -> i32 {
+    -7
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -176,14 +187,4 @@ mod tests {
         assert!(with_f32_mut(addr, 3, |_| ()).is_none(), "too many values for the buffer");
         reset();
     }
-}
-
-#[cfg(target_arch = "wasm32")]
-pub(crate) fn result(bytes: &[u8]) -> i32 {
-    // SAFETY: live immutable bytes; host copies a bounded range.
-    unsafe { craft_result(ptr_of(bytes), len_of(bytes)) }
-}
-#[cfg(not(target_arch = "wasm32"))]
-pub(crate) fn result(_bytes: &[u8]) -> i32 {
-    -7
 }

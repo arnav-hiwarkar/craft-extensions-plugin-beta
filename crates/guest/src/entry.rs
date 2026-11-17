@@ -76,6 +76,24 @@ fn read_event(ev: i32, ev_len: i32) -> Result<Event, String> {
     Ok(Event::from_value(value))
 }
 
+/// `craft_job`: decodes the input, runs `run` and hands its result to the host.
+pub fn job_entry<F>(ptr: i32, len: i32, run: F) -> i32
+where
+    F: FnOnce(serde_json::Value) -> Result<serde_json::Value, String>,
+{
+    let input = usize::try_from(len).map_err(|_| "bad job input length".to_owned()).and_then(|len| {
+        abi::with_bytes(addr(ptr)?, len, |b| serde_json::from_slice::<serde_json::Value>(b).map_err(|e| format!("bad job input: {e}")))
+            .ok_or_else(|| "the job input is not in scratch memory".to_owned())?
+    });
+    match input.and_then(run).and_then(|v| serde_json::to_vec(&v).map_err(|e| e.to_string())) {
+        Ok(bytes) => abi::result(&bytes),
+        Err(message) => {
+            log(LogLevel::Error, &message);
+            -1
+        }
+    }
+}
+
 /// Sends a described form to the host.
 pub fn describe_entry(run: impl FnOnce() -> crate::Form) -> i32 {
     let form = run().0;

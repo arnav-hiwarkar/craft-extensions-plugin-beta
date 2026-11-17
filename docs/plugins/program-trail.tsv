@@ -1,0 +1,7 @@
+date	unit	decision_or_change	evidence	verdict
+2026-11-17	P0	EffectCraft upstream cd9ee1e merged (no conflicts, effects only)	effectcraft 322c2150	source-complete
+2026-11-17	P0	FigCraft upstream da2792c merged; legacy within_app_folder kept removed	figcraft c889100f	source-complete
+2026-11-17	plan	Program phases P0-P8 from gap audit, research and framework study	program-2026-11-17.md	decided
+2026-11-17	P2	Kernels and jobs route through craft.call as host-handled kernel.*/job.* ops (ABI v1 unchanged; old hosts answer -3)	compute-and-jobs.md	decided
+2026-11-17	P2	Host work beyond the fuel slice is carried as debt; kernels larger than the remaining budget refused up front	ext-host wasm.rs run_sliced	verified: cargo test -p craft-ext-host (31 passed)
+2026-11-17	P2	Guest SDK kernel and job modules, job! macro, Event::Job	craft-guest	verified: clippy native+wasm32, cargo test -p craft-guest
