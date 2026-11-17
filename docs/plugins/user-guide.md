@@ -212,6 +212,13 @@ If a plugin fails three times in a row, the app pauses it for the rest of the se
 
 Resume starts the plugin again from a clean state. A paused plugin is not paused after a restart.
 
+If the app quit unexpectedly while plugins were running, the next start opens the Plugin Manager on
+**Problems** with each of them: "Was running when the app last quit unexpectedly". **Turn off**
+keeps that plugin off until you choose **Turn back on**; leave it and it keeps running.
+
+**Install from file…** in the manager's toolbar installs a `.craftplugin` you downloaded, through
+the same setup sheet. A plugin with full access shows **Turn off full access** in its details.
+
 ## 10. Safe mode
 
 If an app misbehaves because of a plugin, start it with plugin code turned off:
@@ -228,16 +235,36 @@ again.
 
 ## 11. Projects that use plugins
 
-EffectCraft and FigCraft remember which plugins a project uses. PhotoCraft does not yet.
+Every app remembers which plugins a project uses: EffectCraft for plugin effects and plugins that
+keep data in the project, PhotoCraft for plugins that keep data in the document and for Color
+Lookup layers made from a plugin's LUT, FigCraft for plugins that changed the file. The list is
+saved in the file, so it travels when you share the project.
 
 When you open a project whose plugins are not ready, the app asks **"This project uses N
-plugins"**. For each plugin it shows the status, with **Download** (not installed, or a different
-version is needed), **Enable** (installed but not set up) and **Skip**. Then choose **Open without
-them** or **Continue**. Opening a project never downloads or enables anything by itself.
+plugins"** (in PhotoCraft as a dialog over the window). Each plugin is listed by name with its
+version and status:
 
-Missing plugins keep their placeholders and saved data. In EffectCraft, missing effects render
-unchanged and final renders are refused until the plugins are back. Missing panels or commands never
-block export.
+- **Install** when it is not installed, or a different version is needed;
+- **Set up** when it is installed but turned off or missing a permission;
+- **Skip** to leave it for this project.
+
+**Install missing plugins** installs every listed one in one step. Each still opens the usual setup
+sheet, so you choose what it may do; nothing is turned on without you. A plugin withdrawn for safety
+is shown as unavailable and never offered. Then choose **Continue**, or **Open without them**; in EffectCraft
+and FigCraft that also keeps those plugins from running on this project. Opening a project never downloads or enables anything by
+itself.
+
+Nothing is lost while a plugin is missing:
+
+- Plugin data stays in the file unchanged and is saved again as it was, so it is there once the
+  plugin is installed.
+- EffectCraft keeps missing effects with their settings. The preview shows the layer without them;
+  a final render is refused, naming the plugins. To render anyway, choose **Render without missing
+  effects** in the Render Queue (or `effectcraft-cli render --without-missing-effects`). That renders
+  a copy without those effects, says which were left out, and leaves your project as it was.
+- PhotoCraft documents keep their pixels; a Color Lookup layer from a missing plugin keeps its table.
+- FigCraft layers a plugin made are ordinary layers: they stay editable and keep their data.
+- Missing panels or commands never block export.
 
 ```sh
 effectcraft-cli plugin project film.ecproj

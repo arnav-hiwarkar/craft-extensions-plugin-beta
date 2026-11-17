@@ -353,7 +353,40 @@ same kernel code directly, so you can unit-test a whole effect without the app (
 
 A module instance lives on its own worker thread and keeps its memory between events (for example
 in a `static Mutex`, as `examples/photocraft-levels-scope` does). That memory is lost when plugins
-reload, when the plugin is resumed, and when the app quits. There is no persistent storage.
+reload, when the plugin is resumed, and when the app quits.
+
+### Data in the document
+
+What must outlive the session, such as a rig description, a generator's inputs or the settings a
+layer was made with, belongs in the document with `craft_guest::data`:
+
+```rust
+use craft_guest::data::{self, Place};
+use serde_json::json;
+
+data::set(Place::Layer(layer), "rig", json!({"bones": 3}))?;
+let rig = data::get(Place::Layer(layer), "rig")?;
+data::set(Place::Document, "rig", serde_json::Value::Null)?;
+```
+
+- `Place::Document` is the whole document. `Place::Layer(id)` is a layer in EffectCraft (of the
+  composition captured when the event started) and PhotoCraft. `Place::Node(id)` is a FigCraft
+  layer; FigCraft accepts either form.
+- Reading needs `document.read:document`; writing needs `document.edit:document`. The operations
+  are `project.data.get` and `project.data.set` (`effectcraft.session@1.3`,
+  `photocraft.session@1.2`, `figcraft.session@1.2`).
+- Keys are 1 to 64 letters, digits, `.`, `-` or `_`. Each place holds at most 64 keys and 256 KiB
+  for your plugin; a write past that fails with `Budget`. `null` deletes a key.
+- Your data is yours: the host keys it by your plugin id, so you never see another plugin's data and
+  no other plugin sees yours. Layer reads (`node.get`, `layer.get`) never include it.
+- A write is part of the event: it is undone with the event's undo step and disappears if the event
+  rolls back.
+- It is saved in the app's own file (`.ecproj`, `.pcraft`, `.figcraft`) and kept unchanged when
+  someone opens the file without your plugin, so it is there again when they install it. Writing
+  data makes the document name your plugin, so the person is asked to install it.
+- Data is never executed and never reaches another app's format (PSD, flat exports).
+- Version what you store (for example a `"v": 2` key) and read older shapes; a newer release of your
+  plugin may open data an older one wrote.
 
 ## 7. Effect forms
 
@@ -521,9 +554,9 @@ The full workflow, vendor registration and store rules are in
 
 ## 13. Things you cannot do yet
 
-- **No persistent storage.** No operation saves plugin-private data, per plugin or per document.
-  Memory is lost on reload, Resume and quit. You can only write ordinary document content through
-  edit operations.
+- **No settings outside documents.** Plugin data lives in documents
+  ([Data in the document](#data-in-the-document)); there is no per-plugin storage that outlives
+  the session without a document, and no per-effect-instance state in EffectCraft yet.
 - **No network or clipboard.** The permissions parse, but no operation uses them.
 - **Events stay short.** An event may hold the document for about 5 s and must finish within 8 or
   9 s. Put long work in a [background job](compute-and-jobs.md#jobs) instead.

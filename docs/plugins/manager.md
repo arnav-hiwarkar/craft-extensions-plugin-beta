@@ -45,6 +45,9 @@ for effect in model.apply(Action::Install { id, app: None }) { handle(effect); }
 The launcher passes every app it manages to `Config::new`. Actions that change one app's setup
 name the app; `Install` picks the first managed app the plugin supports when none is given.
 
+Notices name the plugin (`Notice.subject`, its listing or manifest name) and carry its id
+(`Notice.plugin`) for views that match results to rows.
+
 | Effect | What the UI does |
 |---|---|
 | `Changed` | Redraw. |
@@ -114,7 +117,7 @@ stateDiagram-v2
   this computer lacks, opening a setup sheet for each. References it cannot find end with an
   "unavailable" notice.
 - **UpdateAll** starts one update flow per update row.
-- **InstallFile** stages a local `.craftplugin` and opens setup.
+- **InstallFile** stages a local `.craftplugin` and opens setup. Both views show Install from file… when the host offers a file dialog (egui `with_install_file`, framework `install_file`) and hand the request back (`take_install_file_request`, `PluginManagerOutput::install_file`); the host asks with its own dialog and calls `install_file(path)` or applies `Action::InstallFile`.
 
 The setup sheet starts with every available contribution on and every permission off, or with the
 earlier choices when the plugin was set up before. `blocker()` explains why it cannot be confirmed
@@ -134,11 +137,24 @@ uninstall) are jobs too; their result arrives as a notice and the next snapshot.
 | No helper | A native release has no executable for this platform | Update, when one exists |
 | Incompatible | The active release does not work with this app version | Update, when one exists |
 | Consent pending | A pending release waits for approval; `native` when it needs full access | Set up |
-| Unclean exit | The plugin was running when the app last quit unexpectedly | Report |
+| Unclean exit | The plugin was running when the app last quit unexpectedly | Turn off (`Store::quarantine` with `UNCLEAN_EXIT`); the row gives way to the quarantine problem |
 
-The app calls `Store::begin_run(app, running)` once at start, as it does today, and passes the
-returned list to `model.set_unclean_exit(app, list)`. The model never calls `begin_run` itself,
-because that would overwrite the app's running marker.
+The app calls `Store::begin_run(app, running)` once at start and passes the returned list to
+`model.set_unclean_exit(app, list)`. The model never calls `begin_run` itself, because that would
+overwrite the app's running marker. Every app does this when it creates its manager view, and when
+the list is not empty it opens the manager once on Problems at startup; no app has its own
+unexpected-close prompt any more.
+
+## Project prompt
+
+`Prompt` holds the decisions of the "This project uses N plugins" prompt so both views draw the same
+thing: `Prompt::new(config, statuses)` over `Manager::check_project`, `fix` (Install for listed or
+other-version plugins, Set up for installed ones, nothing for unavailable or withdrawn ones),
+`install_all` (one `InstallMissing` for every listed plugin left, when there are two or more),
+`skip`, `record` (results by plugin id) and `finish(open_without)`, whose `PromptOutcome.skipped`
+lists every plugin that is not ready when the person opens without them. Installs run the normal
+setup sheet; nothing installs or turns on by itself. The egui view is `craft_ext_ui::ProjectPrompt`
+and the framework view is `craft_ext_ui_fw::ProjectPrompt` over `PromptState`.
 
 ## Words
 
@@ -182,7 +198,7 @@ Decisions that both views need live in `ext-manager` (`src/view.rs`), never in a
 | Host | View | Where |
 |---|---|---|
 | PhotoCraft | `craft_ext_ui_fw::PluginManager` over `ManagerState`, a framework pattern | Its `ViewportWindow` opened by `plugins.manager`; paused and failed-load plugins are app rows on Problems |
-| EffectCraft | `craft_ext_ui::PluginManager` (egui) | Settings ▸ Plugins, with the project prompt |
+| EffectCraft | `craft_ext_ui::PluginManager` (egui) | Settings ▸ Plugins, with the project prompt and Render without missing effects in the Render Queue |
 | FigCraft | `craft_ext_ui::PluginManager` (egui) | The Plugins window, with the project prompt |
 | Launcher | `craft_ext_ui::PluginManager` (egui) with `Config::new` over every app it knows | Its Plugins page, a header tab beside Apps |
 
@@ -202,11 +218,11 @@ and resolve it under their own `[patch]`; its `craft` revision must equal the ap
 
 - The framework has no skeleton component, so loading shows an indeterminate progress bar over
   faint placeholder lines.
-- Icons and screenshots are decoded on the UI thread the first time they are drawn, then kept in the
-  framework texture cache; media bytes are kept in memory only, with no disk cache.
+- Media is kept in memory only, with no disk cache. The worker decodes catalogue PNGs to RGBA
+  (`Model::image` returns `Pixels`); views only upload textures.
 - Installs from the catalogue go through `Manager::install`, which verifies the cache with the
   compiled keys only, so the tests cover installing from a file, rollback, setup and writes, not a
   catalogue download.
 - Change detection compares file stamps every 500 ms instead of using a file-system watcher.
-- The model is not told about unclean exits by any app yet (`set_unclean_exit`); each app still shows
-  its own prompt after an unexpected close.
+- PhotoCraft's Open without them closes the prompt but cannot keep a plugin off one document: its
+  plugins add nothing that runs live in a document.

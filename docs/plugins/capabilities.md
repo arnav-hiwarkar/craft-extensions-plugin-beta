@@ -29,16 +29,18 @@ using the contribution's declared session level; this includes EffectCraft and F
 
 | | EffectCraft | PhotoCraft | FigCraft |
 |---|---|---|---|
-| Session contract | `effectcraft.session@1.1` | `photocraft.session@1.1` | `figcraft.session@1.1` |
+| Session contract | `effectcraft.session@1.3` | `photocraft.session@1.2` | `figcraft.session@1.2` |
 | Other contracts | `raster.filter@1.0`, `resource.preset@1.0`, `resource.lut@1.0`, `craft-theme@1.0` | `raster.filter@1.0`, `resource.preset@1.0`, `resource.lut@1.0`, `craft-theme@1.0` | `resource.font@1.0`, `craft-theme@1.0` |
 | `raster.filter` (effects) | Yes: effects | Yes: destructive filters | **No** |
-| Operations | 32 | 35 | 83 |
+| Operations | 35 | 37 | 85 |
 | File operations | None | Picker handles (`files.*`, `document.export`, `layer.import`) | None |
 | Network or clipboard operations | None | None | None |
 | Native helpers | command, panel, tool, event-hook | command, panel, tool, event-hook | command, panel, tool, event-hook |
 | Windows | 4 per plugin (5th refused) | 32 surfaces (panels + windows) per app | 4 per plugin (5th silently dropped) |
 | UI level enforced from the declared session minor | Yes | Yes | Yes |
-| Project plugin references | Yes | No | Yes |
+| Project plugin references | Yes: plugin effects and plugins that keep data | Yes: plugins that keep data and `plugin://` Color Lookup layers | Yes: plugins whose events edited the document, including data |
+| Plugin data (`project.data.*`) | Project and layers of the captured composition | Document and layers | Document and nodes (layers) |
+| Missing plugins on open | Project prompt; final renders refuse unless the person chooses Render without missing effects | Project prompt (framework view); the document's pixels are its own | Project prompt; plugin-made layers are ordinary layers |
 | Safe mode | `--safe-mode` / `EFFECTCRAFT_SAFE_MODE=1` | `PHOTOCRAFT_SAFE_MODE=1` | `FIGCRAFT_SAFE_MODE=1` |
 
 Session level 1.1 carries UI level 1.1 (`crates/ext-core/src/ui/tree.rs`, `ui_level_for_session`).
@@ -82,6 +84,8 @@ Abbreviations: **RD** = `document.read:document`, **ED** = `document.edit:docume
 | `project.summary`, `layer.tree`, `layer.list`, `comp.info`, `marker.list`, `prop.get` | Query | RD |
 | `selection.get` | Query | `document.read:selection` |
 | `time.get` | Query | free |
+| `project.data.get` | Query | RD |
+| `project.data.set` | Edit | ED |
 | `comp.new`, `comp.settings`, `time.set` | Edit | ED |
 | `layer.addItem`, `layer.newText`, `layer.newShape`, `layer.newSolid`, `layer.newNull`, `layer.setSwitch`, `layer.select` | Edit | ED |
 | `layer.rename` | Edit | `document.edit:selection` if the layer was selected when the event started, else ED |
@@ -110,6 +114,8 @@ Notes from the code (`effectcraft/crates/plugins/src/ops.rs`):
 | `documents.list` | Query | `document.read:all` |
 | `selection.get`, `selection.mask.get` | Query | `document.read:selection` |
 | `tool.state`, `plugin.resources` | Query | free |
+| `project.data.get` | Query | RD |
+| `project.data.set` | Edit | ED |
 | `layer.rename`, `layer.create`, `layer.delete`, `layer.set`, `pixels.set` | Edit | ED |
 | `layer.select` | Edit | RD (changes only which layer is selected) |
 | `selection.set`, `selection.save`, `guide.add`, `guides.clear`, `mask.add` | Edit | ED |
@@ -171,6 +177,8 @@ FigCraft's list is a closed list copied from its engine command registry
 | `document.info`, `page.list`, `page.select`, `node.get`, `node.children`, `node.find`, `selection.set`, `style.list`, `variable.list`, `image.presets`, `comment.list`, `export.svg` | Query | RD |
 | `selection.get` | Query | `document.read:selection` |
 | `viewport.get`, `viewport.set` | Query | free |
+| `project.data.get` | Query | RD |
+| `project.data.set` | Edit | ED |
 | `node.create`, `node.update`, `node.delete`, `node.reparent`, `node.reorder`, `edit.duplicate` | Edit | ED |
 | `page.add`, `page.delete`, `page.duplicate`, `page.move`, `page.rename`, `page.setBackground` | Edit | ED |
 | `component.*` (7), `instance.*` (3) | Edit | ED |
@@ -192,6 +200,23 @@ Notes from the code (`figcraft/crates/plugins/src/runtime.rs`):
 - `export.svg` returns an SVG string of at most 4 MiB; it does not touch the file system.
 - During a `document.changed` event, Edit operations are refused to prevent feedback loops.
 - An event may make at most 64 UI changes.
+
+## Plugin data in documents
+
+`project.data.get {key, target?}` and `project.data.set {key, value, target?}` keep a plugin's own
+JSON in the document. Every app answers them with `craft_ext_host::data::handle` over a
+`PluginData` keyed by the calling plugin's id, so a plugin never reaches another plugin's data. A
+place holds at most 64 keys and 256 KiB per plugin; `null` deletes a key. A write is part of the
+event's undo step and rolls back with it. Data of a plugin that is not installed is saved unchanged
+and makes the document reference that plugin, so the project prompt names it.
+
+| App | `target` | Where it is saved | Format rule |
+|---|---|---|---|
+| EffectCraft | none (project) or `{layer: id}` in the captured composition | `Project.plugin_data` and `Layer.plugin_data` in `.ecproj`, one JSON object per plugin id | Optional members, left out when empty; schema 2 unchanged |
+| PhotoCraft | none (document) or `{layer: id}` | `plugin_data` on the `.pcraft` document and layer manifests, one JSON object per plugin id | Optional members, left out when empty; `format_version` 1 unchanged. PSD and flat exports do not carry it |
+| FigCraft | none (document) or `{node: id}` / `{layer: id}` | The node's and the document's `plugin_data` maps in `.figcraft`, under `plugin:<id>` as JSON text | Optional member on the document, left out when empty; synced in collaboration as `pluginData` |
+
+Layer reads (`node.get`, `layer.get`) never include plugin data.
 
 ## Not available
 
