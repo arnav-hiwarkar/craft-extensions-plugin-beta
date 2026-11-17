@@ -170,7 +170,7 @@ impl<'a> View<'a> {
         self.snapshot.index.as_ref().and_then(|i| i.revocation(&p.id, p.latest, "")).is_some_and(|r| r.severity == Severity::Disable)
     }
 
-    fn badges(&self, e: &Entry<'_>) -> Vec<Badge> {
+    pub fn badges(&self, e: &Entry<'_>) -> Vec<Badge> {
         let mut out = vec![Badge::Tier(e.tier)];
         match e.native {
             Some(NativeMode::Full) => out.push(Badge::NativeFull),

@@ -201,7 +201,8 @@ fn filters_sorts_and_badges() {
     assert_eq!(names(&m), vec!["Bloom", "Glow", "Grain", "Haze", "Soft Light", "Titles"]);
     m.apply(Action::SetFilters(Filters { installed: true, ..Filters::default() }));
     assert_eq!(names(&m), Vec::<&str>::new());
-    assert_eq!(m.rows().len(), 0);
+    m.apply(Action::Select(Some(id("com.artcraft.titles"))));
+    assert_eq!(m.detail().unwrap().badges, vec![Badge::Tier(Tier::Official), Badge::Featured]);
 }
 
 #[test]

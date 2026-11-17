@@ -408,7 +408,7 @@ impl Model {
         }
         counts[Tab::Problems as usize] = problems.len();
         let detail = self.selected.as_ref().and_then(|id| {
-            let badges = view.entry(id).map(|_| rows.iter().find(|r| &r.id == id).map(|r| r.badges.clone()).unwrap_or_default()).unwrap_or_default();
+            let badges = view.entry(id).map(|e| view.badges(&e)).unwrap_or_default();
             detail::build(&view, id, self.packages.get(id).map(|(_, p)| p), badges)
         });
         self.rows = rows;
