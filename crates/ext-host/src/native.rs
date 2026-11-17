@@ -192,12 +192,15 @@ impl Helper {
             self.kill();
             return Err(PluginError::Stopped(e.message));
         }
-        self.api.begin(&inv).map_err(|e| PluginError::Failed(e.code as i32, e.message))?;
+        crate::api::contain("begin", || self.api.begin(&inv)).map_err(|e| PluginError::Failed(e.code as i32, e.message))?;
         let id = self.next_id;
         self.next_id += 1;
         let result = self.run(&inv, id, event).and_then(|()| self.check(&inv).map_err(|e| PluginError::Stopped(e.message)));
         let commit = result.is_ok();
-        self.api.finish(&inv, commit);
+        let _ = crate::api::contain("finish", || {
+            self.api.finish(&inv, commit);
+            Ok(())
+        });
         if let Err(PluginError::Stopped(_) | PluginError::TooSlow | PluginError::Trap(_)) = &result {
             self.kill();
         }
@@ -230,7 +233,7 @@ impl Helper {
                             return Err(OpError::new(Code::NotFound, format!("this app has no operation {op}")));
                         }
                         crate::api::check_args(self.api.contract(), &op, &msg["args"])?;
-                        self.api.call(inv, &op, msg["args"].clone())
+                        crate::api::contain(&op, || self.api.call(inv, &op, msg["args"].clone()))
                     });
                     let stopped = self.check(inv).is_err();
                     let reply = match out {

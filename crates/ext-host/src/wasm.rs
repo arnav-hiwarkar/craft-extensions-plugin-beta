@@ -327,7 +327,8 @@ fn job_call(caller: &mut Caller<'_, HostData>, op: &str, args: &Value) -> Result
             let (module, log, grants, inv) = (module.clone(), data.log.clone(), session.grants.clone(), inv.clone());
             let worker = ticket.clone();
             let spawned = std::thread::Builder::new().name(format!("plugin-job-{id}")).spawn(move || {
-                let state = run_job(&module, log, &worker, &input, grants.as_ref(), &inv);
+                let state = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run_job(&module, log, &worker, &input, grants.as_ref(), &inv)))
+                    .unwrap_or_else(|_| JobState::Failed("the app failed while running this job".into()));
                 worker.finish(state);
             });
             if spawned.is_err() {
@@ -444,7 +445,7 @@ fn linker(engine: &Engine) -> Linker<HostData> {
                 authorize(session.api.contract(), session.grants.as_ref(), inv, &op, &args)
             }
         });
-        let outcome = authorization.and_then(|()| session.api.call(inv, &op, args));
+        let outcome = authorization.and_then(|()| crate::api::contain(&op, || session.api.call(inv, &op, args)));
         let (bytes, ret) = match outcome {
             Ok(v) => {
                 let b = serde_json::to_vec(&v).unwrap_or_default();
@@ -743,11 +744,14 @@ impl Session {
         if grants.stopped(&inv.plugin, inv.version) {
             return Err(PluginError::Stopped("this plugin has been turned off".into()));
         }
-        api.begin(&inv).map_err(|e| PluginError::Failed(e.code as i32, e.message))?;
+        crate::api::contain("begin", || api.begin(&inv)).map_err(|e| PluginError::Failed(e.code as i32, e.message))?;
         let result = self.run_event(&inv, event, grants.as_ref());
         let still_ok = !grants.stopped(&inv.plugin, inv.version) && grants.generation(&inv.plugin) == inv.grant_generation && !inv.cancelled();
         let commit = result.is_ok() && still_ok;
-        api.finish(&inv, commit);
+        let _ = crate::api::contain("finish", || {
+            api.finish(&inv, commit);
+            Ok(())
+        });
         if let Some(s) = self.inst.store.data_mut().session.as_mut() {
             s.inv = None;
         }

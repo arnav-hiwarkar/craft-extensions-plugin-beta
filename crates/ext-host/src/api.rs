@@ -206,6 +206,13 @@ pub trait AppApi: Send + Sync {
     fn finish(&self, inv: &Invocation, commit: bool);
 }
 
+/// Runs `f` (an adapter entry point) so a panic in app code becomes an internal error for this one
+/// plugin call instead of taking the app down. The adapter's lints forbid panics; this is the
+/// backstop for a dependency or an overlooked index.
+pub fn contain<T>(what: &str, f: impl FnOnce() -> Result<T, OpError>) -> Result<T, OpError> {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)).unwrap_or_else(|_| Err(OpError::new(Code::Internal, format!("the app failed while running {what}"))))
+}
+
 /// Live grant state, implemented over `craft_ext_store::GrantView` by the adapter.
 pub trait Grants: Send + Sync {
     /// Current grant generation of `plugin` in this app (changes on every grant or revoke).

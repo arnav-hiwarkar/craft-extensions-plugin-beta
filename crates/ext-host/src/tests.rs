@@ -546,3 +546,43 @@ fn a_session_starts_a_background_job_and_gets_its_result_as_an_event() {
     assert_eq!(done[0].progress, Some(1.0));
     assert_eq!(done[0].event(), json!({"event":"job","job":1,"ok":true,"result":{"done":true}}));
 }
+
+struct PanickyApp(AppContract);
+
+impl AppApi for PanickyApp {
+    fn contract(&self) -> &AppContract {
+        &self.0
+    }
+    fn begin(&self, _: &Invocation) -> Result<(), OpError> {
+        Ok(())
+    }
+    fn call(&self, _: &Invocation, _: &str, _: Value) -> Result<Value, OpError> {
+        let empty: Vec<u8> = Vec::new();
+        Ok(json!(empty[std::hint::black_box(3)]))
+    }
+    fn finish(&self, _: &Invocation, _: bool) {}
+}
+
+#[test]
+fn an_adapter_panic_fails_the_plugin_call_instead_of_the_app() {
+    let (_, app, grants) = session_fixture();
+    let contract = AppContract {
+        app: app.contract.app.clone(),
+        display_name: "TestCraft",
+        provided: Provided::new(&[("testcraft.session", 1, 0)]),
+        ops: vec![OpSpec { id: "doc.fill", kind: OpKind::Edit, summary: "", args: "{}", result: "{}", requires: needs_edit, permission_rule: "" }],
+        events: vec![],
+        slots: vec![],
+        notes: "",
+    };
+    let p = module(
+        r#"(data (i32.const 16) "doc.fill")
+           (func (export "craft_event") (param i32 i32) (result i32) (local $r i64)
+             (local.set $r (call $call (i32.const 16) (i32.const 8) (i32.const 0) (i32.const 0)))
+             (if (result i32) (i64.lt_s (local.get $r) (i64.const 0)) (then (i32.wrap_i64 (local.get $r))) (else (i32.const 0))))"#,
+        r#"(import "craft" "call" (func $call (param i32 i32 i32 i32) (result i64)))"#,
+    );
+    let mut s = Session::new(&p, Arc::new(PanickyApp(contract)), grants, log()).unwrap();
+    assert!(matches!(s.dispatch(inv(1), &json!({"event":"command"})), Err(PluginError::Failed(-7, _))));
+    assert!(s.dispatch(inv(1), &json!({"event":"command"})).is_err(), "the session survives and runs again");
+}
