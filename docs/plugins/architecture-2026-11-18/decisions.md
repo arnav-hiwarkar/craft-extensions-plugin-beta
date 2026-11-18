@@ -21,30 +21,36 @@ Recommended over adapter-side tables (they drift) and over typed parameter struc
 **3. Commands without metadata are agent-only.** MCP and CLI keep them; plugins see nothing until
 the command declares its effects. Alternative: expose with a coarse permission (unsafe).
 
-**4. Who reviews permission widenings.** Recommended: one named security owner via CODEOWNERS on
-every `api.lock.json` and `api-widening.log`, with the app owner second. Needed: a name.
+**4. DECIDED 2026-11-18: the owner (Arnav Hiwarkar) is the required CODEOWNERS reviewer** on every
+`api.lock.json` and `api-widening.log` in every app. Agents draft widenings; the owner approves.
 
 **5. DECIDED 2026-11-18: every permission is approved once at setup; nothing is granted implicitly.** The owner chose setup approval over the recommended implicit grants. Selection writes, clipboard and opening links still work only in events the user invoked. Original recommendation, not adopted: when the user runs a plugin's
 command, selection-scoped read and edit, selection changes, clipboard write and opening a link count
 as granted for that one event, with no prompt. Background, automatic, agent and service runs never
 get them. Alternative: always prompt (permission fatigue; the Chrome `activeTab` lesson).
 
-**6. Selection changes are their own permission (`selection.write`), gesture-only.** Recommended by
+**6. DECIDED 2026-11-18: selection changes are their own permission (`selection.write`), approved at setup, usable only in user-invoked events.** Recommended by
 the red team, because "select all, then an edit on the current selection" escalates selection scope
 to the whole document. Cost: one more permission name; selection writes are not available to
 automatic hooks.
 
-**7. Defer WIT and the component model.** Recommended: one schema source (`craft-command`) generates
+**7. DECIDED 2026-11-18: defer WIT and the component model.** Recommended: one schema source (`craft-command`) generates
 Rust, then TypeScript, C and docs; ABI v1 JSON plus a binary bulk call. WIT's speed advantage
 (24–81 ns per call) disappears once calls cross into the worker process. Revisit after the worker is
 measured. Alternative: WIT now (a second IDL and two engine paths to maintain).
 
-**8. Preferences stay off-limits to plugins in v1.** Plugins ship presets, workspaces, themes and
-fonts as data the user applies. Alternative: an `app.preferences` permission (a persistence and
-tampering channel).
+**8. DECIDED 2026-11-18: plugins may write preferences through `app.preferences:<group>`.** The owner
+chose this over the recommendation to refuse preferences in v1. Safeguards: each preference command
+declares its group; groups that control plugins, scripts, automation, security or grants are never
+grantable; the permission is asked at setup with strong wording, counts as risk level L2, and is refused
+in automatic and render contexts. Residual risk: a granted plugin can change ordinary settings
+persistently; the activity log records every write.
 
-**9. App-owned network commands stay off-limits to plugins in v1.** Plugins use their own `net.fetch`
-to declared hosts. Alternative: allow per command (covert exfiltration through app endpoints).
+**9. DECIDED 2026-11-18: app-owned network commands are plugin-visible when their metadata declares
+the hosts they contact,** under `network:<host>` for each host. The owner chose this over refusing them
+in v1. Safeguards: commands without declared hosts stay refused; the choke point checks the actual
+host against the declaration; refused in automatic and render contexts; counts as Online. Residual
+risk: data can leave through app endpoints the user approved.
 
 ## Before P2: isolation and UI
 

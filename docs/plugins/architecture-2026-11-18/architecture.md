@@ -155,6 +155,8 @@ pub struct Meta {
     pub params: ParamSchema,
     pub result: ParamSchema,
     pub exposure: Exposure,
+    pub hosts: &'static [&'static str],
+    pub pref_group: Option<&'static str>,
     pub since: u32,
 }
 
@@ -184,11 +186,11 @@ rule wins.
 | # | Rule | Exposure |
 |---|---|---|
 | 1 | Undeclared schema or effects | Agent-only |
-| 2 | `PluginMgmt`, `PrefsWrite`, `Process`, `AppLifecycle`, `ModelInstall`, `Collab`, `Print`, `SystemFonts` | Refused |
+| 2 | `PluginMgmt`, `Process`, `AppLifecycle`, `ModelInstall`, `Collab`, `Print`, `SystemFonts`, or `PrefsWrite` on a group that controls plugins, scripts, automation, security or grants | Refused |
 | 3 | `Undo::Manages` (raw undo, redo, undo groups), or `Dispatch` (it would run another principal's commands) | Refused; plugins use `app.batch` |
 | 4 | `Path`/`Url`/`Script` param without a handle twin | Refused |
 | 5 | `UiWindow`, or a command that needs a modal dialog | Refused; plugins show their own form, then call with explicit params |
-| 6 | The app's own `Net` | Refused in v1; plugins use `net.fetch` |
+| 6 | The app's own `Net` without declared `hosts` | Refused. With declared hosts it is plugin-visible under `network:<host>` for each host (owner decision 9) |
 | 7 | Command contributed by a plugin | Refused through the bridge; use `service.call` |
 | 8 | Otherwise | Plugin-visible, with permissions derived from effects and scope |
 
@@ -201,6 +203,8 @@ Derived permissions:
 | `SelectionWrite` | `selection.write` |
 | `ViewWrite` | `app.view` |
 | `SessionWrite` | `app.session` |
+| `PrefsWrite` (allowed groups) | `app.preferences:<group>` (owner decision 8) |
+| `Net` (declared hosts) | `network:<host>` for every declared host |
 | `PickFile` | the file portal |
 | `ClipboardRead`, `ClipboardWrite` | `clipboard.*` |
 | `Long` or `Job` | callable only through `job.run_command` |
@@ -331,11 +335,12 @@ This extends `ext-core/src/permission.rs` without renaming anything.
 | `selection.write` | Changing the selection | At setup. Works only in events the user invoked; refused in background, automatic, agent and service runs |
 | `app.view` | Viewport, zoom, playhead, active tool, panel visibility | Declared, never prompted. Refused in automatic events without `app.automation` |
 | `app.session` | App state outside the document, not preferences | Setup, low-risk wording |
+| `app.preferences:<group>` | Writing app preferences in one group (for example `canvas`, `export`, `units`). Groups that control plugins, scripts, automation, security or grants are never grantable. Refused in automatic contexts | Setup, strong wording ("Can change your PhotoCraft export settings") |
 | `app.events[:family]` | Subscriptions | Setup ("runs automatically when…") |
 | `app.automation` | Edits without a user gesture (hooks, timers, change follow-ups). Needed on top of `document.edit` | Setup, strong wording |
 | `app.intercept:<point>` | App-declared hook points: `before-save`, `before-export`, `input.filter`, `tool:<id>` | Setup, plus a per-contribution toggle |
 | `files.read:picked`, `files.write:picked`, `files.folder:picked` | Portal handles; folder handles persist and are revocable | The picker is the grant |
-| `network:<host>` | `net.fetch` to declared hosts only | One consent per plugin, showing the manifest's reason |
+| `network:<host>` | `net.fetch` to declared hosts, and app commands whose metadata declares only those hosts (cloud libraries, font and model services). Refused in automatic and render contexts | At setup, showing the manifest's reason |
 | `net.local:<port>` | Loopback to a companion app (Verified tier and above). The companion must answer a challenge, and Craft control, MCP and bridge ports are always refused | Setup, at the Online risk level. Owner decision |
 | `clipboard.read`, `clipboard.write` | Clipboard during user gestures | At setup; both work only in events the user invoked |
 | `ui.window` | Floating windows, never modal or always-on-top | Setup |
@@ -355,7 +360,7 @@ installs them from the manager; no plugin permission does it.
 **Never grantable, with no spelling:**
 
 - processes, raw paths and sockets;
-- app preferences (v1), undo history, plugin management, grants;
+- preferences that control plugins, scripts, automation, security or grants; undo history, plugin management, grants;
 - collaboration identity, invoking agents or MCP;
 - other plugins' data or secrets.
 
@@ -381,7 +386,7 @@ Verified, Community, Local, Dev) is shown beside the level, never merged with it
 |---|---|---|
 | L0 | Works on what you select | Selection scope only, no events, no network |
 | L1 | Works with your documents | Document scope, events, automation, hooks and interception, input filters, tool replacement, clipboard read, folders |
-| L2 | Online | Any `network:` or `net.local:`. The sentence names the hosts, and says whether the plugin also reads documents |
+| L2 | Online, or changes app settings | Any `network:`, `net.local:` or `app.preferences:`. The sentence names the hosts or setting groups, and says whether the plugin also reads documents |
 | L3 | Native, confined | Native restricted helper |
 | L4 | Full access to your computer | Native full; two-step consent |
 
@@ -646,7 +651,7 @@ About 14% more comes through host mediation: file handles, clipboard, jobs and h
 
 About 7% stays for the user and agents only, by design:
 
-- preferences and shortcuts;
+- shortcuts, and preferences that control plugins, scripts, automation or security;
 - process and OS actions;
 - plugin management;
 - collaboration identity;
@@ -655,8 +660,9 @@ About 7% stays for the user and agents only, by design:
 - raw undo groups;
 - app lifecycle.
 
-Plugins still reach most of those outcomes by safer routes: presets and workspaces as data,
-`net.fetch` instead of app network commands, and `handoff.open` instead of launching processes.
+Plugins still reach most of those outcomes by safer routes: ordinary preferences through
+`app.preferences:<group>`, presets and workspaces as data, app network commands with declared hosts
+or `net.fetch`, and `handoff.open` instead of launching processes.
 
 **Native plugins remain for:**
 
@@ -683,7 +689,7 @@ the build. The attack chains behind them are in [research/09-redteam.md](researc
 | 4 | Only hardware input approves trust UI or mints a gesture | Per-sheet tests that `answer_dialog`, `press_key`, UI clicks and dialog confirms cannot change grants |
 | 5 | No plugin reaches the operator channel. Every control, MCP and bridge port needs a per-run token that workers and helpers never inherit; loopback grants need a companion challenge and refuse Craft ports; restricted sandboxes deny loopback and Unix sockets | Live connect tests from the worker, a restricted helper and a `net.local` grant; environment and file-descriptor scan for tokens |
 | 6 | One closed permission vocabulary and one total risk function. Automation, interception, input filters and tool replacement are at least L1 | Enum-iteration test; no document or code names a permission the enum cannot parse |
-| 7 | Automatic execution has no capabilities: no network, secrets, files, clipboard, services or registry writes in render, cook, expression, preview, widget, peer-triggered or external-document contexts | Contract-table test per contribution kind; open-and-render fixture with a network sink that fails |
+| 7 | Automatic execution has no capabilities: no network, secrets, files, clipboard, preference writes, services or registry writes in render, cook, expression, preview, widget, peer-triggered or external-document contexts | Contract-table test per contribution kind; open-and-render fixture with a network sink that fails |
 | 8 | Plugin output is untrusted input to the host: no path links, scripts, expressions, foreign plugin data or external references; primary exports are host-produced | Sentinel-link test; importer fuzz targets; export-hash equality |
 | 9 | Agents treat all document and plugin text as data, and see plugin commands only by opt-in | Per-server MCP snapshot tests with injection fixtures; `actions.play` principal test |
 | 10 | GPU code is a validated package artefact with owner-initialised resources: no run-time WGSL, per-package strikes, pooled resources cleared, no cross-package fusion, no timing to plugins | Pool-reuse sentinel test; run-time pipeline refusal; per-package quarantine; fusion namespace test |
