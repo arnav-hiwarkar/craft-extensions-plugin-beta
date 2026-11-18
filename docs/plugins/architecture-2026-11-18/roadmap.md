@@ -20,7 +20,7 @@ P1a craft-command + Meta ───┼─> P1b Runtime<A> + 3 ports + bridge ─>
 (beta apps)                 │        │                                   │                   │
                             │        └─> P1c net/secrets/events/UI 1.3   │                   │
                             │                                            v                   v
-P3a app prerequisites ──────┴──────────────────────> P3b new adapters (MaterialCraft/TextureCraft, VectorCraft, AniCraft, FilmCraft, LightCraft, DesignCraft)
+P3a app prerequisites ──────┴──────────────────────> P3b new adapters (FilmCraft, AniCraft, MaterialCraft/TextureCraft, VectorCraft, LightCraft, DesignCraft)
 (tolerant load, open registries, Meta, change events)                    │
                                                                          v
                                               P4 GPU L2 passes, craft-nn, formats, parameter kinds, overlays
@@ -81,13 +81,15 @@ P2a timing targets:
 Repos: each app's `plugin-beta` branch; craft-libs (`craft-graph`, `craft-mesh`).
 
 Each adapter starts on `Runtime<A>` and the bridge. Its breadth on day one is its classified registry.
+Order follows owner decision 14 (video first). The web-window tier (T6) lands in P4 with its helper
+process and sandbox tests.
 
 | Order | App work first (P3a) | Adapter (P3b) | Acceptance |
 |---|---|---|---|
-| 1 | **MaterialCraft:** `Meta` (133), open node registry, SBS dependency URLs, change events. **TextureCraft:** tolerant decoding, plugin variants, compositor path, `Meta` (183) | `resource.node-library@1` (MaterialCraft, data only), then `graph.node@1` WGSL in both | One node package gives golden images within ΔE ≤1 in both apps; a TextureCraft document with an unknown effect round-trips byte-identical; a missing node renders its durable output with a badge |
-| 2 | **VectorCraft:** convert `reviewed.rs` (718 ids) into `Meta`; appearance registry with durable output | `vectorcraft.session@2`, `vector.effect@1`, formats; legacy shim | Every legacy kind and host import has a conformance-tested equivalent; shim removal date recorded |
-| 3 | **AniCraft:** `Meta` (365), egui 0.37, plugin panel, open filter registry that keeps unknown entries | `anicraft.session@2`; ABI v1 bridge | Its four v1 sample plugins run through the bridge; the old namespace policy test is replaced by `api.lock.json` |
-| 4 | **FilmCraft:** plugin data, unknown preservation, external effect registry, refusal of missing effects, `Meta` (686) | `filmcraft.session@2`, `raster.filter@2` on clips, transitions | An unknown effect id no longer passes through silently |
+| 1 | **FilmCraft:** plugin data, unknown preservation, external effect registry, refusal of missing effects, `Meta` (686) | `filmcraft.session@2`, `raster.filter@2` on clips, transitions | An unknown effect id no longer passes through silently |
+| 2 | **AniCraft:** `Meta` (365), egui 0.37, plugin panel, open filter registry that keeps unknown entries | `anicraft.session@2`; ABI v1 removed in the same change (hard cut) | Its four sample plugins rebuilt on the platform pass; the old namespace policy test is replaced by `api.lock.json`; documents with old plugin data open and save byte-identical |
+| 3 | **MaterialCraft:** `Meta` (133), open node registry, SBS dependency URLs, change events. **TextureCraft:** tolerant decoding, plugin variants, compositor path, `Meta` (183) | `resource.node-library@1` (MaterialCraft, data only), then `graph.node@1` WGSL in both | One node package gives golden images within ΔE ≤1 in both apps; a TextureCraft document with an unknown effect round-trips byte-identical; a missing node renders its durable output with a badge |
+| 4 | **VectorCraft:** convert `reviewed.rs` (718 ids) into `Meta`; appearance registry with durable output | `vectorcraft.session@2`, `vector.effect@1`, formats; legacy `crates/plugins` removed in the same change (hard cut) | Every legacy kind has a platform equivalent; documents with legacy plugin data open and save byte-identical and render durable output with a badge |
 | 5 | **LightCraft:** `Meta` (391), sidecar writes batched and attributed, export hooks | `lightcraft.session@2`, `export.service@1` | One XMP write per photo per plugin event, carrying the plugin origin |
 | 6 | **DesignCraft:** `Meta` (567), file-writing "queries" reclassified, string preflight kinds, change sets | `designcraft.session@2`, `document.check@1` | `file.exportIdml` is classified as a file write and is absent from the plugin lock |
 
@@ -101,6 +103,7 @@ Repos: craft-extensions, craft-libs (`craft-nn`), photocraft, effectcraft, craft
 | GPU L2 `gpu.pass` DAG with plugin-owned storage (Verified first) | Golden images on Metal and lavapipe within tolerance; exceeding a quota fails only that plugin call |
 | `format.import@1`, `format.export@1`; overlays with hit regions; parameter kinds (Point3, Layer, Mask, Path, Curve, Gradient, File, Data, Button) | **Formats:** round-trip fixtures per app; importer fuzz targets; the sentinel-link test (an importer cannot create a link to `~/.ssh`). **Overlays:** a drag produces one undo step |
 | FigCraft collaboration server validates plugin-data ownership | A peer writing another plugin's namespace is refused server-side |
+| Web-window tier T6: system webview in a sandboxed helper process, `ui.web` permission, package-only content plus declared hosts, message channel to the plugin's Wasm only | The page cannot reach app commands, files or undeclared hosts; trust sheets ignore input routed from it; window chrome shows the plugin identity; closing the plugin closes its windows |
 
 ## P5 · Audio (5–7 months)
 

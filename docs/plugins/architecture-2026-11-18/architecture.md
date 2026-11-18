@@ -483,15 +483,24 @@ trip in EffectCraft's GPU chain, against 0.39 ms for the same pass on the GPU (*
 
 ## 10. UI
 
-- **Rendering tiers**, all composited by the host:
+- **Rendering tiers.** T1–T5 are composited by the host; T6 is a separate OS window:
   - **T1.** Retained declarative tree: UI 1.3 with keyed patches, value bindings, live controls and
     lazy rows.
   - **T2.** Retained layered canvas with hit regions and theme-token paints.
   - **T3.** Host editor components: curve, gradient, node graph, timeline lane, meter, scope.
   - **T4.** Viewer of image handles produced by the GPU or job tiers.
   - **T5.** Native windows, for native-tier plugins only, labelled as external.
-- **No webview.** It cannot be docked, clipped or themed in egui or wgpu, it adds WebKitGTK on Linux,
-  and it opens a phishing surface. This is an owner decision.
+  - **T6.** Web window (owner decision 11): a system webview (WKWebView, WebView2, WebKitGTK) in a
+    separate helper process, shown as its own OS window, never docked or embedded in a panel.
+    - Needs the `ui.web` permission, approved at setup.
+    - Content comes only from the plugin package. Remote pages load only from declared
+      `network:<host>` hosts and raise the plugin to the Online risk level.
+    - A strict content security policy applies, and there is no Node or file access.
+    - The only bridge is a message channel to the plugin's own Wasm code. The page never reaches the
+      app, its commands or the gate directly; everything goes through the plugin and therefore the gate.
+    - Host chrome titles the window with the plugin's identity.
+    - Trust sheets are modal over the app and refuse input routed from the web window.
+    - Not available in automatic contexts.
 - **Contribution points** are a closed, versioned catalogue:
   - commands, menus, palette, shortcuts;
   - toolbars, tools with gestures and gizmos;
@@ -628,18 +637,23 @@ breadth.
 |---|---|---|---|---|
 | EffectCraft | 757 | `Meta`; dock plugin panels (today they float); GPU path for external effects; render-request API | Pass through `EffectHost` (other frames, layers, audio, camera, depth/ID); `raster.filter@2`; expressions, masks, paths, text, keys, tracking, render queue via the bridge | Particular, Saber, Optical Flares, Twixtor, Neat-class denoise, Sapphire, Mocha-style panels, Duik, Newton, BeatEdit |
 | FilmCraft | 686 | `Meta`; plugin data in projects; keep unknown fields; external effect, transition and audio registries; refuse silent pass-through | `filmcraft.session@2`; `raster.filter@2` on clips; transitions; audio effects | Universe transitions, looks, captioning, scene detection, review panels |
-| AniCraft | 365 | `Meta`; egui 0.37; plugin panel; open filter and tool registries | `anicraft.session@2`; bridge for its own ABI v1 plugins, then removal | Rigging, lip sync, inbetweening, exporters, brush engines |
+| AniCraft | 365 | `Meta`; egui 0.37; plugin panel; open filter and tool registries | `anicraft.session@2`; its own ABI v1 plugin system removed when the adapter lands (hard cut) | Rigging, lip sync, inbetweening, exporters, brush engines |
 | PhotoCraft | 954 + 146 shell | `Meta`; compute queue; smart filters dispatching plugins with durable output; dynamic command overlay | Tile-native pixels with colour space and bit depth; masks, channels, styles, text, paths, smart objects; paint strokes; Actions journaling | Topaz, Nik, Portraiture, Lumenzia, Coolorus, brush engines, UXP-style panels |
 | LightCraft | 391 + 213 UI | `Meta`; batched sidecar writes; export and publish hooks; custom metadata fields; profile registry | `lightcraft.session@2`; `export.service@1`, `publish.service@1`, `metadata.provider@1` | Publish services, Negative Lab Pro, LRTimelapse, metadata tools |
 | FigCraft | 630 | `Meta`; server-owned plugin data | Bridge (from 72 to about 500 commands); image fills; PNG/PDF export; codegen; selection-scoped grants; change lists | Unsplash, Iconify, Autoflow, Stark, Tokens Studio, codegen tools |
-| VectorCraft | 1,044 | Convert its reviewed list (718 ids) into `Meta`; appearance registry with durable output | `vectorcraft.session@2`; `vector.effect@1`; formats; legacy shim, then removal | Astute tools, CADtools, GIS import, Phantasm |
+| VectorCraft | 1,044 | Convert its reviewed list (718 ids) into `Meta`; appearance registry with durable output | `vectorcraft.session@2`; `vector.effect@1`; formats; its legacy plugin system removed when the adapter lands (hard cut) | Astute tools, CADtools, GIS import, Phantasm |
 | DesignCraft | 567 + 194 UI | `Meta`; reclassify file-writing "queries"; change sets; string preflight kinds | `designcraft.session@2`; `document.check@1`; story import | Data publishing, automated layout, preflight, imposition |
 | MaterialCraft | 133 | `Meta`; open node registry; SBS dependency URLs; change events | `resource.node-library@1` first (its library is already 549 data graphs), then `graph.node@1` | Designer-style nodes, Material Maker-class shaders, batch cooking |
 | TextureCraft | 183 | Tolerant loading first; plugin variants in 17 closed enums; compositor path | `texturecraft.session@2`; `graph.node@1`; resources; bakers; viewport overlays | Smart materials, generators, asset libraries, custom bakers |
 | SoundCraft | 483 | Sample-accurate automation; per-slot faults; event lists; no-allocation guard; move native hosting into the bridge | `craft:` (sandboxed Wasm) and `bridge:` (native, out of process) plugin kinds; `audio.*` contracts | Valhalla- and FabFilter-class effects, synths, JSFX-style scripts, stem separation |
 
-**Competing systems to replace:** VectorCraft's legacy plugins (about 12,300 lines), AniCraft's ABI
-v1, and SoundCraft's in-process native hosting.
+**Competing systems to replace:**
+
+- VectorCraft's legacy plugins (about 12,300 lines) and AniCraft's ABI v1. Both get a hard cut (owner
+  decision 18): each is removed in the same change that lands its new adapter. Old plugins stop working
+  until they are rebuilt against the platform. Documents keep the old plugin data as preserved unknown
+  data plus durable output, so nothing is lost.
+- SoundCraft's in-process native hosting, which moves into the bridge process.
 
 **Automation engines that stay**, but classify through the same `Meta`: EffectCraft scripts and
 ScriptUI, VectorCraft JS, DesignCraft's step runner and PhotoCraft Actions.

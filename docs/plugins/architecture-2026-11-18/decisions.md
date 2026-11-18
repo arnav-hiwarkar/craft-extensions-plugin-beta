@@ -61,7 +61,9 @@ work, plus an IPC hop per call (target ≤5 µs, unmeasured). The core API is ba
 Alternative: in-process Wasmtime (measured faster for chatty plugins; one bug from the user's
 document).
 
-**11. No webview for plugin UI.** Recommended: host-drawn tiers only (declarative tree, canvas, host
+**11. DECIDED 2026-11-18: a separate web window, behind `ui.web`.** The owner chose an out-of-process
+system webview shown as its own OS window, never docked, over the recommendation of no webview. See
+architecture §10 T6 for the safeguards. Original recommendation, not adopted: no webview for plugin UI. Recommended: host-drawn tiers only (declarative tree, canvas, host
 editors, GPU viewer). A webview cannot dock, clip or theme in egui or wgpu, adds WebKitGTK on Linux,
 and is a phishing surface. Cost: UXP- and CEP-style HTML panels must be rewritten as UI trees. Revisit
 only if the catalogue shows a famous plugin class that needs it.
@@ -78,11 +80,10 @@ on GitHub and Forgejo, at upstream `main` from 2026-11-18. DECIDED 2026-11-18: t
 are public, like the first six; their Forgejo copies stay private. They held only upstream commits when
 made public.
 
-**14. Adapter order.** Recommended: MaterialCraft and TextureCraft, then VectorCraft, AniCraft,
-FilmCraft, LightCraft, DesignCraft; SoundCraft's audio tier runs as its own stream. Alternatives
-follow product priority.
+**14. DECIDED 2026-11-18: video first.** FilmCraft, then AniCraft, then MaterialCraft and TextureCraft,
+VectorCraft, LightCraft, DesignCraft; SoundCraft's audio tier runs as its own stream.
 
-**15. Allow wgpu outside the render crates in MaterialCraft and TextureCraft, through `craft-gpu`
+**15. DECIDED 2026-11-18: allow wgpu outside the render crates in MaterialCraft and TextureCraft, through `craft-gpu`
 only, and exempt plugin nodes from their "GPU must match the CPU reference" rule.** Plugin nodes are
 tested with golden images within a tolerance instead. This changes those apps' `AGENTS.md`.
 
@@ -96,7 +97,9 @@ tested with golden images within a tolerance instead. This changes those apps' `
 Verified tier only, with a companion challenge, always refusing Craft control, MCP and bridge ports.
 Alternative: native helpers only.
 
-**18. Legacy plugin systems.**
+**18. DECIDED 2026-11-18: hard cut for the legacy plugin systems.** Each is removed in the same change
+that lands its new adapter; old plugins stop until rebuilt; documents keep old plugin data as preserved
+unknown data plus durable output. Original recommendation, not adopted:
 - VectorCraft (about 12,300 lines): a shim inside the platform runtime, data migration, removal after
   two releases at parity.
 - AniCraft ABI v1: a bridge, removed once platform builds of its samples ship.
