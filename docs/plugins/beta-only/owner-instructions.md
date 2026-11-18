@@ -126,6 +126,21 @@ Recorded 2026-11-18. The newest instruction wins where two conflict.
 | Legacy systems | Hard cut for legacy plugin systems |
 | Material apps | GPU allowed in MaterialCraft and TextureCraft through the shared crate |
 
+## Network plugins are out of scope for now (2026-11-18)
+
+The owner chose to skip plugin network access entirely in this build. That covers:
+
+- `net.fetch` and `network:<host>`;
+- `net.local` loopback;
+- app-owned network commands for plugins;
+- secrets and OAuth, which exist only for network use;
+- remote content in web windows;
+- network model downloads.
+
+Plugins work offline. Models, assets and web-window pages ship inside the package or come from files
+the user picks. This is an explicit owner decision, not a deferral. The store and catalogue keep using
+the network on the host side.
+
 The no-deferral rule above overrides any "deferred", "later" or "not now" in earlier planning
 documents. Those items are in scope.
 

@@ -1,5 +1,10 @@
 # Decisions for the owner
 
+**DECIDED 2026-11-18: no plugin network access in this build.** `net.fetch`, `network:<host>`,
+`net.local`, app network commands for plugins (decision 9), secrets and OAuth, remote web-window
+content and network model downloads are out of scope. Plugins run offline, with packaged or
+user-picked models and assets. This overrides decisions 9 and 17 and the network parts of 11, 23 and 24.
+
 Date: 2026-11-18. These are the choices only the owner can make. Each has a recommendation from
 the research, and the phase that cannot start without it. Answer the "Before P1" group first;
 nothing else blocks the start.
