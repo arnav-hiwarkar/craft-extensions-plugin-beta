@@ -1,0 +1,8 @@
+naga: parse+validate_ms 0.080 msl_out_ms 0.027 (box blur WGSL, 766 bytes)
+adapter "Apple M5" backend Metal timestamp_query true device_create_ms 18.3
+pipeline_create_unique_simple_ms first 99.17 median_of_rest 64.36
+pipeline_create_unique_box7x7_ms first 64.39 median_of_rest 63.58
+rgba32float 33.2MB: pipeline_create_ms 0.25 upload_ms 4.734 dispatch_submit_wait_ms(1 pass) 1.329 (20 passes) 8.433 gpu_ts_ms(1 pass) 0.390 (20 passes) 8.148 readback_ms 1.332 roundtrip(upload+1 pass+readback)_ms 5.205
+rgba16float 16.6MB: pipeline_create_ms 0.15 upload_ms 1.785 dispatch_submit_wait_ms(1 pass) 0.363 (20 passes) 4.112 gpu_ts_ms(1 pass) 0.180 (20 passes) 3.846 readback_ms 0.685 roundtrip(upload+1 pass+readback)_ms 2.422
+rgba8unorm 8.3MB: pipeline_create_ms 0.15 upload_ms 0.947 dispatch_submit_wait_ms(1 pass) 0.235 (20 passes) 0.946 gpu_ts_ms(1 pass) 0.034 (20 passes) 0.691 readback_ms 0.345 roundtrip(upload+1 pass+readback)_ms 1.194
+rgba16float->rgba16float box7x7(49 taps) 16.6MB: pipeline_create_ms 0.24 upload_ms 1.844 dispatch_submit_wait_ms(1 pass) 1.645 (20 passes) 28.355 gpu_ts_ms(1 pass) 1.401 (20 passes) 28.032 readback_ms 0.572 roundtrip(upload+1 pass+readback)_ms 3.621

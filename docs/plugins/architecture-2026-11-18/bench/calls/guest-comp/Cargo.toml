@@ -1,0 +1,15 @@
+[package]
+name = "guest-comp"
+version = "0.1.0"
+edition = "2024"
+[lib]
+crate-type = ["cdylib"]
+[dependencies]
+wit-bindgen = "0.57"
+serde_json = "1"
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+[workspace]

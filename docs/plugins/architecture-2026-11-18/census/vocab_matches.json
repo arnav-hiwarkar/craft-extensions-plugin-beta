@@ -1,0 +1,1562 @@
+{
+ "undo": {
+  "effectcraft": [
+   "edit.undo"
+  ],
+  "photocraft": [
+   "edit.purge.undo",
+   "edit.undo",
+   "history.undo"
+  ],
+  "figcraft": [
+   "edit.undo"
+  ],
+  "filmcraft": [
+   "edit.undo",
+   "shortcuts.undo"
+  ],
+  "anicraft": [
+   "edit.undo"
+  ],
+  "lightcraft": [
+   "edit.undo"
+  ],
+  "vectorcraft": [
+   "edit.undo"
+  ],
+  "designcraft": [
+   "edit.undo"
+  ],
+  "materialcraft": [
+   "edit.undo"
+  ],
+  "texturecraft": [
+   "edit.undo"
+  ],
+  "soundcraft": [
+   "edit.undo"
+  ]
+ },
+ "redo": {
+  "effectcraft": [
+   "edit.redo"
+  ],
+  "photocraft": [
+   "edit.redo",
+   "history.redo"
+  ],
+  "figcraft": [
+   "edit.redo"
+  ],
+  "filmcraft": [
+   "edit.redo",
+   "shortcuts.redo"
+  ],
+  "anicraft": [
+   "edit.redo"
+  ],
+  "lightcraft": [
+   "edit.redo"
+  ],
+  "vectorcraft": [
+   "edit.redo"
+  ],
+  "designcraft": [
+   "edit.redo"
+  ],
+  "materialcraft": [
+   "edit.redo"
+  ],
+  "texturecraft": [
+   "edit.redo"
+  ],
+  "soundcraft": [
+   "edit.redo"
+  ]
+ },
+ "history.list": {
+  "effectcraft": [
+   "edit.history",
+   "edit.history.goto",
+   "edit.history.list"
+  ],
+  "photocraft": [],
+  "figcraft": [],
+  "filmcraft": [
+   "history.list"
+  ],
+  "anicraft": [
+   "macro.history"
+  ],
+  "lightcraft": [
+   "history.list"
+  ],
+  "vectorcraft": [],
+  "designcraft": [
+   "document.history"
+  ],
+  "materialcraft": [
+   "session.history"
+  ],
+  "texturecraft": [
+   "edit.history"
+  ],
+  "soundcraft": [
+   "engine.history"
+  ]
+ },
+ "select.all": {
+  "effectcraft": [
+   "edit.deselectAll",
+   "edit.selectAll",
+   "keys.deselectAll",
+   "keys.selectAll"
+  ],
+  "photocraft": [
+   "select.all"
+  ],
+  "figcraft": [
+   "select.all",
+   "vector.edit.selectAll"
+  ],
+  "filmcraft": [
+   "edit.deselectAll",
+   "edit.selectAll",
+   "project.deselectAll",
+   "project.selectAll"
+  ],
+  "anicraft": [],
+  "lightcraft": [
+   "library.selectAll"
+  ],
+  "vectorcraft": [
+   "layer.selectAll",
+   "select.all"
+  ],
+  "designcraft": [
+   "edit.deselectAll",
+   "edit.selectAll",
+   "guide.selectAll"
+  ],
+  "materialcraft": [
+   "edit.selectAll"
+  ],
+  "texturecraft": [],
+  "soundcraft": []
+ },
+ "select.none": {
+  "effectcraft": [
+   "edit.deselectAll",
+   "keys.deselectAll",
+   "prop.deselect"
+  ],
+  "photocraft": [
+   "select.deselect"
+  ],
+  "figcraft": [
+   "select.none"
+  ],
+  "filmcraft": [
+   "edit.deselectAll",
+   "project.deselectAll"
+  ],
+  "anicraft": [
+   "edit.deselect"
+  ],
+  "lightcraft": [
+   "library.selectNone"
+  ],
+  "vectorcraft": [
+   "select.none"
+  ],
+  "designcraft": [
+   "edit.deselectAll",
+   "guide.deselect"
+  ],
+  "materialcraft": [
+   "edit.selectNone"
+  ],
+  "texturecraft": [],
+  "soundcraft": []
+ },
+ "select.invert": {
+  "effectcraft": [
+   "layer.mask.invert"
+  ],
+  "photocraft": [
+   "image.adjustments.invert",
+   "layer.newAdjustmentLayer.invert",
+   "select.inverse"
+  ],
+  "figcraft": [
+   "select.inverse"
+  ],
+  "filmcraft": [],
+  "anicraft": [],
+  "lightcraft": [
+   "mask.invert"
+  ],
+  "vectorcraft": [
+   "edit.colors.invert",
+   "paint.invert",
+   "select.inverse"
+  ],
+  "designcraft": [],
+  "materialcraft": [],
+  "texturecraft": [
+   "mask.invert",
+   "viewport.quickMask.invert"
+  ],
+  "soundcraft": [
+   "mix.phase_invert"
+  ]
+ },
+ "selection.get": {
+  "effectcraft": [],
+  "photocraft": [],
+  "figcraft": [
+   "text.edit.selection"
+  ],
+  "filmcraft": [],
+  "anicraft": [],
+  "lightcraft": [],
+  "vectorcraft": [
+   "css.selection"
+  ],
+  "designcraft": [],
+  "materialcraft": [],
+  "texturecraft": [],
+  "soundcraft": [
+   "edit.double_selection",
+   "edit.halve_selection",
+   "edit.restore_last_selection",
+   "edit.timeline_to_selection"
+  ]
+ },
+ "selection.set": {
+  "effectcraft": [
+   "layer.select"
+  ],
+  "photocraft": [
+   "layer.select"
+  ],
+  "figcraft": [
+   "select.set"
+  ],
+  "filmcraft": [],
+  "anicraft": [
+   "layer.select"
+  ],
+  "lightcraft": [],
+  "vectorcraft": [
+   "select.set"
+  ],
+  "designcraft": [
+   "selection.set"
+  ],
+  "materialcraft": [],
+  "texturecraft": [
+   "layer.select"
+  ],
+  "soundcraft": []
+ },
+ "layer.list": {
+  "effectcraft": [
+   "layer.tree"
+  ],
+  "photocraft": [],
+  "figcraft": [],
+  "filmcraft": [],
+  "anicraft": [],
+  "lightcraft": [],
+  "vectorcraft": [],
+  "designcraft": [],
+  "materialcraft": [],
+  "texturecraft": [
+   "layer.list"
+  ],
+  "soundcraft": []
+ },
+ "layer.create": {
+  "effectcraft": [
+   "layer.create",
+   "track.new"
+  ],
+  "photocraft": [],
+  "figcraft": [
+   "node.create"
+  ],
+  "filmcraft": [],
+  "anicraft": [
+   "layer.new"
+  ],
+  "lightcraft": [],
+  "vectorcraft": [
+   "layer.new"
+  ],
+  "designcraft": [
+   "layer.new"
+  ],
+  "materialcraft": [],
+  "texturecraft": [],
+  "soundcraft": [
+   "track.new"
+  ]
+ },
+ "delete": {
+  "effectcraft": [
+   "edit.clear",
+   "track.delete"
+  ],
+  "photocraft": [
+   "edit.clear",
+   "layer.delete"
+  ],
+  "figcraft": [
+   "edit.delete"
+  ],
+  "filmcraft": [
+   "edit.clear"
+  ],
+  "anicraft": [
+   "edit.delete",
+   "layer.delete"
+  ],
+  "lightcraft": [],
+  "vectorcraft": [
+   "edit.clear",
+   "layer.delete"
+  ],
+  "designcraft": [
+   "edit.clear",
+   "layer.delete"
+  ],
+  "materialcraft": [
+   "edit.delete"
+  ],
+  "texturecraft": [
+   "layer.remove"
+  ],
+  "soundcraft": [
+   "edit.clear",
+   "track.delete"
+  ]
+ },
+ "duplicate": {
+  "effectcraft": [
+   "edit.duplicate",
+   "effect.duplicate",
+   "project.duplicate",
+   "renderQueue.duplicate"
+  ],
+  "photocraft": [
+   "actions.duplicate",
+   "channel.duplicate",
+   "image.duplicate",
+   "layer.duplicate"
+  ],
+  "figcraft": [
+   "edit.duplicate",
+   "file.duplicate",
+   "page.duplicate",
+   "style.duplicate"
+  ],
+  "filmcraft": [
+   "captions.duplicate",
+   "edit.duplicate"
+  ],
+  "anicraft": [
+   "edit.duplicate",
+   "library.duplicate",
+   "scene.duplicate",
+   "swatch.duplicate"
+  ],
+  "lightcraft": [
+   "mask.duplicate",
+   "photo.duplicate"
+  ],
+  "vectorcraft": [
+   "artboard.duplicate",
+   "brush.duplicate",
+   "edit.duplicate",
+   "effect.duplicate"
+  ],
+  "designcraft": [
+   "edit.duplicate",
+   "layer.duplicate",
+   "layout.alternate.duplicate",
+   "layout.parents.duplicate"
+  ],
+  "materialcraft": [
+   "edit.duplicate",
+   "edit.duplicateWithoutLinks",
+   "graph.duplicate"
+  ],
+  "texturecraft": [
+   "effect.duplicate",
+   "layer.duplicate"
+  ],
+  "soundcraft": [
+   "edit.duplicate",
+   "edit.duplicate_extend",
+   "track.duplicate"
+  ]
+ },
+ "group": {
+  "effectcraft": [],
+  "photocraft": [
+   "layer.new.group"
+  ],
+  "figcraft": [
+   "object.group"
+  ],
+  "filmcraft": [
+   "clip.group"
+  ],
+  "anicraft": [
+   "modify.group"
+  ],
+  "lightcraft": [
+   "stack.group"
+  ],
+  "vectorcraft": [
+   "object.group"
+  ],
+  "designcraft": [
+   "object.group",
+   "style.group"
+  ],
+  "materialcraft": [],
+  "texturecraft": [
+   "layer.add.group",
+   "layer.group"
+  ],
+  "soundcraft": [
+   "clip.group",
+   "track.group"
+  ]
+ },
+ "ungroup": {
+  "effectcraft": [],
+  "photocraft": [],
+  "figcraft": [
+   "object.ungroup"
+  ],
+  "filmcraft": [
+   "clip.ungroup"
+  ],
+  "anicraft": [
+   "modify.ungroup"
+  ],
+  "lightcraft": [
+   "stack.ungroup"
+  ],
+  "vectorcraft": [
+   "object.ungroup",
+   "swatch.ungroup"
+  ],
+  "designcraft": [
+   "object.ungroup"
+  ],
+  "materialcraft": [],
+  "texturecraft": [],
+  "soundcraft": [
+   "clip.ungroup",
+   "track.ungroup"
+  ]
+ },
+ "rename": {
+  "effectcraft": [
+   "essential.rename",
+   "layer.rename",
+   "project.rename"
+  ],
+  "photocraft": [
+   "actions.rename",
+   "brush.presets.rename",
+   "channel.rename",
+   "document.presets.rename"
+  ],
+  "figcraft": [
+   "file.rename",
+   "object.rename",
+   "page.rename",
+   "proto.flow.rename"
+  ],
+  "filmcraft": [
+   "clip.rename",
+   "presets.rename",
+   "project.viewPreset.rename"
+  ],
+  "anicraft": [
+   "ease.rename",
+   "element.rename",
+   "layer.rename",
+   "library.rename"
+  ],
+  "lightcraft": [
+   "album.rename",
+   "folder.rename",
+   "keyword.rename",
+   "mask.rename"
+  ],
+  "vectorcraft": [
+   "artboard.rename",
+   "assets.rename",
+   "dataset.rename",
+   "graphicStyle.rename"
+  ],
+  "designcraft": [
+   "bookmark.rename",
+   "object.rename",
+   "states.rename"
+  ],
+  "materialcraft": [
+   "folder.rename",
+   "graph.node.rename",
+   "graph.rename"
+  ],
+  "texturecraft": [
+   "brush.preset.rename",
+   "camera.rename",
+   "layer.rename",
+   "textureSet.rename"
+  ],
+  "soundcraft": [
+   "clip.rename",
+   "track.rename"
+  ]
+ },
+ "transform": {
+  "effectcraft": [
+   "essential.move",
+   "keys.move",
+   "keys.nudge",
+   "keys.transform"
+  ],
+  "photocraft": [
+   "actions.move",
+   "brush.presets.move",
+   "channel.move",
+   "count.move"
+  ],
+  "figcraft": [
+   "comment.move",
+   "effect.move",
+   "fill.move",
+   "grid.move"
+  ],
+  "filmcraft": [
+   "captions.move",
+   "export.queue.move",
+   "masks.translate",
+   "project.freeform.move"
+  ],
+  "anicraft": [
+   "element.translate",
+   "filter.move",
+   "frames.transform",
+   "layer.move"
+  ],
+  "lightcraft": [
+   "album.move",
+   "folder.move",
+   "keyword.move",
+   "mask.move"
+  ],
+  "vectorcraft": [
+   "artboard.move",
+   "brush.move",
+   "document.move",
+   "effect.move"
+  ],
+  "designcraft": [
+   "gap.move",
+   "guide.move",
+   "layer.move",
+   "layout.pages.move"
+  ],
+  "materialcraft": [
+   "explorer.move",
+   "graph.frame.move",
+   "graph.node.move"
+  ],
+  "texturecraft": [
+   "effect.move",
+   "layer.move"
+  ],
+  "soundcraft": [
+   "edit.nudge",
+   "track.move",
+   "view.nudge"
+  ]
+ },
+ "rotate": {
+  "effectcraft": [],
+  "photocraft": [
+   "edit.transform.rotate180",
+   "edit.transform.rotate90Ccw",
+   "edit.transform.rotate90Cw"
+  ],
+  "figcraft": [
+   "transform.rotate",
+   "vector.edit.rotate"
+  ],
+  "filmcraft": [],
+  "anicraft": [],
+  "lightcraft": [],
+  "vectorcraft": [
+   "object.rotate"
+  ],
+  "designcraft": [
+   "transform.rotate"
+  ],
+  "materialcraft": [],
+  "texturecraft": [],
+  "soundcraft": []
+ },
+ "scale": {
+  "effectcraft": [
+   "comp.scale",
+   "scriptui.resize"
+  ],
+  "photocraft": [],
+  "figcraft": [
+   "tool.scale",
+   "transform.resize",
+   "transform.scale",
+   "vector.edit.resize"
+  ],
+  "filmcraft": [
+   "project.columns.resize",
+   "project.freeform.resize"
+  ],
+  "anicraft": [],
+  "lightcraft": [
+   "print.cell.resize"
+  ],
+  "vectorcraft": [
+   "object.scale"
+  ],
+  "designcraft": [
+   "transform.resize",
+   "transform.scale"
+  ],
+  "materialcraft": [],
+  "texturecraft": [],
+  "soundcraft": []
+ },
+ "arrange.front": {
+  "effectcraft": [],
+  "photocraft": [
+   "layer.arrange.bringToFront"
+  ],
+  "figcraft": [
+   "arrange.front"
+  ],
+  "filmcraft": [
+   "graphics.bringToFront"
+  ],
+  "anicraft": [],
+  "lightcraft": [],
+  "vectorcraft": [
+   "object.arrange.bringToFront"
+  ],
+  "designcraft": [
+   "object.bringToFront"
+  ],
+  "materialcraft": [],
+  "texturecraft": [],
+  "soundcraft": []
+ },
+ "align": {
+  "effectcraft": [
+   "layer.align"
+  ],
+  "photocraft": [],
+  "figcraft": [
+   "align.bottom",
+   "align.hcenter",
+   "align.left",
+   "align.right"
+  ],
+  "filmcraft": [
+   "graphics.align"
+  ],
+  "anicraft": [
+   "align.bottom",
+   "align.distribute_h",
+   "align.distribute_v",
+   "align.hcenter"
+  ],
+  "lightcraft": [],
+  "vectorcraft": [
+   "artboard.align",
+   "object.align"
+  ],
+  "designcraft": [
+   "object.align",
+   "type.align",
+   "type.alignCenter",
+   "type.alignLeft"
+  ],
+  "materialcraft": [
+   "graph.align"
+  ],
+  "texturecraft": [],
+  "soundcraft": []
+ },
+ "visibility": {
+  "effectcraft": [
+   "app.hide"
+  ],
+  "photocraft": [
+   "channel.setVisible",
+   "layer.hideLayers",
+   "layer.showLayers",
+   "layer.smartFilter.setVisible"
+  ],
+  "figcraft": [],
+  "filmcraft": [],
+  "anicraft": [],
+  "lightcraft": [
+   "mask.visible"
+  ],
+  "vectorcraft": [
+   "addon.cleanup.show",
+   "object.hide",
+   "perspective.grid.show",
+   "view.slices.hide"
+  ],
+  "designcraft": [
+   "object.hide",
+   "states.show"
+  ],
+  "materialcraft": [],
+  "texturecraft": [
+   "layer.visible",
+   "textureSet.visibility",
+   "textureSet.visible"
+  ],
+  "soundcraft": [
+   "track.hide"
+  ]
+ },
+ "lock": {
+  "effectcraft": [
+   "layer.mask.lock"
+  ],
+  "photocraft": [],
+  "figcraft": [
+   "object.toggleLock"
+  ],
+  "filmcraft": [],
+  "anicraft": [],
+  "lightcraft": [],
+  "vectorcraft": [
+   "object.lock",
+   "perspective.grid.lock",
+   "variable.lock",
+   "view.guides.lock"
+  ],
+  "designcraft": [
+   "object.lock"
+  ],
+  "materialcraft": [],
+  "texturecraft": [],
+  "soundcraft": []
+ },
+ "fill.set": {
+  "effectcraft": [],
+  "photocraft": [],
+  "figcraft": [
+   "fill.add",
+   "fill.copy",
+   "fill.move",
+   "fill.paste"
+  ],
+  "filmcraft": [],
+  "anicraft": [],
+  "lightcraft": [],
+  "vectorcraft": [
+   "paint.setFill"
+  ],
+  "designcraft": [],
+  "materialcraft": [],
+  "texturecraft": [
+   "layer.fill.set"
+  ],
+  "soundcraft": []
+ },
+ "stroke.set": {
+  "effectcraft": [],
+  "photocraft": [],
+  "figcraft": [
+   "stroke.set",
+   "stroke.widthProfile"
+  ],
+  "filmcraft": [],
+  "anicraft": [
+   "stroke.width_at"
+  ],
+  "lightcraft": [],
+  "vectorcraft": [
+   "paint.setStroke",
+   "stroke.set",
+   "stroke.weightDown",
+   "stroke.weightUp"
+  ],
+  "designcraft": [],
+  "materialcraft": [],
+  "texturecraft": [],
+  "soundcraft": []
+ },
+ "opacity.set": {
+  "effectcraft": [],
+  "photocraft": [],
+  "figcraft": [],
+  "filmcraft": [],
+  "anicraft": [],
+  "lightcraft": [],
+  "vectorcraft": [
+   "select.same.opacity"
+  ],
+  "designcraft": [
+   "object.opacity"
+  ],
+  "materialcraft": [],
+  "texturecraft": [],
+  "soundcraft": []
+ },
+ "blend.set": {
+  "effectcraft": [
+   "layer.setBlendMode"
+  ],
+  "photocraft": [],
+  "figcraft": [],
+  "filmcraft": [],
+  "anicraft": [],
+  "lightcraft": [],
+  "vectorcraft": [],
+  "designcraft": [],
+  "materialcraft": [],
+  "texturecraft": [
+   "layer.blend"
+  ],
+  "soundcraft": []
+ },
+ "prop.get/set": {
+  "effectcraft": [
+   "prop.get",
+   "prop.set"
+  ],
+  "photocraft": [
+   "layer.setProps"
+  ],
+  "figcraft": [
+   "node.get",
+   "node.set"
+  ],
+  "filmcraft": [],
+  "anicraft": [],
+  "lightcraft": [],
+  "vectorcraft": [
+   "layer.setProps",
+   "object.setProps"
+  ],
+  "designcraft": [
+   "layer.set"
+  ],
+  "materialcraft": [],
+  "texturecraft": [
+   "layer.set"
+  ],
+  "soundcraft": []
+ },
+ "text.set": {
+  "effectcraft": [
+   "layer.setText",
+   "text.edit"
+  ],
+  "photocraft": [
+   "type.edit"
+  ],
+  "figcraft": [
+   "text.set"
+  ],
+  "filmcraft": [
+   "captions.setText",
+   "graphics.setText"
+  ],
+  "anicraft": [
+   "text.edit"
+  ],
+  "lightcraft": [],
+  "vectorcraft": [
+   "text.setText"
+  ],
+  "designcraft": [
+   "footnote.setText",
+   "layer.set",
+   "story.setText"
+  ],
+  "materialcraft": [],
+  "texturecraft": [
+   "layer.set"
+  ],
+  "soundcraft": []
+ },
+ "file.new": {
+  "effectcraft": [],
+  "photocraft": [
+   "file.new"
+  ],
+  "figcraft": [
+   "file.new"
+  ],
+  "filmcraft": [],
+  "anicraft": [
+   "file.new"
+  ],
+  "lightcraft": [],
+  "vectorcraft": [
+   "file.new"
+  ],
+  "designcraft": [
+   "file.new"
+  ],
+  "materialcraft": [
+   "file.new"
+  ],
+  "texturecraft": [
+   "file.new",
+   "project.new"
+  ],
+  "soundcraft": [
+   "session.new"
+  ]
+ },
+ "file.open": {
+  "effectcraft": [
+   "file.open"
+  ],
+  "photocraft": [],
+  "figcraft": [
+   "file.open"
+  ],
+  "filmcraft": [
+   "file.open"
+  ],
+  "anicraft": [
+   "file.open"
+  ],
+  "lightcraft": [],
+  "vectorcraft": [
+   "document.open"
+  ],
+  "designcraft": [
+   "file.open"
+  ],
+  "materialcraft": [
+   "file.open"
+  ],
+  "texturecraft": [
+   "file.open"
+  ],
+  "soundcraft": [
+   "session.open"
+  ]
+ },
+ "file.save": {
+  "effectcraft": [
+   "file.save"
+  ],
+  "photocraft": [],
+  "figcraft": [
+   "file.save"
+  ],
+  "filmcraft": [
+   "file.save"
+  ],
+  "anicraft": [
+   "file.save"
+  ],
+  "lightcraft": [],
+  "vectorcraft": [
+   "document.save"
+  ],
+  "designcraft": [
+   "file.save"
+  ],
+  "materialcraft": [
+   "file.save"
+  ],
+  "texturecraft": [
+   "file.save"
+  ],
+  "soundcraft": [
+   "session.save"
+  ]
+ },
+ "file.saveAs": {
+  "effectcraft": [
+   "file.saveAs",
+   "templates.saveAs"
+  ],
+  "photocraft": [],
+  "figcraft": [
+   "file.saveAs"
+  ],
+  "filmcraft": [
+   "file.saveAs",
+   "project.viewPreset.saveAs"
+  ],
+  "anicraft": [],
+  "lightcraft": [],
+  "vectorcraft": [
+   "file.saveAs"
+  ],
+  "designcraft": [
+   "file.saveAs"
+  ],
+  "materialcraft": [
+   "file.saveAs"
+  ],
+  "texturecraft": [
+   "file.saveAs"
+  ],
+  "soundcraft": []
+ },
+ "file.close": {
+  "effectcraft": [
+   "file.close"
+  ],
+  "photocraft": [
+   "file.close"
+  ],
+  "figcraft": [
+   "file.close"
+  ],
+  "filmcraft": [
+   "file.close"
+  ],
+  "anicraft": [],
+  "lightcraft": [],
+  "vectorcraft": [
+   "file.close"
+  ],
+  "designcraft": [
+   "file.close"
+  ],
+  "materialcraft": [],
+  "texturecraft": [
+   "file.close"
+  ],
+  "soundcraft": [
+   "session.close"
+  ]
+ },
+ "file.import": {
+  "effectcraft": [
+   "file.import"
+  ],
+  "photocraft": [],
+  "figcraft": [
+   "file.import"
+  ],
+  "filmcraft": [
+   "file.import"
+  ],
+  "anicraft": [
+   "file.import"
+  ],
+  "lightcraft": [],
+  "vectorcraft": [],
+  "designcraft": [],
+  "materialcraft": [],
+  "texturecraft": [],
+  "soundcraft": []
+ },
+ "file.export": {
+  "effectcraft": [],
+  "photocraft": [],
+  "figcraft": [
+   "file.export"
+  ],
+  "filmcraft": [],
+  "anicraft": [],
+  "lightcraft": [],
+  "vectorcraft": [],
+  "designcraft": [],
+  "materialcraft": [
+   "file.export"
+  ],
+  "texturecraft": [],
+  "soundcraft": []
+ },
+ "file.place": {
+  "effectcraft": [],
+  "photocraft": [
+   "file.placeEmbedded",
+   "shape.presets.place"
+  ],
+  "figcraft": [
+   "file.placeImage",
+   "image.place",
+   "instance.place",
+   "library.place"
+  ],
+  "filmcraft": [
+   "timeline.place"
+  ],
+  "anicraft": [
+   "library.place",
+   "sound.place"
+  ],
+  "lightcraft": [],
+  "vectorcraft": [
+   "file.place",
+   "symbol.place"
+  ],
+  "designcraft": [
+   "conveyor.place",
+   "file.place",
+   "library.place",
+   "snippet.place"
+  ],
+  "materialcraft": [],
+  "texturecraft": [],
+  "soundcraft": []
+ },
+ "clipboard.copy": {
+  "effectcraft": [
+   "edit.copy"
+  ],
+  "photocraft": [
+   "edit.copy"
+  ],
+  "figcraft": [
+   "edit.copy"
+  ],
+  "filmcraft": [
+   "edit.copy"
+  ],
+  "anicraft": [
+   "edit.copy"
+  ],
+  "lightcraft": [],
+  "vectorcraft": [
+   "edit.copy"
+  ],
+  "designcraft": [
+   "edit.copy"
+  ],
+  "materialcraft": [
+   "edit.copy"
+  ],
+  "texturecraft": [],
+  "soundcraft": [
+   "edit.copy"
+  ]
+ },
+ "clipboard.paste": {
+  "effectcraft": [
+   "edit.paste"
+  ],
+  "photocraft": [
+   "edit.paste"
+  ],
+  "figcraft": [
+   "edit.paste"
+  ],
+  "filmcraft": [
+   "edit.paste"
+  ],
+  "anicraft": [
+   "edit.paste"
+  ],
+  "lightcraft": [],
+  "vectorcraft": [
+   "edit.paste"
+  ],
+  "designcraft": [
+   "edit.paste"
+  ],
+  "materialcraft": [
+   "edit.paste"
+  ],
+  "texturecraft": [],
+  "soundcraft": [
+   "edit.paste"
+  ]
+ },
+ "clipboard.cut": {
+  "effectcraft": [
+   "edit.cut"
+  ],
+  "photocraft": [
+   "edit.cut"
+  ],
+  "figcraft": [
+   "edit.cut"
+  ],
+  "filmcraft": [
+   "edit.cut"
+  ],
+  "anicraft": [
+   "edit.cut"
+  ],
+  "lightcraft": [],
+  "vectorcraft": [
+   "edit.cut"
+  ],
+  "designcraft": [
+   "edit.cut"
+  ],
+  "materialcraft": [
+   "edit.cut"
+  ],
+  "texturecraft": [],
+  "soundcraft": [
+   "edit.cut"
+  ]
+ },
+ "view.zoomIn": {
+  "effectcraft": [
+   "view.zoomIn"
+  ],
+  "photocraft": [],
+  "figcraft": [
+   "view.zoomIn"
+  ],
+  "filmcraft": [],
+  "anicraft": [],
+  "lightcraft": [],
+  "vectorcraft": [],
+  "designcraft": [],
+  "materialcraft": [],
+  "texturecraft": [],
+  "soundcraft": []
+ },
+ "view.zoomOut": {
+  "effectcraft": [
+   "view.zoomOut"
+  ],
+  "photocraft": [],
+  "figcraft": [
+   "view.zoomOut"
+  ],
+  "filmcraft": [],
+  "anicraft": [],
+  "lightcraft": [],
+  "vectorcraft": [],
+  "designcraft": [],
+  "materialcraft": [],
+  "texturecraft": [],
+  "soundcraft": []
+ },
+ "view.fit": {
+  "effectcraft": [],
+  "photocraft": [],
+  "figcraft": [],
+  "filmcraft": [],
+  "anicraft": [],
+  "lightcraft": [],
+  "vectorcraft": [],
+  "designcraft": [],
+  "materialcraft": [],
+  "texturecraft": [],
+  "soundcraft": []
+ },
+ "view.actual": {
+  "effectcraft": [],
+  "photocraft": [],
+  "figcraft": [
+   "view.zoom100"
+  ],
+  "filmcraft": [],
+  "anicraft": [],
+  "lightcraft": [],
+  "vectorcraft": [],
+  "designcraft": [],
+  "materialcraft": [],
+  "texturecraft": [],
+  "soundcraft": []
+ },
+ "time.set": {
+  "effectcraft": [
+   "time.set"
+  ],
+  "photocraft": [],
+  "figcraft": [],
+  "filmcraft": [
+   "playhead.set"
+  ],
+  "anicraft": [
+   "timeline.goto"
+  ],
+  "lightcraft": [],
+  "vectorcraft": [],
+  "designcraft": [],
+  "materialcraft": [],
+  "texturecraft": [],
+  "soundcraft": [
+   "transport.locate"
+  ]
+ },
+ "play": {
+  "effectcraft": [
+   "playback.toggle"
+  ],
+  "photocraft": [],
+  "figcraft": [],
+  "filmcraft": [],
+  "anicraft": [],
+  "lightcraft": [],
+  "vectorcraft": [],
+  "designcraft": [],
+  "materialcraft": [],
+  "texturecraft": [],
+  "soundcraft": [
+   "transport.play",
+   "transport.toggle"
+  ]
+ },
+ "marker.add": {
+  "effectcraft": [
+   "comp.addMarker",
+   "layer.addMarker"
+  ],
+  "photocraft": [],
+  "figcraft": [],
+  "filmcraft": [],
+  "anicraft": [],
+  "lightcraft": [],
+  "vectorcraft": [],
+  "designcraft": [],
+  "materialcraft": [],
+  "texturecraft": [],
+  "soundcraft": []
+ },
+ "doc.info": {
+  "effectcraft": [
+   "comp.info",
+   "project.summary"
+  ],
+  "photocraft": [
+   "document.inspect",
+   "session.inspect"
+  ],
+  "figcraft": [],
+  "filmcraft": [
+   "project.inspect"
+  ],
+  "anicraft": [
+   "doc.info"
+  ],
+  "lightcraft": [],
+  "vectorcraft": [
+   "document.info",
+   "document.inspect"
+  ],
+  "designcraft": [
+   "document.inspect"
+  ],
+  "materialcraft": [
+   "session.inspect"
+  ],
+  "texturecraft": [
+   "project.inspect"
+  ],
+  "soundcraft": [
+   "session.inspect"
+  ]
+ },
+ "commands.list": {
+  "effectcraft": [
+   "command.list"
+  ],
+  "photocraft": [
+   "command.list"
+  ],
+  "figcraft": [],
+  "filmcraft": [
+   "command.list"
+  ],
+  "anicraft": [],
+  "lightcraft": [],
+  "vectorcraft": [],
+  "designcraft": [],
+  "materialcraft": [],
+  "texturecraft": [],
+  "soundcraft": [
+   "engine.commands"
+  ]
+ },
+ "prefs.get": {
+  "effectcraft": [
+   "prefs.get",
+   "prefs.pages"
+  ],
+  "photocraft": [
+   "prefs.get"
+  ],
+  "figcraft": [],
+  "filmcraft": [
+   "prefs.get"
+  ],
+  "anicraft": [],
+  "lightcraft": [],
+  "vectorcraft": [
+   "prefs.get",
+   "prefs.list"
+  ],
+  "designcraft": [],
+  "materialcraft": [],
+  "texturecraft": [],
+  "soundcraft": []
+ },
+ "prefs.set": {
+  "effectcraft": [
+   "prefs.set"
+  ],
+  "photocraft": [
+   "prefs.set"
+  ],
+  "figcraft": [],
+  "filmcraft": [
+   "prefs.set"
+  ],
+  "anicraft": [],
+  "lightcraft": [],
+  "vectorcraft": [
+   "prefs.set"
+  ],
+  "designcraft": [
+   "prefs.set"
+  ],
+  "materialcraft": [],
+  "texturecraft": [],
+  "soundcraft": []
+ },
+ "batch": {
+  "effectcraft": [
+   "engine.batch"
+  ],
+  "photocraft": [],
+  "figcraft": [
+   "command.batch"
+  ],
+  "filmcraft": [],
+  "anicraft": [],
+  "lightcraft": [],
+  "vectorcraft": [
+   "command.batch"
+  ],
+  "designcraft": [],
+  "materialcraft": [],
+  "texturecraft": [],
+  "soundcraft": []
+ },
+ "effect.apply": {
+  "effectcraft": [
+   "effect.apply"
+  ],
+  "photocraft": [],
+  "figcraft": [
+   "effect.add"
+  ],
+  "filmcraft": [
+   "effects.apply"
+  ],
+  "anicraft": [],
+  "lightcraft": [],
+  "vectorcraft": [
+   "effect.apply"
+  ],
+  "designcraft": [],
+  "materialcraft": [],
+  "texturecraft": [],
+  "soundcraft": []
+ },
+ "mask.add": {
+  "effectcraft": [
+   "layer.addMask",
+   "mask.new"
+  ],
+  "photocraft": [],
+  "figcraft": [],
+  "filmcraft": [],
+  "anicraft": [],
+  "lightcraft": [
+   "mask.add"
+  ],
+  "vectorcraft": [],
+  "designcraft": [],
+  "materialcraft": [],
+  "texturecraft": [],
+  "soundcraft": []
+ },
+ "crop": {
+  "effectcraft": [],
+  "photocraft": [
+   "image.crop"
+  ],
+  "figcraft": [
+   "image.crop"
+  ],
+  "filmcraft": [],
+  "anicraft": [
+   "modify.crop"
+  ],
+  "lightcraft": [],
+  "vectorcraft": [
+   "object.pathfinder.crop"
+  ],
+  "designcraft": [],
+  "materialcraft": [],
+  "texturecraft": [],
+  "soundcraft": []
+ },
+ "flatten": {
+  "effectcraft": [],
+  "photocraft": [
+   "layer.flattenImage"
+  ],
+  "figcraft": [
+   "bool.flatten",
+   "vector.flatten"
+  ],
+  "filmcraft": [],
+  "anicraft": [],
+  "lightcraft": [],
+  "vectorcraft": [
+   "layer.flatten"
+  ],
+  "designcraft": [],
+  "materialcraft": [],
+  "texturecraft": [
+   "layer.flatten"
+  ],
+  "soundcraft": []
+ },
+ "quit": {
+  "effectcraft": [
+   "app.quit"
+  ],
+  "photocraft": [],
+  "figcraft": [],
+  "filmcraft": [],
+  "anicraft": [
+   "symbol.exit"
+  ],
+  "lightcraft": [],
+  "vectorcraft": [],
+  "designcraft": [],
+  "materialcraft": [],
+  "texturecraft": [],
+  "soundcraft": [
+   "app.quit"
+  ]
+ }
+}

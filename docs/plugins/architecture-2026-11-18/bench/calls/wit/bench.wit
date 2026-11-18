@@ -1,0 +1,41 @@
+package craft:bench@0.1.0;
+
+interface doc {
+  record layer-info {
+    id: u64,
+    name: string,
+    visible: bool,
+    opacity: f32,
+  }
+
+  enum op-kind { get-layer, set-opacity }
+
+  record op {
+    kind: op-kind,
+    layer: u32,
+    value: f32,
+  }
+
+  variant reply {
+    layer(layer-info),
+    done,
+    failed(string),
+  }
+
+  resource layer {
+    opacity: func() -> f32;
+    set-opacity: func(v: f32) -> result<_, string>;
+  }
+
+  get-layer: func(index: u32) -> result<layer-info, string>;
+  set-opacity: func(index: u32, v: f32) -> result<_, string>;
+  open-layer: func(index: u32) -> result<layer, string>;
+  batch: func(ops: list<op>) -> list<reply>;
+  call: func(op: string, args: string) -> result<string, string>;
+  noop: func();
+}
+
+world plugin {
+  import doc;
+  export run: func(mode: u32, n: u32) -> u64;
+}

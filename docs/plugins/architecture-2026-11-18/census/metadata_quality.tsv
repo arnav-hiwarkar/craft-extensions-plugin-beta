@@ -1,0 +1,12 @@
+app	total	params_doc%	keydoc%	prose%	no_params%	result_doc(→)%	typed_schema	label%	menu%	shortcut%	query_flag	undo_flag	query_n	namespaces	ns_top3
+effectcraft	757	99	83	2	15	12	0	100	38	17	yes	journal only	79	59	layer:124 view:78 file:66
+photocraft	954	90	76	4	20	21	0	100	52	13	yes	journal only	117	35	layer:213 filter:110 type:98
+figcraft	630	100	87	0	13	26	0	100	0	0	yes	history/mutates	287	58	text:63 view:49 vector:42
+filmcraft	686	98	69	3	28	0	0	100	33	19	yes	journal only	66	41	graphics:83 clip:57 file:57
+anicraft	365	99	93	0	7	21	0	100	34	17	yes	history/mutates	123	41	file:32 layer:26 timeline:23
+lightcraft	391	100	93	0	7	51	0	100	19	10	yes	journal only	108	41	library:48 photo:44 mask:31
+vectorcraft	1024	100	98	0	2	81	8	100	44	8	yes	journal only	226	69	object:158 addon:92 select:59
+designcraft	567	100	93	0	7	35	0	100	39	10	yes	yes	75	64	object:60 type:44 file:42
+materialcraft	133	100	98	0	2	6	0	100	11	14	no	none	0	9	graph:65 view:20 edit:13
+texturecraft	183	100	80	0	20	17	0	100	41	23	no	none	0	20	layer:26 tool:21 camera:17
+soundcraft	483	96	68	16	16	2	0	100	67	26	yes	yes	21	18	view:97 edit:94 track:66

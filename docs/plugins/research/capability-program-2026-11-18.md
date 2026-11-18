@@ -1,6 +1,7 @@
 # Plugin capability program: what the suite needs so plugins can do anything
 
-Date: 2026-11-18. Status: analysis and plan only. No code was changed.
+Date: 2026-11-18. Status: gap catalogue. Its architecture and plan are superseded by
+[../architecture-2026-11-18/](../architecture-2026-11-18/README.md).
 
 The owner's goal: a plugin author can build any plugin they want for any creative ArtCraft app.
 Sandboxed plugins (Wasm, and the GPU and data tiers proposed below) should cover nearly everything,

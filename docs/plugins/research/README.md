@@ -10,8 +10,8 @@ Start with [the reconciled design](design.md), then [the ordered decisions](deci
 
 ## Capability program, 2026-11-18
 
-[The capability program](capability-program-2026-11-18.md) is the current plan for widening what
-plugins can do across the creative apps. Its detailed reports and benchmark sources are in
+[The plugin architecture](../architecture-2026-11-18/README.md) is the current design, decisions and
+roadmap. [The capability program](capability-program-2026-11-18.md) remains its gap catalogue. Its detailed reports and benchmark sources are in
 [capability-2026-11-18/](capability-2026-11-18/).
 
 ## Reading map

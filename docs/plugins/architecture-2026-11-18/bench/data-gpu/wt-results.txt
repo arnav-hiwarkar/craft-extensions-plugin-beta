@@ -1,0 +1,36 @@
+## data plane, 1080p RGBA f32 = 33.2 MB
+native_bright_inplace_ms 0.760
+native_memcpy_33MB_ms 0.575
+A copy: copy_in_ms 0.561 run_ms 0.871 copy_out_ms 0.564 e2e_ms 2.101
+B view (host produced into guest memory, guest runs in place): run_ms 0.871
+C rgba8->f32: convert_to_vec_then_copy_ms 1.018 convert_directly_into_guest_ms 0.401
+C rgba16f->f32 directly into guest_ms 1.873
+fused_validate_in_place_ms 1.171
+D mmap-alias (shm frame MAP_FIXED into guest memory): remap_ms 0.003 first_run_ms(page faults) 2.117 second_run_ms 0.840 restore_ms 0.075 host_sees_result true
+E host-resident handle, read_tile/write_tile tile=64: e2e_ms 3.455 calls_per_frame 1020
+E host-resident handle, read_tile/write_tile tile=128: e2e_ms 3.429 calls_per_frame 270
+E host-resident handle, read_tile/write_tile tile=256: e2e_ms 4.180 calls_per_frame 80
+E host-resident handle, read_tile/write_tile tile=512: e2e_ms 4.265 calls_per_frame 24
+E host-resident handle, read_tile/write_tile tile=1024: e2e_ms 3.791 calls_per_frame 8
+F host import call (typed, no args): 1.8 ns/call
+F host->guest typed call: 11.1 ns/call
+G parallel bands threads=1 (copy in + run + copy out per band): e2e_ms 2.113
+G parallel bands threads=2 (copy in + run + copy out per band): e2e_ms 1.615
+G parallel bands threads=4 (copy in + run + copy out per band): e2e_ms 1.531
+G parallel bands threads=8 (copy in + run + copy out per band): e2e_ms 1.373
+G parallel bands threads=8 view only (no copies): e2e_ms 0.309
+## lifecycle, module lto 122 KB
+cranelift: compile_ms 8.90 artifact_kb 335 deserialize_bytes_ms 0.037 deserialize_file_mmap_ms 0.033
+winch: compile_ms 2.20 artifact_kb 495 deserialize_bytes_ms 0.048 deserialize_file_mmap_ms 0.042
+engine_new_ms on_demand 0.009 pooling(1000 slots, 512MiB max mem) 3.072
+instantiate on_demand: cold_first_ms 0.035 warm_p50_us 11.8 warm_p99_us 17.2 with_1MiB_touched_p50_us 55.9
+instantiate pooling: cold_first_ms 0.023 warm_p50_us 6.2 warm_p99_us 10.7 with_1MiB_touched_p50_us 50.0
+## lifecycle, module nolto 160 KB
+cranelift: compile_ms 11.52 artifact_kb 439 deserialize_bytes_ms 0.054 deserialize_file_mmap_ms 0.039
+winch: compile_ms 2.66 artifact_kb 631 deserialize_bytes_ms 0.062 deserialize_file_mmap_ms 0.048
+engine_new_ms on_demand 0.008 pooling(1000 slots, 512MiB max mem) 2.781
+instantiate on_demand: cold_first_ms 0.034 warm_p50_us 12.5 warm_p99_us 17.8 with_1MiB_touched_p50_us 56.8
+instantiate pooling: cold_first_ms 0.023 warm_p50_us 7.1 warm_p99_us 11.3 with_1MiB_touched_p50_us 51.5
+## footprint, 100 installed plugins (distinct copies of the same module)
+load_100_deserialize_file_ms 3.75 rss_delta_mb 25.7 | instantiate_100_ms 0.57 rss_delta_mb 0.6 (initial memory 1088 KiB each)
+wasmi_load_100_ms 30.31 rss_delta_mb 12.1
