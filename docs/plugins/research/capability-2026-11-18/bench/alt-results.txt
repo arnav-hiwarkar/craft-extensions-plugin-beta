@@ -1,0 +1,32 @@
+1080p scalar wasmi2-tailcall fuel=true compile_ms 1.89 run_ms 11.34
+1080p scalar wasmi2-tailcall fuel=false compile_ms 0.41 run_ms 9.41
+1080p scalar wasmtime50-cranelift fuel=false epoch=false compile_ms 42.16 run_ms 0.96
+1080p scalar wasmtime50-cranelift fuel=true epoch=false compile_ms 51.47 run_ms 1.68
+1080p scalar wasmtime50-cranelift fuel=false epoch=true compile_ms 40.03 run_ms 1.29
+1080p scalar wasmtime50-winch fuel=false epoch=false compile_ms 6.63 run_ms 3.64
+1080p scalar wasmtime50-winch fuel=true epoch=false compile_ms 6.90 run_ms 4.04
+1080p scalar wasmtime50-winch fuel=false epoch=true compile_ms 6.40 run_ms 3.76
+1080p simd128 wasmi2-tailcall fuel=true compile_ms 0.42 run_ms 9.52
+1080p simd128 wasmi2-tailcall fuel=false compile_ms 0.37 run_ms 9.07
+1080p simd128 wasmtime50-cranelift fuel=false epoch=false compile_ms 34.11 run_ms 0.89
+1080p simd128 wasmtime50-cranelift fuel=true epoch=false compile_ms 49.25 run_ms 1.67
+1080p simd128 wasmtime50-cranelift fuel=false epoch=true compile_ms 40.24 run_ms 1.28
+1080p simd128 wasmtime50-winch fuel=false epoch=false compile_ms 6.49 run_ms 3.84
+1080p simd128 wasmtime50-winch fuel=true epoch=false compile_ms 7.32 run_ms 4.06
+1080p simd128 wasmtime50-winch fuel=false epoch=true compile_ms 6.74 run_ms 3.75
+4K scalar wasmi2-tailcall fuel=true compile_ms 0.37 run_ms 35.89
+4K scalar wasmi2-tailcall fuel=false compile_ms 0.38 run_ms 36.61
+4K scalar wasmtime50-cranelift fuel=false epoch=false compile_ms 34.06 run_ms 3.58
+4K scalar wasmtime50-cranelift fuel=true epoch=false compile_ms 49.35 run_ms 6.57
+4K scalar wasmtime50-cranelift fuel=false epoch=true compile_ms 40.08 run_ms 5.07
+4K scalar wasmtime50-winch fuel=false epoch=false compile_ms 6.77 run_ms 14.72
+4K scalar wasmtime50-winch fuel=true epoch=false compile_ms 6.96 run_ms 16.25
+4K scalar wasmtime50-winch fuel=false epoch=true compile_ms 6.73 run_ms 15.10
+4K simd128 wasmi2-tailcall fuel=true compile_ms 0.40 run_ms 36.51
+4K simd128 wasmi2-tailcall fuel=false compile_ms 0.40 run_ms 35.77
+4K simd128 wasmtime50-cranelift fuel=false epoch=false compile_ms 35.69 run_ms 3.69
+4K simd128 wasmtime50-cranelift fuel=true epoch=false compile_ms 50.07 run_ms 6.64
+4K simd128 wasmtime50-cranelift fuel=false epoch=true compile_ms 39.94 run_ms 5.07
+4K simd128 wasmtime50-winch fuel=false epoch=false compile_ms 6.59 run_ms 14.63
+4K simd128 wasmtime50-winch fuel=true epoch=false compile_ms 6.99 run_ms 16.69
+4K simd128 wasmtime50-winch fuel=false epoch=true compile_ms 21.92 run_ms 15.60

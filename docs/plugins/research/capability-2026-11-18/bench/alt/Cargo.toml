@@ -1,0 +1,11 @@
+[package]
+name = "bench-alt"
+version = "0.1.0"
+edition = "2024"
+[dependencies]
+wasmi = { version = "2", features = ["simd"] }
+wasmtime = { version = "50", default-features = false, features = ["cranelift", "winch", "runtime", "std"] }
+serde_json = "1"
+[profile.release]
+opt-level = 3
+[workspace]

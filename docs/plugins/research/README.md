@@ -8,6 +8,12 @@ Later user choices and the requested complete architecture now live in [the curr
 
 Start with [the reconciled design](design.md), then [the ordered decisions](decisions.md). The main recommendation is to preserve exact release identity and user choices, apply one eligibility policy at every entry point, and keep running jobs' bytes/resources alive through updates. Finish the existing PhotoCraft slice, then prove the expanded functional model with EffectCraft followed by FigCraft.
 
+## Capability program, 2026-11-18
+
+[The capability program](capability-program-2026-11-18.md) is the current plan for widening what
+plugins can do across the creative apps. Its detailed reports and benchmark sources are in
+[capability-2026-11-18/](capability-2026-11-18/).
+
 ## Reading map
 
 | Document | Purpose |

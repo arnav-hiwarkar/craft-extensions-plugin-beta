@@ -1,0 +1,20 @@
+native_bright_1080p_ms(incl clone) 2.05 clone_only 0.99
+plugin_load_compile_ms 0.93
+filter_instantiate_ms 0.16
+wasmi_platform_filter_run_e2e_1080p_ms 52.00
+raw_wasmi_portable_fuel_1080p_ms 42.11
+raw_wasmi_portable_nofuel_1080p_ms 37.93
+simd_module_load_platform: Some(Load("SIMD support is not enabled (at offset 0x2c0)"))
+session_calls n=1 event_ms 0.021 per_call_us 20.79 calls_per_sec 48095
+session_calls n=1000 event_ms 10.455 per_call_us 10.46 calls_per_sec 95645
+session_calls n=10000 event_ms 104.830 per_call_us 10.48 calls_per_sec 95393
+session_30000_calls_one_event: Some(TooSlow)
+session_empty_event_ms 0.008
+native_json_roundtrip_us 0.574
+kernel 1080p blur_r20_ms 13.71 blur_r5_ms 9.24 blend_overlay_ms 4.92 blend_normal_ms 4.61 (clone of one image 0.62)
+wasm_filter_calling_kernel_blur_r20 1080p e2e_ms 28.36
+wasm_filter_bright 1080p e2e_ms 52.35
+kernel 4K blur_r20_ms 67.40 blur_r5_ms 37.13 blend_overlay_ms 19.62 blend_normal_ms 18.23 (clone of one image 2.48)
+wasm_filter_calling_kernel_blur_r20 4K e2e_ms 127.88
+wasm_filter_bright 4K e2e_ms 213.83
+threads Ok(10)
