@@ -8,7 +8,7 @@ Format: **Decision**, then the recommendation, the main alternative, and what it
 
 ## Before P1: metadata and one runtime
 
-**1. Plugins call both a shared vocabulary and every classified app command, behind one gate.**
+**1. DECIDED 2026-11-18: plugins call both a shared vocabulary and every classified app command, behind one gate.**
 Recommended: canonical ops plus the registry bridge (`app.run`), with permissions derived from
 mandatory command metadata. Alternatives: only hand-written SDK ops (today: 4–11% reach), or raw
 native commands (unsafe: nothing declares its effects). Cost: about 7,200 metadata declarations,
@@ -24,7 +24,7 @@ the command declares its effects. Alternative: expose with a coarse permission (
 **4. Who reviews permission widenings.** Recommended: one named security owner via CODEOWNERS on
 every `api.lock.json` and `api-widening.log`, with the app owner second. Needed: a name.
 
-**5. Implicit grants for explicit user actions.** Recommended: when the user runs a plugin's
+**5. DECIDED 2026-11-18: every permission is approved once at setup; nothing is granted implicitly.** The owner chose setup approval over the recommended implicit grants. Selection writes, clipboard and opening links still work only in events the user invoked. Original recommendation, not adopted: when the user runs a plugin's
 command, selection-scoped read and edit, selection changes, clipboard write and opening a link count
 as granted for that one event, with no prompt. Background, automatic, agent and service runs never
 get them. Alternative: always prompt (permission fatigue; the Chrome `activeTab` lesson).
@@ -48,7 +48,7 @@ to declared hosts. Alternative: allow per command (covert exfiltration through a
 
 ## Before P2: isolation and UI
 
-**10. Compiled plugin code runs only in a sandboxed worker process, one per package version.**
+**10. DECIDED 2026-11-18: compiled plugin code runs only in a sandboxed worker process, one per package version.**
 Recommended by security and the reconciliation: Cranelift bugs exist (one CVSS 9.9 in 2023), and an
 in-process abort loses the user's unsaved work. Cost: 6–10 weeks of transport and per-OS confinement
 work, plus an IPC hop per call (target ≤5 µs, unmeasured). The core API is batch-shaped to absorb it.
@@ -68,8 +68,9 @@ Winch, Pulley or in-browser engine until a web or iOS plugin target exists.
 
 **13. Authorize plugin work on the eight new `plugin-beta` branches.** AniCraft, FilmCraft,
 VectorCraft, LightCraft, DesignCraft, TextureCraft, MaterialCraft and SoundCraft are now private repos
-on GitHub and Forgejo, at upstream `main` from 2026-11-18. Also decide whether these repos should be
-public like the first six (free macOS CI runners) or stay private.
+on GitHub and Forgejo, at upstream `main` from 2026-11-18. DECIDED 2026-11-18: the nine GitHub forks (including craft-libs)
+are public, like the first six; their Forgejo copies stay private. They held only upstream commits when
+made public.
 
 **14. Adapter order.** Recommended: MaterialCraft and TextureCraft, then VectorCraft, AniCraft,
 FilmCraft, LightCraft, DesignCraft; SoundCraft's audio tier runs as its own stream. Alternatives

@@ -325,10 +325,10 @@ This extends `ext-core/src/permission.rs` without renaming anything.
 
 | Permission | Grants | Asked |
 |---|---|---|
-| `document.read:{selection,document,all}` | Reads within scope | Implicit for a user gesture at selection scope; otherwise at setup |
-| `document.edit:{selection,document,all}` | Edits within scope; covers read | Same |
+| `document.read:{selection,document,all}` | Reads within scope | At setup |
+| `document.edit:{selection,document,all}` | Edits within scope; covers read | At setup |
 | `document.create` | New and duplicate documents; closing documents the plugin created | Setup |
-| `selection.write` | Changing the selection | Implied by a user gesture on the plugin's own command; refused in background, automatic, agent and service runs |
+| `selection.write` | Changing the selection | At setup. Works only in events the user invoked; refused in background, automatic, agent and service runs |
 | `app.view` | Viewport, zoom, playhead, active tool, panel visibility | Declared, never prompted. Refused in automatic events without `app.automation` |
 | `app.session` | App state outside the document, not preferences | Setup, low-risk wording |
 | `app.events[:family]` | Subscriptions | Setup ("runs automatically when…") |
@@ -337,7 +337,7 @@ This extends `ext-core/src/permission.rs` without renaming anything.
 | `files.read:picked`, `files.write:picked`, `files.folder:picked` | Portal handles; folder handles persist and are revocable | The picker is the grant |
 | `network:<host>` | `net.fetch` to declared hosts only | One consent per plugin, showing the manifest's reason |
 | `net.local:<port>` | Loopback to a companion app (Verified tier and above). The companion must answer a challenge, and Craft control, MCP and bridge ports are always refused | Setup, at the Online risk level. Owner decision |
-| `clipboard.read`, `clipboard.write` | Clipboard during user gestures | Read: just in time. Write: implicit with a gesture |
+| `clipboard.read`, `clipboard.write` | Clipboard during user gestures | At setup; both work only in events the user invoked |
 | `ui.window` | Floating windows, never modal or always-on-top | Setup |
 | `service:<plugin>/<name>` | Calling another plugin's declared service; the provider runs with its own grants | Setup, showing transitive reach |
 | `media.capture:{audio,video}` | Host-brokered frames | Just in time |
@@ -367,7 +367,7 @@ installs them from the manager; no plugin permission does it.
 | Enforcement on the write set | Scope is checked on what actually changes, not only on parameter ids. Commands that act on "the current selection" have their implicit targets rewritten to explicit ids before they run. Every step's write set must be a subset of the captured scope plus created objects, or the transaction rolls back. This stops `select.all` followed by an implicit-target edit. Out-of-scope ids return the same error as absent ones. CPU and GPU views are cropped to scope |
 | Document scope | The document the event targets, not whichever is active when a call arrives |
 | Object references | A parameter referencing an object (`Layer`, `Mask`, `Path`, `File`) grants read access to that object only |
-| Gesture grants | When the user explicitly runs a plugin command, `document.*:selection`, `selection.write`, `clipboard.write` and `ui.open_url` count as granted for that event. Background, automatic, agent and service runs never get them. Only hardware input mints a gesture: input carries its origin, and MCP `press_key`, `answer_dialog` or UI-click automation runs the plugin as the agent principal |
+| Setup grants and gestures | Every permission, selection scope included, is listed and approved once when the plugin is enabled (owner decision 5). No permission is granted implicitly. `selection.write`, clipboard and `ui.open_url` additionally work only in events the user invoked. Only hardware input makes an event user-invoked: input carries its origin, and MCP `press_key`, `answer_dialog` or UI-click automation runs the plugin as the agent principal |
 | Trust UI input | Consent, just-in-time, install, native and widening sheets ignore automation input entirely |
 | Handles | Read-only document handles can be lent to services. Job handles hold read snapshots. File and folder handles come only from portals. All handles die with their scope |
 | Revocation | Takes effect mid-event: the next call fails |
@@ -379,7 +379,7 @@ Verified, Community, Local, Dev) is shown beside the level, never merged with it
 
 | Level | Label | Condition |
 |---|---|---|
-| L0 | Works on what you select | Selection scope, user-invoked, no events, no network |
+| L0 | Works on what you select | Selection scope only, no events, no network |
 | L1 | Works with your documents | Document scope, events, automation, hooks and interception, input filters, tool replacement, clipboard read, folders |
 | L2 | Online | Any `network:` or `net.local:`. The sentence names the hosts, and says whether the plugin also reads documents |
 | L3 | Native, confined | Native restricted helper |
