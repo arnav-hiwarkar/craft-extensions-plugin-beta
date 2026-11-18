@@ -1,0 +1,12 @@
+docs/plugins/beta-only/
+docs/plugins/architecture-2026-11-18/
+docs/plugins/research/capability-program-2026-11-18.md
+docs/plugins/research/capability-2026-11-18/
+docs/plugins/research/ecosystem-research-2026-11-17.md
+docs/plugins/research/framework-guide-2026-11-17.md
+docs/plugins/research/gap-audit-2026-11-17.md
+docs/plugins/program-2026-11-17.md
+docs/plugins/program-trail.tsv
+docs/plugins/continuation-2026-11-17.md
+docs/plugins/continuation-revisions-2026-11-17.json
+docs/plugins/upstream-integration-2026-11-17.md

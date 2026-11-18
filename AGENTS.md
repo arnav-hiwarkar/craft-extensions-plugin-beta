@@ -1,5 +1,12 @@
 # Plugin platform contributor instructions
 
+## Owner instructions (beta only)
+
+Before any plugin work, read [docs/plugins/beta-only/owner-instructions.md](docs/plugins/beta-only/owner-instructions.md).
+It holds the owner's standing goals, the no-deferral rule, the security posture, the order of work and
+the git and CI rules. It is stripped before upstream merges, with every path in
+`docs/plugins/beta-only/UPSTREAM-EXCLUDE.txt`, including this section.
+
 ## Suite plugin replacement policy
 
 When changing plugin implementations, app UI integration, lifecycle flows or merging
