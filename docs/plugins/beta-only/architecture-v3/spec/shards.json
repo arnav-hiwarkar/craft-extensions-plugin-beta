@@ -1,0 +1,60 @@
+{
+  "text_budget_chars": {
+    "core": 60000,
+    "ui": 45000,
+    "data": 45000,
+    "sec": 60000,
+    "ec-render": 60000,
+    "ec-motion": 45000,
+    "pc-pixel": 45000,
+    "pc-doc": 45000,
+    "fc": 60000,
+    "plan": 45000
+  },
+  "shards": [
+    {
+      "id": "core",
+      "lens": "packages, manifests, lifecycle, runtime, gate, transactions, undo, events, jobs, command metadata, bridge to every app command, hard cut of legacy systems"
+    },
+    {
+      "id": "ui",
+      "lens": "windows, docking panels, menus, tools, overlays, web windows, canvas UI, input, behaviour hooks, UI parity with incumbent panels"
+    },
+    {
+      "id": "data",
+      "lens": "worker process, engines, ABI, data plane, GPU sharing, performance budgets, crash isolation, memory, scheduling"
+    },
+    {
+      "id": "sec",
+      "lens": "permission vocabulary, contexts, risk levels, consent and setup sheet, third-party notice, brokers, sandbox, enforcement points, no plugin network"
+    },
+    {
+      "id": "ec-render",
+      "lens": "EffectCraft effects, raster.filter, SmartFX-class, GPU effects, 3D renderers, sim caches, transitions, generators, IO and multichannel EXR"
+    },
+    {
+      "id": "ec-motion",
+      "lens": "EffectCraft expressions, keyframes, easing, rigging, presets, audio reactivity, tracking, scripting and panels"
+    },
+    {
+      "id": "pc-pixel",
+      "lens": "PhotoCraft filters, adjustment layers, smart filters, pixel data plane, AI enhancers, colour, 8bf hosting"
+    },
+    {
+      "id": "pc-doc",
+      "lens": "PhotoCraft document model ops, layers, masks, selections, text, paths, paint and brush engines, actions, UXP-class panels"
+    },
+    {
+      "id": "fc",
+      "lens": "FigCraft node model, components, variables, widgets, codegen, dev mode, plugin data, events, live collaboration writes"
+    },
+    {
+      "id": "plan",
+      "lens": "workstreams, milestones, component dependency structure, flagship plugin acceptance, owner decisions, CI hardware"
+    }
+  ],
+  "integration": {
+    "id": "integration",
+    "lens": "cross-shard consistency of interfaces: components, contracts, permissions, decisions, workstreams; behaviour living in one place across apps"
+  }
+}

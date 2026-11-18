@@ -58,6 +58,9 @@ Recorded 2026-11-18. The newest instruction wins where two conflict.
   - how they are managed.
 
   Only after that, build.
+- **Work autonomously through architecture and design loops.** Use as many agents and subagents as
+  the work needs. Make senior-engineer decisions without asking the owner until the design plans are
+  done. Don't hold back good, needed features; build them.
 - **Split the build into parallel workstreams.** For example:
   - app changes and adapters;
   - the common platform;
@@ -143,6 +146,10 @@ the network on the host side.
 
 The no-deferral rule above overrides any "deferred", "later" or "not now" in earlier planning
 documents. Those items are in scope.
+
+## Current architecture
+
+The reviewed architecture is [architecture-v3/](architecture-v3/README.md). Build from it.
 
 ## Documents that never go upstream
 

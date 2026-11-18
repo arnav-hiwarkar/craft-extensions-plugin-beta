@@ -1,0 +1,1129 @@
+{
+ "entities": 3998,
+ "errors": 1,
+ "warnings": 185,
+ "by_rule": {
+  "C03": 1
+ },
+ "doc_words": null,
+ "error_list": [
+  {
+   "rule": "C03",
+   "id": "core",
+   "area": "core",
+   "msg": "area text 259169 chars over budget 60000"
+  }
+ ],
+ "warning_list": [
+  {
+   "rule": "C09",
+   "id": "CAP-COM-author-tooling-debug",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-budget-single-table",
+   "area": "data",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-budgets-accounts-rails",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-cli-plugin-management",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-companion-controller-class",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-compat-mirror",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-confinement-per-os",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-contribution-row-decoration",
+   "area": "ui",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-contribution-start-card",
+   "area": "ui",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-contribution-status",
+   "area": "ui",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-debug-js-dap",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-debug-replay-log",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-debug-this-plugin",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-debug-ui-tree",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-debug-wasm",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-determinism-derived",
+   "area": "data",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-dev-console",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-device-loss-recovery-v2",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-engine-common-config",
+   "area": "data",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-everything-is-charged",
+   "area": "data",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-eviction-ladder",
+   "area": "data",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-full-mode-residual-table",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-gpu-background-share",
+   "area": "data",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-gpu-ci-runners",
+   "area": "data",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-gpu-derived-needs",
+   "area": "data",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-gpu-errors-stay-attributed",
+   "area": "data",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-gpu-l3-rules",
+   "area": "data",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-gpu-l3-validator",
+   "area": "data",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-gpu-loss-recovery-cross-process",
+   "area": "data",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-gpu-open-feature-list",
+   "area": "data",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-gpu-probation",
+   "area": "data",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-gpu-validation-pipeline",
+   "area": "data",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-gpu-watchdog-and-journal",
+   "area": "data",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-hook-bypass",
+   "area": "ui",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-ios-wasmi-builds",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-localisation",
+   "area": "ui",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-mockhost-simulate",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-model-weights-reclaimable",
+   "area": "data",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-one-ladder-implementation",
+   "area": "data",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-plugin-gpu-state-across-loss",
+   "area": "data",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-plugin-manager",
+   "area": "ui",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-qos-per-call-class",
+   "area": "data",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-quickjs-wasm-engine",
+   "area": "data",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-sandbox-self-test-fail-closed",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-sdk-assemblyscript",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-sdk-bindgen-check",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-sdk-c",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-sdk-docs",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-sdk-gpu-persistent",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-sdk-languages",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-sdk-mcp",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-sdk-native",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-sdk-state",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-sdk-text",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-sdk-ts-js",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-sdk-typed-errors",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-sdk-zig",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-suite-ledger",
+   "area": "data",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-surface-edit-keys",
+   "area": "ui",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-surface-popover",
+   "area": "ui",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-t6-camera-mic",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-t6-devtools",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-t6-gpu",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-t6-process-model",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-t6-visible-chrome",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-t6-web-builds",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-tool-bench",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-tool-build",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-tool-dev",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-tool-doctor",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-tool-lint",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-tool-lint-docs",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-tool-migrate",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-tool-new",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-tool-pack-sign-submit",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-tool-replay",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-tool-run",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-tool-test",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-tuf-provenance-revocation",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-ui-additive-fallback",
+   "area": "ui",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-ui-bindings-live-controls",
+   "area": "ui",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-ui-dynamic-overlays",
+   "area": "ui",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-ui-hdr-viewer",
+   "area": "ui",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-ui-text-field-regions",
+   "area": "ui",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-web-worker-backend",
+   "area": "data",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-COM-windows-pre-1703-refused",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-EC-former-refusal-routes",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-EC-import-legacy-module",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-EC-reach-ai-model",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-EC-reach-clipboard",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-EC-reach-document-edit",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-EC-reach-network",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-EC-reach-plugin-management",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-EC-reach-preferences",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-EC-reach-process-os",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-EC-reach-query",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-EC-reach-selection-view",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-EC-reach-window-ui",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-EC-route-app-scripts",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-EC-route-journal-export",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-EC-route-plugins-data",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-EC-route-ui-open-url",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-FC-compat-live-write-request",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-FC-dock-host-framework-swap",
+   "area": "ui",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-FC-gpu-tier-l3",
+   "area": "data",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-FC-gpu-tier-l4a",
+   "area": "data",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-FC-gpu-tier-l4c",
+   "area": "data",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-FC-kind-contexts-note",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-FC-residual-path-disclosure",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-FC-sdk-cx-doc-live",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-PC-api-lock-output",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-PC-brush-gpu-replay",
+   "area": "data",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-PC-brush-gpu-schedule",
+   "area": "data",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-PC-brush-paged-state",
+   "area": "data",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-PC-event-app-idle",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-PC-event-follow-up-automation",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-PC-event-view-changed",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-PC-generator-import",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-PC-gpu-device-loss",
+   "area": "data",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-PC-meta-class-app-state-prefs",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-PC-meta-class-clipboard",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-PC-meta-class-document-edit",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-PC-meta-class-file-system",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-PC-meta-class-plugin-mgmt",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-PC-meta-class-process-os",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-PC-meta-class-query",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-PC-meta-class-selection-view-state",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-PC-meta-class-shell-commands",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-PC-meta-class-undo-history",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-PC-meta-class-window-ui-layout",
+   "area": "core",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-PC-plugin-self-service-paths",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-PC-plugin-written-scripts-taint",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-PC-print-sink",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-PC-pshost-macos-sandbox",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-PC-pshost-windows-confinement",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-PC-pshost-windows-files-dialogs",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-PC-purge-sheet-rules",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-PC-runner-doc-for-non-const",
+   "area": "data",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-PC-web-build",
+   "area": "data",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-SEC-clipboard-monitor",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-SEC-devices-capture-system",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-SEC-full-linux-dbus-allowlist",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-SEC-full-linux-landlock-writes",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-SEC-full-linux-profile",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-SEC-full-macos-profile",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-SEC-full-windows-appcontainer",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-SEC-full-windows-unconfined",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-SEC-gpu-compile-timing-direct",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-SEC-gpu-timing",
+   "area": "data",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-SEC-input-monitoring",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-SEC-linux-bubblewrap-optional",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-SEC-linux-bundle-children",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-SEC-linux-flatpak",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-SEC-linux-native-ui-wayland",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-SEC-linux-native-ui-x11-untrusted",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-SEC-linux-no-landlock",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-SEC-linux-restricted-landlock-seccomp",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-SEC-local-device-endpoints",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-SEC-macos-bundle-children",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-SEC-macos-daemon-rows",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-SEC-macos-native-host-signing",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-SEC-macos-native-ui-pasteboard",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-SEC-macos-native-ui-profile",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-SEC-macos-restricted-sbpl",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-SEC-macos-tcc-disclaim",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-SEC-macos-web-nav-cancel",
+   "area": "ui",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-SEC-macos-worker-xpc",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-SEC-native-gpu",
+   "area": "data",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-SEC-native-ui-helpers",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-SEC-permission-request",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-SEC-restricted-ui-gpu",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-SEC-save-hooks-findings",
+   "area": "ui",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-SEC-suite-handoff",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-SEC-sync-state-badges",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-SEC-web-webrtc-blocked-builds",
+   "area": "ui",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-SEC-wfp-appid-acls",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-SEC-wfp-install",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-SEC-wfp-launch-token",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-SEC-windows-bundle-children",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-SEC-windows-lpac-worker",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-SEC-windows-native-ui-gpu",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-SEC-windows-native-ui-lpac",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-SEC-windows-sandbox-tuf-wfp",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-SEC-windows-web-appcontainer",
+   "area": "ui",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  },
+  {
+   "rule": "C09",
+   "id": "CAP-SEC-windows-wfp-backstop",
+   "area": "sec",
+   "msg": "capability not traced from any incumbent row, API row, requirement, flagship or scenario"
+  }
+ ]
+}

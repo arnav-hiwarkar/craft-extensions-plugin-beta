@@ -1,0 +1,495 @@
+{
+  "id_pattern": "^(REQ|API|INC|CAP|OP|PERM|CON|CMP|DEC|TST|QAS|FLG|WS|TERM)-(COM|SEC|EC|PC|FC|AE|PS|FG)-[a-z0-9][a-z0-9._@:/+-]{0,63}$",
+  "areas": [
+    "core",
+    "ui",
+    "data",
+    "sec",
+    "ec-render",
+    "ec-motion",
+    "pc-pixel",
+    "pc-doc",
+    "fc",
+    "plan"
+  ],
+  "status": [
+    "spec",
+    "decided",
+    "open-owner",
+    "proposed",
+    "retired"
+  ],
+  "caps": {
+    "title": 90,
+    "name": 80,
+    "stmt": 420,
+    "detail": 1400,
+    "measure": 300,
+    "budget": 200,
+    "choice": 300,
+    "rationale": 500,
+    "def": 300,
+    "stimulus": 200,
+    "response": 200,
+    "sig": 300,
+    "evidence": 300
+  },
+  "list_caps": {
+    "props": 8,
+    "options": 5,
+    "src": 12,
+    "alias": 12,
+    "banned": 8,
+    "contexts": 12
+  },
+  "item_cap": 300,
+  "common_required": [
+    "id",
+    "title",
+    "area",
+    "status"
+  ],
+  "kinds": {
+    "REQ": {
+      "file": "req.jsonl",
+      "required": [
+        "stmt"
+      ],
+      "refs": {
+        "verified_by": [
+          "QAS",
+          "TST"
+        ]
+      },
+      "nonempty": [
+        "verified_by"
+      ]
+    },
+    "API": {
+      "file": "api.jsonl",
+      "required": [
+        "stmt",
+        "evidence"
+      ],
+      "refs": {
+        "caps": [
+          "CAP"
+        ],
+        "decisions": [
+          "DEC"
+        ]
+      },
+      "nonempty": [
+        "caps"
+      ]
+    },
+    "INC": {
+      "file": "inc.jsonl",
+      "required": [
+        "stmt",
+        "evidence",
+        "rank"
+      ],
+      "refs": {
+        "uses_api": [
+          "API"
+        ],
+        "caps": [
+          "CAP"
+        ],
+        "flagship": [
+          "FLG"
+        ],
+        "decisions": [
+          "DEC"
+        ]
+      },
+      "nonempty_any": [
+        [
+          "uses_api",
+          "caps"
+        ]
+      ]
+    },
+    "CAP": {
+      "file": "cap.jsonl",
+      "required": [
+        "stmt"
+      ],
+      "refs": {
+        "via": [
+          "OP",
+          "CON",
+          "PERM",
+          "CMP"
+        ],
+        "tests": [
+          "TST"
+        ],
+        "decisions": [
+          "DEC"
+        ]
+      },
+      "nonempty": [
+        "via",
+        "tests"
+      ],
+      "justified_by": [
+        "INC",
+        "API",
+        "REQ",
+        "FLG",
+        "QAS"
+      ]
+    },
+    "OP": {
+      "file": "op.jsonl",
+      "required": [
+        "name",
+        "sig"
+      ],
+      "refs": {
+        "perms": [
+          "PERM"
+        ],
+        "cmp": [
+          "CMP"
+        ],
+        "tests": [
+          "TST"
+        ],
+        "decisions": [
+          "DEC"
+        ]
+      },
+      "nonempty": [
+        "perms",
+        "cmp"
+      ]
+    },
+    "PERM": {
+      "file": "perm.jsonl",
+      "required": [
+        "name",
+        "risk",
+        "stmt"
+      ],
+      "refs": {
+        "cmp": [
+          "CMP"
+        ],
+        "tests": [
+          "TST"
+        ],
+        "decisions": [
+          "DEC"
+        ]
+      },
+      "nonempty": [
+        "tests"
+      ],
+      "enums": {
+        "risk": [
+          "L0",
+          "L1",
+          "L2",
+          "L3",
+          "L4",
+          "never"
+        ]
+      }
+    },
+    "CON": {
+      "file": "con.jsonl",
+      "required": [
+        "name",
+        "stmt",
+        "props",
+        "budget"
+      ],
+      "refs": {
+        "cmp": [
+          "CMP"
+        ],
+        "tests": [
+          "TST"
+        ],
+        "decisions": [
+          "DEC"
+        ]
+      },
+      "nonempty": [
+        "cmp",
+        "tests",
+        "props"
+      ]
+    },
+    "CMP": {
+      "file": "cmp.jsonl",
+      "required": [
+        "stmt",
+        "repo",
+        "layer"
+      ],
+      "refs": {
+        "deps": [
+          "CMP"
+        ],
+        "ws": [
+          "WS"
+        ],
+        "decisions": [
+          "DEC"
+        ]
+      },
+      "nonempty": [
+        "ws"
+      ],
+      "enums": {
+        "layer": [
+          "libs",
+          "platform",
+          "sdk",
+          "adapter",
+          "app",
+          "tool",
+          "plugin"
+        ]
+      }
+    },
+    "DEC": {
+      "file": "dec.jsonl",
+      "required": [
+        "stmt",
+        "choice",
+        "rationale"
+      ],
+      "refs": {
+        "affects": [
+          "REQ",
+          "CAP",
+          "OP",
+          "PERM",
+          "CON",
+          "CMP",
+          "TST",
+          "QAS",
+          "FLG",
+          "WS"
+        ]
+      },
+      "nonempty": [
+        "affects"
+      ]
+    },
+    "TST": {
+      "file": "tst.jsonl",
+      "required": [
+        "kind",
+        "measure"
+      ],
+      "refs": {
+        "verifies": [
+          "REQ",
+          "CAP",
+          "OP",
+          "PERM",
+          "CON",
+          "CMP",
+          "QAS",
+          "FLG"
+        ]
+      },
+      "nonempty": [
+        "verifies"
+      ],
+      "enums": {
+        "kind": [
+          "unit",
+          "prop",
+          "integ",
+          "bench",
+          "fuzz",
+          "chaos",
+          "ui",
+          "flagship",
+          "golden"
+        ]
+      }
+    },
+    "QAS": {
+      "file": "qas.jsonl",
+      "required": [
+        "attr",
+        "stimulus",
+        "response",
+        "measure"
+      ],
+      "refs": {
+        "reqs": [
+          "REQ"
+        ],
+        "tests": [
+          "TST"
+        ],
+        "cmp": [
+          "CMP"
+        ]
+      },
+      "nonempty": [
+        "reqs",
+        "tests"
+      ],
+      "enums": {
+        "attr": [
+          "performance",
+          "availability",
+          "security",
+          "modifiability",
+          "usability",
+          "compatibility"
+        ]
+      }
+    },
+    "FLG": {
+      "file": "flg.jsonl",
+      "required": [
+        "stmt",
+        "milestone"
+      ],
+      "refs": {
+        "incumbents": [
+          "INC"
+        ],
+        "caps": [
+          "CAP"
+        ],
+        "tests": [
+          "TST"
+        ],
+        "ws": [
+          "WS"
+        ]
+      },
+      "nonempty": [
+        "incumbents",
+        "caps",
+        "tests",
+        "ws"
+      ]
+    },
+    "WS": {
+      "file": "ws.jsonl",
+      "required": [
+        "stmt",
+        "milestone"
+      ],
+      "refs": {
+        "deps": [
+          "WS"
+        ]
+      },
+      "nonempty": []
+    },
+    "TERM": {
+      "file": "term.jsonl",
+      "required": [
+        "def"
+      ],
+      "refs": {},
+      "nonempty": []
+    }
+  },
+  "layer_order": [
+    "libs",
+    "platform",
+    "sdk",
+    "adapter",
+    "app",
+    "tool",
+    "plugin"
+  ],
+  "owner_rule_decisions": {
+    "network": "DEC-COM-no-plugin-network"
+  },
+  "banned_text": [
+    "\\bdefer(red|ral|s)?\\b",
+    "\\blater (phase|release|version|milestone)\\b",
+    "\\bfuture work\\b",
+    "\\bTBD\\b",
+    "\\bTODO\\b",
+    "\\bnot (yet|now) (supported|built|implemented)\\b",
+    "\\bout of scope\\b",
+    "\\bpost-(beta|v1|launch)\\b",
+    "\\bnice to have\\b",
+    "\\bstretch goal\\b",
+    "\\bv3 will\\b"
+  ],
+  "banned_allow_ids": [
+    "^DEC-COM-no-plugin-network$",
+    "no-deferral"
+  ],
+  "network_text": "\\bnet\\.(fetch|local)\\b|\\bnetwork:[a-z*]|\\boauth\\b|\\bplugin secrets?\\b|\\bremote content\\b|\\bmodel downloads?\\b",
+  "network_perm_name": "^(net\\.|network:|secrets?\\.|oauth)",
+  "deliverables": {
+    "architecture.md": {
+      "max_words": 8000,
+      "min_words": 5000,
+      "headings": [
+        "The system in one page",
+        "Layers and components",
+        "Runtime and the gate",
+        "Worker, engines and data plane",
+        "Permissions and trust",
+        "UI extensibility",
+        "Per-app adapters",
+        "Quality attributes",
+        "Decisions"
+      ]
+    },
+    "how-plugins-work.md": {
+      "max_words": 6500,
+      "min_words": 4000,
+      "headings": [
+        "From install to first use",
+        "What happens on every call",
+        "EffectCraft",
+        "PhotoCraft",
+        "FigCraft",
+        "How plugins are managed",
+        "When things go wrong",
+        "What plugins cannot do in this build"
+      ]
+    },
+    "workstreams.md": {
+      "max_words": 2500,
+      "min_words": 800,
+      "headings": [
+        "Threads",
+        "Dependency structure",
+        "Milestones"
+      ]
+    },
+    "flagships.md": {
+      "max_words": 4000,
+      "min_words": 1500,
+      "headings": [
+        "EffectCraft",
+        "PhotoCraft",
+        "FigCraft"
+      ]
+    },
+    "decisions.md": {
+      "max_words": 1800,
+      "min_words": 300,
+      "headings": [
+        "Open: needs the owner",
+        "Decided"
+      ]
+    }
+  },
+  "total_words": {
+    "min": 15000,
+    "max": 25000
+  }
+}
